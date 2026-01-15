@@ -1,6 +1,6 @@
 ### A Umalator fork of https://github.com/kachi-dev/uma-tools.
 
-## Syncing with upstream repo for updates 
+## Commands for syncing with upstream repo for updates:
 
 To fetch updates from the original repo:
 git fetch upstream  
