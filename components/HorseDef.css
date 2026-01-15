@@ -221,6 +221,15 @@
 	transform: translateY(-1px);
 }
 
+.profileButtons {
+	position: absolute;
+	bottom: 48px;
+	right: 25px;
+	display: flex;
+	gap: 8px;
+	z-index: 10;
+}
+
 .resetButtons {
 	position: absolute;
 	bottom: 8px;
@@ -561,4 +570,213 @@
 .skillProcDataContent {
 	padding: 16px;
 	position: relative;
+}
+
+/* Uma Profile Manager Styles */
+.umaProfileManagerOverlay {
+	background: rgba(25, 25, 25, 0.6);
+	display: block;
+	height: 100%;
+	left: 0;
+	position: fixed;
+	top: 0;
+	width: 100%;
+	z-index: 30;
+}
+
+.umaProfileManagerDialog {
+	background: white;
+	border: 2px solid rgb(170, 221, 154);
+	border-radius: 12px;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+	display: flex;
+	flex-direction: column;
+	left: 50%;
+	max-height: 90vh;
+	max-width: 90vw;
+	overflow-y: auto;
+	position: fixed;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	width: 600px;
+	z-index: 31;
+}
+
+.umaProfileManagerDialog:focus {
+	outline: none;
+}
+
+.umaProfileManagerHeader {
+	background: linear-gradient(rgb(153, 219, 68), rgb(112, 190, 18));
+	border-bottom: 2px solid rgb(170, 221, 154);
+	border-radius: 10px 10px 0 0;
+	color: white;
+	display: flex;
+	font-weight: bold;
+	justify-content: space-between;
+	padding: 12px 16px;
+}
+
+.umaProfileManagerHeader h3 {
+	margin: 0;
+	font-size: 1.2em;
+}
+
+.umaProfileManagerClose {
+	background: transparent;
+	border: none;
+	color: white;
+	cursor: pointer;
+	font-size: 1.5em;
+	font-weight: bold;
+	line-height: 1;
+	padding: 0;
+	width: 24px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: opacity 0.2s;
+}
+
+.umaProfileManagerClose:hover {
+	opacity: 0.7;
+}
+
+.umaProfileManagerContent {
+	padding: 16px;
+}
+
+.umaProfileManagerActions {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-bottom: 16px;
+}
+
+.umaProfileManagerSaveButton {
+	background: linear-gradient(rgb(168, 227, 5), rgb(97, 174, 22)) padding-box, linear-gradient(rgb(173, 219, 60), rgb(85, 143, 24)) border-box;
+	border: 2px solid transparent;
+	border-radius: 20px;
+	box-shadow: 0px 2px 0 rgb(180,178,192);
+	box-sizing: border-box;
+	color: white;
+	cursor: pointer;
+	font-size: 0.9em;
+	font-weight: bold;
+	padding: 6px 16px;
+	transition: all 0.2s;
+}
+
+.umaProfileManagerSaveButton:hover {
+	background: linear-gradient(rgb(178, 237, 15), rgb(107, 184, 32)) padding-box, linear-gradient(rgb(183, 229, 70), rgb(95, 153, 34)) border-box;
+	box-shadow: 0px 3px 0 rgb(180,178,192);
+	transform: translateY(-1px);
+}
+
+.umaProfileManagerMessage {
+	color: rgb(97, 174, 22);
+	font-weight: bold;
+	font-size: 0.9em;
+}
+
+.umaProfileManagerEmpty {
+	text-align: center;
+	color: rgb(121, 64, 22);
+	padding: 40px 20px;
+	font-size: 1.1em;
+}
+
+.umaProfileManagerList {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.umaProfileManagerItem {
+	border: 2px solid rgb(224, 214, 204);
+	border-radius: 8px;
+	margin-bottom: 12px;
+	padding: 12px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	background: white;
+	transition: border-color 0.2s;
+}
+
+.umaProfileManagerItem:hover {
+	border-color: rgb(170, 221, 154);
+}
+
+.umaProfileManagerItemMain {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex: 1;
+}
+
+.umaProfileManagerUmaIcon {
+	width: 60px;
+	height: 60px;
+	border-radius: 4px;
+}
+
+.umaProfileManagerItemInfo {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	flex: 1;
+}
+
+.umaProfileManagerItemName {
+	font-weight: bold;
+	font-size: 1.1em;
+	color: rgb(121, 64, 22);
+}
+
+.umaProfileManagerItemUma {
+	color: rgb(121, 64, 22);
+	font-size: 0.95em;
+}
+
+.umaProfileManagerItemTime {
+	color: rgb(121, 64, 22);
+	font-size: 0.85em;
+	opacity: 0.7;
+}
+
+.umaProfileManagerRenameInput {
+	border: 2px solid rgb(170, 221, 154);
+	border-radius: 4px;
+	padding: 4px 8px;
+	font-size: 1.1em;
+	font-weight: bold;
+	color: rgb(121, 64, 22);
+	width: 200px;
+}
+
+.umaProfileManagerItemActions {
+	display: flex;
+	gap: 6px;
+}
+
+.umaProfileManagerActionButton {
+	background: linear-gradient(rgb(168, 227, 5), rgb(97, 174, 22)) padding-box, linear-gradient(rgb(173, 219, 60), rgb(85, 143, 24)) border-box;
+	border: 2px solid transparent;
+	border-radius: 16px;
+	box-shadow: 0px 2px 0 rgb(180,178,192);
+	box-sizing: border-box;
+	color: white;
+	cursor: pointer;
+	font-size: 0.85em;
+	font-weight: bold;
+	padding: 4px 12px;
+	transition: all 0.2s;
+}
+
+.umaProfileManagerActionButton:hover {
+	background: linear-gradient(rgb(178, 237, 15), rgb(107, 184, 32)) padding-box, linear-gradient(rgb(183, 229, 70), rgb(95, 153, 34)) border-box;
+	box-shadow: 0px 3px 0 rgb(180,178,192);
+	transform: translateY(-1px);
 }

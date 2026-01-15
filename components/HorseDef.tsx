@@ -17,6 +17,16 @@ import icons from '../icons.json';
 import skilldata from '../uma-skill-tools/data/skill_data.json';
 import skillmeta from '../skill_meta.json';
 
+import { getAllSavedProfiles, saveUmaProfile, loadUmaProfile, deleteUmaProfile, renameUmaProfile } from '../umalator/app';
+
+// Type for saved profiles (matches the one in app.tsx)
+interface SavedUmaProfile {
+	id: string;
+	name: string;
+	timestamp: number;
+	data: any;
+}
+
 const umaAltIds = Object.keys(umas).flatMap(id => Object.keys(umas[id].outfits));
 const umaNamesForSearch = {};
 umaAltIds.forEach(id => {
@@ -29,9 +39,233 @@ function searchNames(query) {
 	return umaAltIds.filter(oid => umaNamesForSearch[oid].indexOf(q) > -1);
 }
 
+export function UmaProfileManager(props) {
+	const { currentState, onLoad, onClose } = props;
+	const [profiles, setProfiles] = useState<SavedUmaProfile[]>([]);
+	const [renamingId, setRenamingId] = useState<string | null>(null);
+	const [renameValue, setRenameValue] = useState('');
+	const [saveMessage, setSaveMessage] = useState('');
+	const [loading, setLoading] = useState(true);
+
+	// Load profiles on mount - try to load from file
+	useEffect(() => {
+		async function loadProfiles() {
+			setLoading(true);
+			try {
+				// First try localStorage (fast, no prompt)
+				try {
+					const stored = localStorage.getItem('umalator-saved-profiles');
+					if (stored) {
+						const cachedProfiles = JSON.parse(stored);
+						if (cachedProfiles.length > 0) {
+							cachedProfiles.sort((a, b) => b.timestamp - a.timestamp);
+							setProfiles(cachedProfiles);
+							setLoading(false);
+							// Then try to load from file in background to update
+							getAllSavedProfiles().then(allProfiles => {
+								allProfiles.sort((a, b) => b.timestamp - a.timestamp);
+								setProfiles(allProfiles);
+							}).catch(() => {
+								// Ignore errors, keep using cached data
+							});
+							return;
+						}
+					}
+				} catch (e) {
+					// Ignore localStorage errors
+				}
+
+				// If no localStorage data, try to load from file (may prompt)
+				const allProfiles = await getAllSavedProfiles();
+				// Sort by timestamp, newest first
+				allProfiles.sort((a, b) => b.timestamp - a.timestamp);
+				setProfiles(allProfiles);
+			} catch (error) {
+				console.warn('Failed to load profiles:', error);
+				// Try localStorage as final fallback
+				try {
+					const stored = localStorage.getItem('umalator-saved-profiles');
+					if (stored) {
+						const allProfiles = JSON.parse(stored);
+						allProfiles.sort((a, b) => b.timestamp - a.timestamp);
+						setProfiles(allProfiles);
+					}
+				} catch (e) {
+					// Ignore
+				}
+			} finally {
+				setLoading(false);
+			}
+		}
+		loadProfiles();
+	}, []);
+
+	async function refreshProfiles() {
+		try {
+			const allProfiles = await getAllSavedProfiles();
+			// Sort by timestamp, newest first
+			allProfiles.sort((a, b) => b.timestamp - a.timestamp);
+			setProfiles(allProfiles);
+		} catch (error) {
+			console.warn('Failed to refresh profiles:', error);
+		}
+	}
+
+	async function handleSave() {
+		try {
+			const name = prompt('Enter a name for this profile (or leave empty for auto-generated):');
+			if (name === null) return; // User cancelled
+			await saveUmaProfile(currentState, name || undefined);
+			await refreshProfiles();
+			setSaveMessage('Profile saved!');
+			setTimeout(() => setSaveMessage(''), 2000);
+		} catch (error) {
+			alert('Failed to save profile: ' + error.message);
+		}
+	}
+
+	async function handleLoad(profileId: string) {
+		try {
+			const profile = await loadUmaProfile(profileId);
+			if (profile) {
+				onLoad(profile);
+				onClose();
+			} else {
+				alert('Failed to load profile');
+			}
+		} catch (error) {
+			alert('Failed to load profile: ' + error.message);
+		}
+	}
+
+	async function handleDelete(profileId: string) {
+		if (confirm('Are you sure you want to delete this profile?')) {
+			try {
+				await deleteUmaProfile(profileId);
+				await refreshProfiles();
+			} catch (error) {
+				alert('Failed to delete profile: ' + error.message);
+			}
+		}
+	}
+
+	function startRename(profileId: string, currentName: string) {
+		setRenamingId(profileId);
+		setRenameValue(currentName);
+	}
+
+	async function confirmRename(profileId: string) {
+		if (renameValue.trim()) {
+			try {
+				await renameUmaProfile(profileId, renameValue.trim());
+				await refreshProfiles();
+			} catch (error) {
+				alert('Failed to rename profile: ' + error.message);
+			}
+		}
+		setRenamingId(null);
+		setRenameValue('');
+	}
+
+	function cancelRename() {
+		setRenamingId(null);
+		setRenameValue('');
+	}
+
+	function formatTimestamp(timestamp: number): string {
+		const now = Date.now();
+		const diff = now - timestamp;
+		const minutes = Math.floor(diff / 60000);
+		const hours = Math.floor(diff / 3600000);
+		const days = Math.floor(diff / 86400000);
+		
+		if (minutes < 1) return 'Just now';
+		if (minutes < 60) return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+		if (hours < 24) return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+		if (days < 7) return `${days} day${days !== 1 ? 's' : ''} ago`;
+		return new Date(timestamp).toLocaleDateString();
+	}
+
+	return (
+		<>
+			<div class="umaProfileManagerOverlay" onClick={onClose} />
+			<div class="umaProfileManagerDialog">
+				<div class="umaProfileManagerHeader">
+					<h3>Saved Uma Profiles</h3>
+					<button class="umaProfileManagerClose" onClick={onClose}>×</button>
+				</div>
+				<div class="umaProfileManagerContent">
+					<div class="umaProfileManagerActions">
+						<button class="umaProfileManagerSaveButton" onClick={handleSave}>Save Current Profile</button>
+						{saveMessage && <span class="umaProfileManagerMessage">{saveMessage}</span>}
+					</div>
+					{loading ? (
+						<div class="umaProfileManagerEmpty">Loading profiles...</div>
+					) : profiles.length === 0 ? (
+						<div class="umaProfileManagerEmpty">No saved profiles yet. Save a profile to get started!</div>
+					) : (
+						<ul class="umaProfileManagerList">
+							{profiles.map(profile => {
+								const umaData = profile.data;
+								const umaId = umaData.outfitId;
+								const u = umaId && umas[umaId.slice(0,4)];
+								return (
+									<li key={profile.id} class="umaProfileManagerItem">
+										<div class="umaProfileManagerItemMain">
+											{umaId && u && (
+												<img src={icons[umaId]} class="umaProfileManagerUmaIcon" />
+											)}
+											<div class="umaProfileManagerItemInfo">
+												{renamingId === profile.id ? (
+													<input
+														type="text"
+														class="umaProfileManagerRenameInput"
+														value={renameValue}
+														onInput={(e) => setRenameValue(e.currentTarget.value)}
+														onKeyDown={(e) => {
+															if (e.key === 'Enter') confirmRename(profile.id);
+															if (e.key === 'Escape') cancelRename();
+														}}
+														autoFocus
+													/>
+												) : (
+													<div class="umaProfileManagerItemName">{profile.name}</div>
+												)}
+												{umaId && u && (
+													<div class="umaProfileManagerItemUma">{u.outfits[umaId]} {u.name[1]}</div>
+												)}
+												<div class="umaProfileManagerItemTime">{formatTimestamp(profile.timestamp)}</div>
+											</div>
+										</div>
+										<div class="umaProfileManagerItemActions">
+											{renamingId === profile.id ? (
+												<>
+													<button class="umaProfileManagerActionButton" onClick={() => confirmRename(profile.id)}>✓</button>
+													<button class="umaProfileManagerActionButton" onClick={cancelRename}>✗</button>
+												</>
+											) : (
+												<>
+													<button class="umaProfileManagerActionButton" onClick={() => handleLoad(profile.id)} title="Load">Load</button>
+													<button class="umaProfileManagerActionButton" onClick={() => startRename(profile.id, profile.name)} title="Rename">Rename</button>
+													<button class="umaProfileManagerActionButton" onClick={() => handleDelete(profile.id)} title="Delete">Delete</button>
+												</>
+											)}
+										</div>
+									</li>
+								);
+							})}
+						</ul>
+					)}
+				</div>
+			</div>
+		</>
+	);
+}
+
 export function UmaSelector(props) {
 	const randomMob = useMemo(() => `/uma-tools/icons/mob/trained_mob_chr_icon_${8000 + Math.floor(Math.random() * 624)}_000001_01.png`, []);
 	const u = props.value && umas[props.value.slice(0,4)];
+	const [profileManagerOpen, setProfileManagerOpen] = useState(false);
 
 	const input = useRef(null);
 	const suggestionsContainer = useRef(null);
@@ -103,31 +337,60 @@ export function UmaSelector(props) {
 		setOpen(false);
 	}
 
+	async function handleSaveProfile() {
+		try {
+			const name = prompt('Enter a name for this profile (or leave empty for auto-generated):');
+			if (name === null) return; // User cancelled
+			await saveUmaProfile(props.currentState, name || undefined);
+			alert('Profile saved!');
+		} catch (error) {
+			alert('Failed to save profile: ' + error.message);
+		}
+	}
+
 	return (
-		<div class="umaSelector">
-			<div class="umaSelectorIconsBox" onClick={focus}>
-				<img src={props.value ? icons[props.value] : randomMob} />
-				<img src="/uma-tools/icons/utx_ico_umamusume_00.png" />
+		<>
+			<div class="umaSelector">
+				<div class="umaSelectorIconsBox" onClick={focus}>
+					<img src={props.value ? icons[props.value] : randomMob} />
+					<img src="/uma-tools/icons/utx_ico_umamusume_00.png" />
+				</div>
+				<div class="umaEpithet"><span>{props.value && u.outfits[props.value]}</span></div>
+				<div class="profileButtons">
+					{props.currentState && <button className="resetUmaButton" onClick={handleSaveProfile} title="Save current profile">Save</button>}
+					{props.currentState && <button className="resetUmaButton" onClick={() => setProfileManagerOpen(true)} title="Load saved profile">Load</button>}
+				</div>
+				<div class="resetButtons">
+					{props.onReset && <button className="resetUmaButton" onClick={props.onReset} title="Reset this horse to default stats and skills">Reset</button>}
+					{props.onResetAll && <button className="resetUmaButton" onClick={props.onResetAll} title="Reset all horses to default stats and skills">Reset All</button>}
+				</div>
+				<div class="umaSelectWrapper">
+					<input type="text" class="umaSelectInput" value={query.input} tabindex={props.tabindex} onInput={handleInput} onKeyDown={handleKeyDown} onFocus={() => setOpen(true)} onBlur={handleBlur} ref={input} />
+					<ul class={`umaSuggestions ${open ? 'open' : ''}`} onMouseDown={handleClick} ref={suggestionsContainer}>
+						{query.suggestions.map((oid, i) => {
+							const uid = oid.slice(0,4);
+							return (
+								<li key={oid} data-uma-id={oid} class={`umaSuggestion ${i == activeIdx ? 'selected' : ''}`}>
+									<img src={icons[oid]} loading="lazy" /><span>{umas[uid].outfits[oid]} {umas[uid].name[1]}</span>
+								</li>
+							);
+						})}
+					</ul>
+				</div>
 			</div>
-			<div class="umaEpithet"><span>{props.value && u.outfits[props.value]}</span></div>
-			<div class="resetButtons">
-				{props.onReset && <button className="resetUmaButton" onClick={props.onReset} title="Reset this horse to default stats and skills">Reset</button>}
-				{props.onResetAll && <button className="resetUmaButton" onClick={props.onResetAll} title="Reset all horses to default stats and skills">Reset All</button>}
-			</div>
-			<div class="umaSelectWrapper">
-				<input type="text" class="umaSelectInput" value={query.input} tabindex={props.tabindex} onInput={handleInput} onKeyDown={handleKeyDown} onFocus={() => setOpen(true)} onBlur={handleBlur} ref={input} />
-				<ul class={`umaSuggestions ${open ? 'open' : ''}`} onMouseDown={handleClick} ref={suggestionsContainer}>
-					{query.suggestions.map((oid, i) => {
-						const uid = oid.slice(0,4);
-						return (
-							<li key={oid} data-uma-id={oid} class={`umaSuggestion ${i == activeIdx ? 'selected' : ''}`}>
-								<img src={icons[oid]} loading="lazy" /><span>{umas[uid].outfits[oid]} {umas[uid].name[1]}</span>
-							</li>
-						);
-					})}
-				</ul>
-			</div>
-		</div>
+			{profileManagerOpen && (
+				<UmaProfileManager
+					currentState={props.currentState}
+					onLoad={(loadedState) => {
+						if (props.onLoadProfile) {
+							props.onLoadProfile(loadedState);
+						}
+						setProfileManagerOpen(false);
+					}}
+					onClose={() => setProfileManagerOpen(false)}
+				/>
+			)}
+		</>
 	);
 }
 
@@ -418,7 +681,7 @@ export function HorseDef(props) {
 	return (
 		<div class="horseDef">
 			<div class="horseDefHeader">{props.children}</div>
-			<UmaSelector value={umaId} select={setUma} tabindex={tabnext()} onReset={resetThisHorse} onResetAll={props.onResetAll} />
+			<UmaSelector value={umaId} select={setUma} tabindex={tabnext()} onReset={resetThisHorse} onResetAll={props.onResetAll} currentState={state} onLoadProfile={setState} />
 			<div class="horseParams">
 				<div class="horseParamHeader"><img src="/uma-tools/icons/status_00.png" /><span>Speed</span></div>
 				<div class="horseParamHeader"><img src="/uma-tools/icons/status_01.png" /><span>Stamina</span></div>

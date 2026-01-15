@@ -1273,6 +1273,250 @@ async function loadFromLocalStorage() {
 	return null;
 }
 
+// Uma Profile Management Functions
+interface SavedUmaProfile {
+	id: string;
+	name: string;
+	timestamp: number;
+	data: any; // Serialized HorseState
+}
+
+function serializeHorseState(state: HorseState): any {
+	return state.set('skills', Array.from(state.skills.values())).toJS();
+}
+
+function deserializeHorseState(data: any): HorseState {
+	return new HorseState(data)
+		.set('skills', SkillSet(data.skills || []))
+		.set('forcedSkillPositions', ImmMap(data.forcedSkillPositions || {}));
+}
+
+// File handle for the profiles file (stored in memory, lost on page refresh)
+let profilesFileHandle: FileSystemFileHandle | null = null;
+
+// Try to get or create the profiles file
+async function getProfilesFileHandle(): Promise<FileSystemFileHandle | null> {
+	// Check if File System Access API is available
+	if (!('showSaveFilePicker' in window)) {
+		return null; // API not available (older browsers)
+	}
+
+	// If we already have a handle, return it
+	if (profilesFileHandle) {
+		return profilesFileHandle;
+	}
+
+	// Try to get existing file handle from sessionStorage (we can't serialize handles, so we'll prompt again)
+	// On first use, prompt user to select/create the file
+	try {
+		const handle = await (window as any).showSaveFilePicker({
+			suggestedName: 'saved_uma_profiles.json',
+			types: [{
+				description: 'JSON files',
+				accept: { 'application/json': ['.json'] }
+			}],
+			startIn: 'documents'
+		});
+		profilesFileHandle = handle;
+		return handle;
+	} catch (error: any) {
+		if (error.name === 'AbortError') {
+			// User cancelled - return null, will fall back to localStorage
+			return null;
+		}
+		throw error;
+	}
+}
+
+// Save profiles to file (and localStorage as backup)
+async function saveProfilesToStorage(profiles: SavedUmaProfile[]): Promise<void> {
+	const json = JSON.stringify(profiles, null, 2);
+	
+	// Try to save to file first
+	try {
+		const handle = await getProfilesFileHandle();
+		if (handle) {
+			const writable = await handle.createWritable();
+			await writable.write(json);
+			await writable.close();
+			// Also save to localStorage as backup
+			try {
+				localStorage.setItem('umalator-saved-profiles', json);
+			} catch (e) {
+				// localStorage might be full, but file save succeeded
+			}
+			return;
+		}
+	} catch (error) {
+		console.warn('Failed to save profiles to file:', error);
+	}
+
+	// Fallback to localStorage if file save fails or File System API not available
+	try {
+		localStorage.setItem('umalator-saved-profiles', json);
+	} catch (error) {
+		console.warn('Failed to save profiles to localStorage:', error);
+		throw error;
+	}
+}
+
+// Load profiles from file (or localStorage as fallback)
+async function getAllSavedProfiles(): Promise<SavedUmaProfile[]> {
+	// Try to load from file first if we have a handle
+	if (profilesFileHandle) {
+		try {
+			const file = await profilesFileHandle.getFile();
+			const text = await file.text();
+			const profiles = JSON.parse(text) as SavedUmaProfile[];
+			// Update localStorage cache
+			try {
+				localStorage.setItem('umalator-saved-profiles', JSON.stringify(profiles));
+			} catch (e) {
+				// localStorage might be full, ignore
+			}
+			return profiles;
+		} catch (error) {
+			console.warn('Failed to load profiles from file:', error);
+			// Fall through to localStorage
+		}
+	}
+
+	// Check localStorage first (as cache)
+	let hasLocalStorageData = false;
+	try {
+		const stored = localStorage.getItem('umalator-saved-profiles');
+		if (stored && stored !== '[]') {
+			hasLocalStorageData = true;
+		}
+	} catch (e) {
+		// Ignore
+	}
+
+	// Try to load from file if File System API is available
+	// Only prompt if localStorage is empty (first time) or if user explicitly wants to reload
+	if ('showOpenFilePicker' in window && !hasLocalStorageData) {
+		try {
+			const [fileHandle] = await (window as any).showOpenFilePicker({
+				types: [{
+					description: 'JSON files',
+					accept: { 'application/json': ['.json'] }
+				}],
+				multiple: false
+			});
+			profilesFileHandle = fileHandle;
+			const file = await fileHandle.getFile();
+			const text = await file.text();
+			const profiles = JSON.parse(text) as SavedUmaProfile[];
+			// Update localStorage cache
+			try {
+				localStorage.setItem('umalator-saved-profiles', JSON.stringify(profiles));
+			} catch (e) {
+				// localStorage might be full, ignore
+			}
+			return profiles;
+		} catch (error: any) {
+			if (error.name === 'AbortError') {
+				// User cancelled file selection, fall through to localStorage
+			} else {
+				console.warn('Failed to load profiles from file:', error);
+			}
+		}
+	}
+
+	// Fallback to localStorage
+	try {
+		const stored = localStorage.getItem('umalator-saved-profiles');
+		if (stored) {
+			return JSON.parse(stored);
+		}
+	} catch (error) {
+		console.warn('Failed to load saved profiles from localStorage:', error);
+	}
+	return [];
+}
+
+// Synchronous version for immediate access (uses localStorage cache)
+function getAllSavedProfilesSync(): SavedUmaProfile[] {
+	try {
+		const stored = localStorage.getItem('umalator-saved-profiles');
+		if (stored) {
+			return JSON.parse(stored);
+		}
+	} catch (error) {
+		console.warn('Failed to load saved profiles from localStorage:', error);
+	}
+	return [];
+}
+
+function getNextProfileName(): string {
+	const profiles = getAllSavedProfilesSync();
+	if (profiles.length === 0) {
+		return '1';
+	}
+	// Find the highest numerical name
+	let maxNum = 0;
+	for (const profile of profiles) {
+		const num = parseInt(profile.name, 10);
+		if (!isNaN(num) && num > maxNum) {
+			maxNum = num;
+		}
+	}
+	return (maxNum + 1).toString();
+}
+
+export async function saveUmaProfile(horseState: HorseState, profileName?: string): Promise<string> {
+	const profiles = await getAllSavedProfiles();
+	const name = profileName || getNextProfileName();
+	const id = Date.now().toString();
+	const profile: SavedUmaProfile = {
+		id,
+		name,
+		timestamp: Date.now(),
+		data: serializeHorseState(horseState)
+	};
+	profiles.push(profile);
+	await saveProfilesToStorage(profiles);
+	return id;
+}
+
+export async function loadUmaProfile(profileId: string): Promise<HorseState | null> {
+	const profiles = await getAllSavedProfiles();
+	const profile = profiles.find(p => p.id === profileId);
+	if (!profile) {
+		return null;
+	}
+	try {
+		return deserializeHorseState(profile.data);
+	} catch (error) {
+		console.warn('Failed to deserialize profile:', error);
+		return null;
+	}
+}
+
+export async function deleteUmaProfile(profileId: string): Promise<boolean> {
+	const profiles = await getAllSavedProfiles();
+	const index = profiles.findIndex(p => p.id === profileId);
+	if (index === -1) {
+		return false;
+	}
+	profiles.splice(index, 1);
+	await saveProfilesToStorage(profiles);
+	return true;
+}
+
+export async function renameUmaProfile(profileId: string, newName: string): Promise<boolean> {
+	const profiles = await getAllSavedProfiles();
+	const profile = profiles.find(p => p.id === profileId);
+	if (!profile) {
+		return false;
+	}
+	profile.name = newName;
+	await saveProfilesToStorage(profiles);
+	return true;
+}
+
+export { getAllSavedProfiles };
+
 const EMPTY_RESULTS_STATE = {courseId: DEFAULT_COURSE_ID, results: [], runData: null, chartData: null, displaying: '', spurtInfo: null, staminaStats: null, firstUmaStats: null};
 function updateResultsState(state: typeof EMPTY_RESULTS_STATE, o: number | string | {results: any, runData: any, spurtInfo?: any, staminaStats?: any, firstUmaStats?: any}) {
 	if (typeof o == 'number') {
