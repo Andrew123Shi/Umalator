@@ -1805,7 +1805,7 @@ function App(props) {
 	const [worker1, worker2, worker3, worker4] = [1,2,3,4].map(_ => useMemo(() => {
 		const w = new Worker('./simulator.worker.js');
 		w.addEventListener('message', function (e) {
-			const {type, results, round, total, skillId, result} = e.data;
+			const {type, results, round, total, skillId, result, completed} = e.data;
 			switch (type) {
 				case 'compare':
 					setResults(results);
@@ -1815,6 +1815,13 @@ function App(props) {
 					break;
 				case 'chart-progress':
 					setSimulationProgress({round, total});
+					break;
+				case 'compare-progress':
+					setSimulationProgress({round: completed, total});
+					// Update UI with cumulative results if provided
+					if (results) {
+						setResults(results);
+					}
 					break;
 				case 'compare-complete':
 					setIsSimulationRunning(false);
@@ -2742,6 +2749,12 @@ function App(props) {
 						}
 						<label for="nsamples">Samples:</label>
 						<input type="number" id="nsamples" min="1" max="10000" value={nsamples} onInput={(e) => setSamples(+e.currentTarget.value)} />
+						{mode == Mode.Compare && isSimulationRunning && simulationProgress && (
+							<div id="compareProgressBar">
+								<div id="compareProgressBarFill" style={`width: ${(simulationProgress.round / simulationProgress.total) * 100}%`}></div>
+								<span id="compareProgressText">{simulationProgress.round} / {simulationProgress.total}</span>
+							</div>
+						)}
 						<label for="seed">Seed:</label>
 						<div id="seedWrapper">
 							<input type="number" id="seed" value={seed} onInput={(e) => { setSeed(+e.currentTarget.value); setRunOnceCounter(0); }} />

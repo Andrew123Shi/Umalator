@@ -144,12 +144,11 @@ function runCompare({nsamples, course, racedef, uma1, uma2, pacer, options}) {
 		.set('skills', fromJS(pacer.skills || []))
 		.set('forcedSkillPositions', ImmMap(pacer.forcedSkillPositions || {})) : null;
 	const compareOptions = {...options, mode: 'compare'};
-	let results;
-	for (let n = Math.min(20, nsamples), mul = 6; n < nsamples; n = Math.min(n * mul, nsamples), mul = Math.max(mul - 1, 2)) {
-		results = runComparison(n, course, racedef, uma1_, uma2_, pacer_, compareOptions);
-		postMessage({type: 'compare', results});
-	}
-	results = runComparison(nsamples, course, racedef, uma1_, uma2_, pacer_, compareOptions);
+	// Run the full batch with progress updates every 20 samples
+	const results = runComparison(nsamples, course, racedef, uma1_, uma2_, pacer_, compareOptions, (completed, total, cumulativeResults) => {
+		postMessage({type: 'compare-progress', completed, total: nsamples, results: cumulativeResults});
+	});
+	// Send final results
 	postMessage({type: 'compare', results});
 	postMessage({type: 'compare-complete'});
 }

@@ -12,7 +12,7 @@ import skilldata from '../uma-skill-tools/data/skill_data.json';
 import skillmeta from '../skill_meta.json';
 import { Rule30CARng } from '../uma-skill-tools/Random';
 
-export function runComparison(nsamples: number, course: CourseData, racedef: RaceParameters, uma1: HorseState, uma2: HorseState, pacer: HorseState, options) {
+export function runComparison(nsamples: number, course: CourseData, racedef: RaceParameters, uma1: HorseState, uma2: HorseState, pacer: HorseState, options, onProgress?: (completed: number, total: number, cumulativeResults?: any) => void) {
 	const standard = new RaceSolverBuilder(nsamples)
 		.seed(options.seed)
 		.course(course)
@@ -224,6 +224,132 @@ export function runComparison(nsamples: number, course: CourseData, racedef: Rac
 	};
 
 	let basePacerRng = new Rule30CARng(options.seed + 1);
+	
+	// Helper function to calculate cumulative statistics from current state
+	const calculateCumulativeResults = (currentSamples: number) => {
+		if (diff.length === 0) return null;
+		
+		const sortedDiff = [...diff].sort((a,b) => a - b);
+		const currentMin = sortedDiff[0];
+		const currentMax = sortedDiff[sortedDiff.length - 1];
+		const currentMean = sortedDiff.reduce((a, b) => a + b, 0) / sortedDiff.length;
+		const mid = Math.floor(sortedDiff.length / 2);
+		const currentMedian = sortedDiff.length % 2 == 0 
+			? (sortedDiff[mid - 1] + sortedDiff[mid]) / 2 
+			: sortedDiff[mid];
+		
+		// Find best mean/median runs from current data
+		// Use existing meanrun/medianrun if available (they're more accurate), otherwise approximate
+		let bestMeanRun = meanrun || (sortedDiff.length > 0 ? minrun : null);
+		let bestMedianRun = medianrun || (sortedDiff.length > 0 ? minrun : null);
+		
+		// Calculate statistics summaries
+		const calculateStats = (stats) => {
+			if (stats.lengths.length === 0) {
+				return { min: 0, max: 0, mean: 0, frequency: 0 };
+			}
+			const min = Math.min(...stats.lengths);
+			const max = Math.max(...stats.lengths);
+			const mean = stats.lengths.reduce((a, b) => a + b, 0) / stats.lengths.length;
+			const frequency = (stats.count / currentSamples) * 100;
+			return { min, max, mean, frequency };
+		};
+		
+		const calculateHpDiedPositionStats = (positions: number[]) => {
+			if (positions.length === 0) {
+				return { count: 0, min: null, max: null, mean: null, median: null };
+			}
+			const sorted = [...positions].sort((a, b) => a - b);
+			const min = sorted[0];
+			const max = sorted[sorted.length - 1];
+			const mean = positions.reduce((a, b) => a + b, 0) / positions.length;
+			const mid = Math.floor(sorted.length / 2);
+			const median = sorted.length % 2 === 0 
+				? (sorted[mid - 1] + sorted[mid]) / 2 
+				: sorted[mid];
+			return { count: positions.length, min, max, mean, median };
+		};
+		
+		const rushedStatsSummary = {
+			uma1: calculateStats(rushedStats.uma1),
+			uma2: calculateStats(rushedStats.uma2)
+		};
+		
+		const leadCompetitionStatsSummary = {
+			uma1: calculateStats(leadCompetitionStats.uma1),
+			uma2: calculateStats(leadCompetitionStats.uma2)
+		};
+		
+		const competeFightStatsSummary = {
+			uma1: calculateStats(competeFightStats.uma1),
+			uma2: calculateStats(competeFightStats.uma2)
+		};
+		
+		const staminaStatsSummary = {
+			uma1: {
+				staminaSurvivalRate: staminaStats.uma1.total > 0 ? ((staminaStats.uma1.total - staminaStats.uma1.hpDiedCount) / staminaStats.uma1.total * 100) : 0,
+				fullSpurtRate: staminaStats.uma1.total > 0 ? (staminaStats.uma1.fullSpurtCount / staminaStats.uma1.total * 100) : 0,
+				hpDiedPositionStatsFullSpurt: calculateHpDiedPositionStats(staminaStats.uma1.hpDiedPositionsFullSpurt),
+				hpDiedPositionStatsNonFullSpurt: calculateHpDiedPositionStats(staminaStats.uma1.hpDiedPositionsNonFullSpurt),
+				nonFullSpurtVelocityStats: calculateHpDiedPositionStats(staminaStats.uma1.nonFullSpurtVelocityDiffs),
+				nonFullSpurtDelayStats: calculateHpDiedPositionStats(staminaStats.uma1.nonFullSpurtDelayDistances)
+			},
+			uma2: {
+				staminaSurvivalRate: staminaStats.uma2.total > 0 ? ((staminaStats.uma2.total - staminaStats.uma2.hpDiedCount) / staminaStats.uma2.total * 100) : 0,
+				fullSpurtRate: staminaStats.uma2.total > 0 ? (staminaStats.uma2.fullSpurtCount / staminaStats.uma2.total * 100) : 0,
+				hpDiedPositionStatsFullSpurt: calculateHpDiedPositionStats(staminaStats.uma2.hpDiedPositionsFullSpurt),
+				hpDiedPositionStatsNonFullSpurt: calculateHpDiedPositionStats(staminaStats.uma2.hpDiedPositionsNonFullSpurt),
+				nonFullSpurtVelocityStats: calculateHpDiedPositionStats(staminaStats.uma2.nonFullSpurtVelocityDiffs),
+				nonFullSpurtDelayStats: calculateHpDiedPositionStats(staminaStats.uma2.nonFullSpurtDelayDistances)
+			}
+		};
+		
+		const firstUmaStatsSummary = {
+			uma1: {
+				firstPlaceRate: firstUmaStats.uma1.total > 0 ? (firstUmaStats.uma1.firstPlaceCount / firstUmaStats.uma1.total * 100) : 0
+			},
+			uma2: {
+				firstPlaceRate: firstUmaStats.uma2.total > 0 ? (firstUmaStats.uma2.firstPlaceCount / firstUmaStats.uma2.total * 100) : 0
+			}
+		};
+		
+		const allRunsData = {
+			sk: [
+				allSkillActivations[0],
+				allSkillActivations[1]
+			],
+			skBasinn: [
+				allSkillActivationBasinn[0],
+				allSkillActivationBasinn[1]
+			],
+			totalRuns: currentSamples,
+			rushed: [
+				rushedStatsSummary.uma1,
+				rushedStatsSummary.uma2
+			],
+			leadCompetition: [
+				leadCompetitionStatsSummary.uma1,
+				leadCompetitionStatsSummary.uma2
+			],
+			competeFight: [
+				competeFightStatsSummary.uma1,
+				competeFightStatsSummary.uma2
+			]
+		};
+		
+		return {
+			results: sortedDiff,
+			runData: {
+				minrun,
+				maxrun,
+				meanrun: bestMeanRun,
+				medianrun: bestMedianRun,
+				allruns: allRunsData
+			},
+			staminaStats: staminaStatsSummary,
+			firstUmaStats: firstUmaStatsSummary
+		};
+	};
 	
 	for (let i = 0; i < nsamples; ++i) {
 		let pacers = [];
@@ -498,6 +624,12 @@ export function runComparison(nsamples: number, course: CourseData, racedef: Rac
 				bestMedianDiff = medianDiff;
 				medianrun = data;
 			}
+		}
+		
+		// Report progress every 20 samples with cumulative results
+		if (onProgress && ((i + 1) % 20 === 0 || i + 1 === nsamples)) {
+			const cumulativeResults = calculateCumulativeResults(i + 1);
+			onProgress(i + 1, nsamples, cumulativeResults);
 		}
 	}
 	diff.sort((a,b) => a - b);
