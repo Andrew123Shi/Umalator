@@ -153,14 +153,37 @@ function runServer(ctx, port) {
 				'Content-length': artifact.length
 			}).end(artifact);
 		} else {
-			const fp = path.join(root, url);
-			const exists = await fs.promises.access(fp).then(() => true, () => false);
+			// Handle root path - serve index.html from umalator-global
+			if (req.url === '/' || req.url === '') {
+				const fp = path.join(dirname, 'index.html');
+				const exists = await fs.promises.access(fp).then(() => true, () => false);
+				if (exists) {
+					console.log(`GET ${req.url} 200 OK (serving index.html from ${fp})`);
+					res.writeHead(200, {'Content-type': MIME_TYPES['.html']});
+					fs.createReadStream(fp).pipe(res);
+					return;
+				} else {
+					console.log(`GET ${req.url} 404 Not Found (index.html not found at ${fp})`);
+					res.writeHead(404).end();
+					return;
+				}
+			}
+			
+			const urlPath = url.startsWith('/') ? url.slice(1) : url;
+			// Try serving from umalator-global directory first
+			let fp = path.join(dirname, urlPath);
+			let exists = await fs.promises.access(fp).then(() => true, () => false);
+			// If not found, try root directory (for shared resources like fonts, icons)
+			if (!exists) {
+				fp = path.join(root, urlPath);
+				exists = await fs.promises.access(fp).then(() => true, () => false);
+			}
 			if (exists) {
 				console.log(`GET ${req.url} 200 OK`);
 				res.writeHead(200, {'Content-type': MIME_TYPES[path.extname(filename)] || 'application/octet-stream'});
 				fs.createReadStream(fp).pipe(res);
 			} else {
-				console.log(`GET ${req.url} 404 Not Found`)
+				console.log(`GET ${req.url} 404 Not Found (tried: ${path.join(dirname, urlPath)} and ${path.join(root, urlPath)})`);
 				res.writeHead(404).end();
 			}
 		}
