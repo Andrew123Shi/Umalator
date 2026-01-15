@@ -46,6 +46,18 @@ export function UmaProfileManager(props) {
 	const [renameValue, setRenameValue] = useState('');
 	const [saveMessage, setSaveMessage] = useState('');
 	const [loading, setLoading] = useState(true);
+	const [searchQuery, setSearchQuery] = useState('');
+
+	// Filter profiles based on search query (by profile name)
+	const filteredProfiles = useMemo(() => {
+		if (!searchQuery.trim()) {
+			return profiles;
+		}
+		const query = searchQuery.trim().toLowerCase();
+		return profiles.filter(profile => 
+			profile.name.toLowerCase().includes(query)
+		);
+	}, [profiles, searchQuery]);
 
 	// Load profiles on mount - try to load from file
 	useEffect(() => {
@@ -199,13 +211,26 @@ export function UmaProfileManager(props) {
 						<button class="umaProfileManagerSaveButton" onClick={handleSave}>Save Current Profile</button>
 						{saveMessage && <span class="umaProfileManagerMessage">{saveMessage}</span>}
 					</div>
+					{profiles.length > 0 && (
+						<div class="umaProfileManagerSearch">
+							<input
+								type="text"
+								class="umaProfileManagerSearchInput"
+								placeholder="Search by profile name..."
+								value={searchQuery}
+								onInput={(e) => setSearchQuery(e.currentTarget.value)}
+							/>
+						</div>
+					)}
 					{loading ? (
 						<div class="umaProfileManagerEmpty">Loading profiles...</div>
 					) : profiles.length === 0 ? (
 						<div class="umaProfileManagerEmpty">No saved profiles yet. Save a profile to get started!</div>
+					) : filteredProfiles.length === 0 ? (
+						<div class="umaProfileManagerEmpty">No profiles match your search.</div>
 					) : (
 						<ul class="umaProfileManagerList">
-							{profiles.map(profile => {
+							{filteredProfiles.map(profile => {
 								const umaData = profile.data;
 								const umaId = umaData.outfitId;
 								const u = umaId && umas[umaId.slice(0,4)];

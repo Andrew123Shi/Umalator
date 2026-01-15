@@ -680,6 +680,31 @@
 	font-size: 0.9em;
 }
 
+.umaProfileManagerSearch {
+	margin-bottom: 16px;
+}
+
+.umaProfileManagerSearchInput {
+	width: 100%;
+	padding: 8px 12px;
+	border: 2px solid rgb(224, 214, 204);
+	border-radius: 6px;
+	font-size: 1em;
+	color: rgb(121, 64, 22);
+	box-sizing: border-box;
+	transition: border-color 0.2s;
+}
+
+.umaProfileManagerSearchInput:focus {
+	outline: none;
+	border-color: rgb(170, 221, 154);
+}
+
+.umaProfileManagerSearchInput::placeholder {
+	color: rgb(121, 64, 22);
+	opacity: 0.5;
+}
+
 .umaProfileManagerEmpty {
 	text-align: center;
 	color: rgb(121, 64, 22);
