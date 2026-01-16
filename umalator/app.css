@@ -31,7 +31,9 @@ body {
 	padding: 0 5px;
 }
 
-#posKeepFieldset select {
+#posKeepFieldset select,
+#globalDistanceFieldset select,
+#globalTerrainFieldset select {
 	background: none;
 	border: 1px solid rgb(148, 150, 189);
 	border-radius: 4px;
@@ -196,6 +198,14 @@ body {
 	padding-bottom: 60px;
 }
 
+#topPane:has(#globalCompareWrapper) {
+	grid-template-rows: 1fr;
+}
+
+#topPane:has([id="buttonsRow"].trackSelect) {
+	grid-template-rows: auto 1fr;
+}
+
 #runPane {
 	grid-column-start: 2;
 	grid-row-start: span 2;
@@ -208,6 +218,11 @@ body {
 	margin-right: 0px;
 	/* no ui bugs here */
 	max-width: 360px;
+}
+
+#topPane:has(#resultsPane.global-compare-mode) #runPane {
+	grid-row-start: 1;
+	grid-row-end: 1;
 }
 
 #seedWrapper {
@@ -430,6 +445,13 @@ body {
 	margin-right: 24px;
 }
 
+#resultsPane.global-compare-mode {
+	margin-top: 0;
+	margin-right: 0;
+	justify-content: flex-start;
+	align-items: flex-start;
+}
+
 #resultsPane.mode-chart {
 	width: 980px;
 }
@@ -510,19 +532,21 @@ body {
 	min-width: 150px;
 }
 
+/* ResultsTable specific styles - only apply to direct child tables */
 #infoTables > table {
 	border-collapse: collapse;
 	width: 100%;
 }
 
-#infoTables tbody {
+/* Only target ResultsTable tbody elements (direct children of tables in #infoTables) */
+#infoTables > table > tbody {
 	border-bottom: 1px solid rgb(121, 64, 22);
 	display: block;
 	width: 380px;
 	padding-top: 10px;
 }
 
-#infoTables tbody:last-child {
+#infoTables > table > tbody:last-child {
 	border: none;
 	height: 150px;  /* TODO this is a bit arbitrary */
 	overflow-x: hidden;
@@ -530,27 +554,28 @@ body {
 }
 
 /* cant have normal margins on table elements for some reason */
-#infoTables tbody::before, #infoTables tbody::after {
+#infoTables > table > tbody::before, #infoTables > table > tbody::after {
 	content: '';
 	display: block;
 	height: 5px;
 }
 
-#infoTables caption{
+/* Only target ResultsTable caption elements */
+#infoTables > table > caption {
 	padding-right: 50px;
 	padding-bottom: 5px;
 	font-weight: bold;
-	
-
 }
 
-#infoTables > table tr {
+/* Only target ResultsTable tr elements */
+#infoTables > table > tbody > tr {
 	display: table;
 	table-layout: fixed;
 	width: 380px;
 }
 
-#infoTables > table th {
+/* Only target ResultsTable th elements */
+#infoTables > table > tbody > tr > th {
 	color: rgb(121, 64, 22);
 	font-weight: bold;
 	overflow: hidden;
@@ -558,7 +583,8 @@ body {
 	text-wrap: nowrap;
 }
 
-#infoTables > table td {
+/* Only target ResultsTable td elements */
+#infoTables > table > tbody > tr > td {
 	font-family: monospace;
 	width: 160px;
 }

@@ -1,5 +1,6 @@
-import { CourseData } from '../uma-skill-tools/CourseData';
-import { RaceParameters, GroundCondition } from '../uma-skill-tools/RaceParameters';
+import { CourseData, DistanceType, Surface, CourseHelpers } from '../uma-skill-tools/CourseData';
+import { RaceParameters, GroundCondition, Weather, Season, Mood } from '../uma-skill-tools/RaceParameters';
+import courses from '../uma-skill-tools/data/course_data.json';
 import { RaceSolver, PosKeepMode } from '../uma-skill-tools/RaceSolver';
 import { RaceSolverBuilder, Perspective, parseStrategy, parseAptitude, buildBaseStats, buildAdjustedStats } from '../uma-skill-tools/RaceSolverBuilder';
 import { EnhancedHpPolicy } from '../uma-skill-tools/EnhancedHpPolicy';
@@ -745,4 +746,544 @@ export function runComparison(nsamples: number, course: CourseData, racedef: Rac
 		staminaStats: staminaStatsSummary,
 		firstUmaStats: firstUmaStatsSummary
 	};
+}
+
+// Weather conditions: Sunny Firm, Sunny Good, Cloudy Firm, Cloudy Good, Rainy Soft, Rainy Heavy, Snowy Good, Snowy Soft
+// Note: Snowy is only possible in Winter
+// Mapping: Firm = Good (1), Good = Yielding (2), Soft = Soft (3), Heavy = Heavy (4)
+const WEATHER_GROUND_COMBINATIONS = [
+	{ weather: Weather.Sunny, ground: GroundCondition.Good }, // Sunny Firm
+	{ weather: Weather.Sunny, ground: GroundCondition.Yielding }, // Sunny Good
+	{ weather: Weather.Cloudy, ground: GroundCondition.Good }, // Cloudy Firm
+	{ weather: Weather.Cloudy, ground: GroundCondition.Yielding }, // Cloudy Good
+	{ weather: Weather.Rainy, ground: GroundCondition.Soft }, // Rainy Soft
+	{ weather: Weather.Rainy, ground: GroundCondition.Heavy }, // Rainy Heavy
+	{ weather: Weather.Snowy, ground: GroundCondition.Yielding }, // Snowy Good
+	{ weather: Weather.Snowy, ground: GroundCondition.Soft }, // Snowy Soft
+];
+
+const SEASONS = [Season.Spring, Season.Summer, Season.Autumn, Season.Winter];
+const MOODS: Mood[] = [2, 1, 0, -1, -2]; // Great, Good, Normal, Bad, Awful
+
+export function runGlobalComparison(
+	nsamples: number,
+	distanceType: DistanceType,
+	surface: Surface,
+	uma1: HorseState,
+	uma2: HorseState,
+	pacer: HorseState,
+	options,
+	onProgress?: (completed: number, total: number, cumulativeResults?: any) => void
+) {
+	// Filter courses by distance type and surface
+	const filteredCourses: CourseData[] = [];
+	Object.keys(courses).forEach(courseIdStr => {
+		const courseId = +courseIdStr;
+		const courseData = courses[courseId];
+		if (courseData.distanceType === distanceType && courseData.surface === surface) {
+			filteredCourses.push(CourseHelpers.getCourse(courseId));
+		}
+	});
+
+	if (filteredCourses.length === 0) {
+		throw new Error(`No courses found for distance type ${distanceType} and surface ${surface}`);
+	}
+
+	// Generate all valid condition permutations
+	const conditionPermutations: RaceParameters[] = [];
+	
+	for (const season of SEASONS) {
+		for (const mood of MOODS) {
+			for (const weatherGround of WEATHER_GROUND_COMBINATIONS) {
+				// Skip snowy weather if not winter
+				if (weatherGround.weather === Weather.Snowy && season !== Season.Winter) {
+					continue;
+				}
+				
+				conditionPermutations.push({
+					mood: mood as Mood,
+					groundCondition: weatherGround.ground,
+					weather: weatherGround.weather,
+					season: season,
+					time: options.time || 3, // Default to Midday
+					grade: options.grade || 100, // Default to G1
+					popularity: 0,
+					skillId: ''
+				});
+			}
+		}
+	}
+
+	// Use random sampling approach: randomly choose track and condition for each sample
+	// This is more efficient than calculating all permutations explicitly
+	const rng = new Rule30CARng(options.seed);
+	const allDiffs: number[] = [];
+	const aggregatedResults: any = {
+		results: [],
+		runData: {
+			minrun: null,
+			maxrun: null,
+			meanrun: null,
+			medianrun: null,
+			allruns: {
+				sk: [new Map<string, number[]>(), new Map<string, number[]>()],
+				skBasinn: [new Map<string, Array<[number, number]>>(), new Map<string, Array<[number, number]>>()],
+				totalRuns: 0,
+				rushed: [{ min: 0, max: 0, mean: 0, frequency: 0 }, { min: 0, max: 0, mean: 0, frequency: 0 }],
+				leadCompetition: [{ min: 0, max: 0, mean: 0, frequency: 0 }, { min: 0, max: 0, mean: 0, frequency: 0 }],
+				competeFight: [{ min: 0, max: 0, mean: 0, frequency: 0 }, { min: 0, max: 0, mean: 0, frequency: 0 }]
+			}
+		},
+		staminaStats: {
+			uma1: {
+				staminaSurvivalRate: 0,
+				fullSpurtRate: 0,
+				hpDiedPositionStatsFullSpurt: { count: 0, min: null, max: null, mean: null, median: null },
+				hpDiedPositionStatsNonFullSpurt: { count: 0, min: null, max: null, mean: null, median: null },
+				nonFullSpurtVelocityStats: { count: 0, min: null, max: null, mean: null, median: null },
+				nonFullSpurtDelayStats: { count: 0, min: null, max: null, mean: null, median: null }
+			},
+			uma2: {
+				staminaSurvivalRate: 0,
+				fullSpurtRate: 0,
+				hpDiedPositionStatsFullSpurt: { count: 0, min: null, max: null, mean: null, median: null },
+				hpDiedPositionStatsNonFullSpurt: { count: 0, min: null, max: null, mean: null, median: null },
+				nonFullSpurtVelocityStats: { count: 0, min: null, max: null, mean: null, median: null },
+				nonFullSpurtDelayStats: { count: 0, min: null, max: null, mean: null, median: null }
+			}
+		},
+		firstUmaStats: {
+			uma1: { firstPlaceRate: 0 },
+			uma2: { firstPlaceRate: 0 }
+		}
+	};
+
+	// Track statistics across all simulations
+	const rushedStats = {
+		uma1: { lengths: [], count: 0 },
+		uma2: { lengths: [], count: 0 }
+	};
+	
+	const leadCompetitionStats = {
+		uma1: { lengths: [], count: 0 },
+		uma2: { lengths: [], count: 0 }
+	};
+	
+	const competeFightStats = {
+		uma1: { lengths: [], count: 0 },
+		uma2: { lengths: [], count: 0 }
+	};
+	
+	const staminaStats = {
+		uma1: { 
+			hpDiedCount: 0, 
+			fullSpurtCount: 0, 
+			total: 0, 
+			hpDiedPositionsFullSpurt: [] as number[],
+			hpDiedPositionsNonFullSpurt: [] as number[],
+			nonFullSpurtVelocityDiffs: [] as number[],
+			nonFullSpurtDelayDistances: [] as number[]
+		},
+		uma2: { 
+			hpDiedCount: 0, 
+			fullSpurtCount: 0, 
+			total: 0, 
+			hpDiedPositionsFullSpurt: [] as number[],
+			hpDiedPositionsNonFullSpurt: [] as number[],
+			nonFullSpurtVelocityDiffs: [] as number[],
+			nonFullSpurtDelayDistances: [] as number[]
+		}
+	};
+	
+	const firstUmaStats = {
+		uma1: { firstPlaceCount: 0, total: 0 },
+		uma2: { firstPlaceCount: 0, total: 0 }
+	};
+
+	let minBasinn = Infinity, maxBasinn = -Infinity;
+	let minrun: any = null, maxrun: any = null;
+
+	// Track race parameters with their corresponding results for aggregation
+	const raceParams = {
+		locations: [] as Array<{value: string, result: number}>,
+		lengths: [] as Array<{value: number, result: number}>,
+		terrains: [] as Array<{value: GroundCondition, result: number}>,
+		weathers: [] as Array<{value: Weather, result: number}>,
+		seasons: [] as Array<{value: Season, result: number}>
+	};
+
+	// Run simulations
+	for (let i = 0; i < nsamples; ++i) {
+		// Randomly select a course and condition
+		const courseIndex = rng.uniform(filteredCourses.length);
+		const conditionIndex = rng.uniform(conditionPermutations.length);
+		const course = filteredCourses[courseIndex];
+		const racedef = conditionPermutations[conditionIndex];
+
+		// Run comparison for this specific course and condition
+		const result = runComparison(1, course, racedef, uma1, uma2, pacer, {
+			...options,
+			seed: rng.int32() // Use different seed for each run
+		});
+
+		const basinn = result.results[0];
+		allDiffs.push(basinn);
+
+		// Track race parameters with their corresponding result
+		raceParams.locations.push({value: course.raceTrackId.toString(), result: basinn});
+		raceParams.lengths.push({value: course.distance, result: basinn});
+		raceParams.terrains.push({value: racedef.groundCondition, result: basinn});
+		raceParams.weathers.push({value: racedef.weather, result: basinn});
+		raceParams.seasons.push({value: racedef.season, result: basinn});
+
+		// Update aggregated statistics
+		// Always set minrun/maxrun on first iteration, then update when we find new extremes
+		if (i === 0 || basinn < minBasinn) {
+			minBasinn = basinn;
+			minrun = result.runData.minrun || result.runData.maxrun || result.runData.meanrun;
+		}
+		if (i === 0 || basinn > maxBasinn) {
+			maxBasinn = basinn;
+			maxrun = result.runData.maxrun || result.runData.minrun || result.runData.meanrun;
+		}
+
+		// Aggregate skill activations
+		if (result.runData?.allruns?.sk) {
+			result.runData.allruns.sk.forEach((skMap, umaIdx) => {
+				skMap.forEach((positions, skillId) => {
+					if (!aggregatedResults.runData.allruns.sk[umaIdx].has(skillId)) {
+						aggregatedResults.runData.allruns.sk[umaIdx].set(skillId, []);
+					}
+					aggregatedResults.runData.allruns.sk[umaIdx].get(skillId)!.push(...positions);
+				});
+			});
+		}
+
+		if (result.runData?.allruns?.skBasinn) {
+			result.runData.allruns.skBasinn.forEach((skBasinnMap, umaIdx) => {
+				skBasinnMap.forEach((basinnData, skillId) => {
+					if (!aggregatedResults.runData.allruns.skBasinn[umaIdx].has(skillId)) {
+						aggregatedResults.runData.allruns.skBasinn[umaIdx].set(skillId, []);
+					}
+					aggregatedResults.runData.allruns.skBasinn[umaIdx].get(skillId)!.push(...basinnData);
+				});
+			});
+		}
+
+		// Aggregate stamina stats - need to track from runData
+		// For now, we'll aggregate from the result's runData if available
+		// The actual tracking happens in runComparison, so we aggregate what we can
+
+		// Aggregate first uma stats
+		if (result.firstUmaStats) {
+			['uma1', 'uma2'].forEach(umaKey => {
+				const stats = result.firstUmaStats[umaKey];
+				firstUmaStats[umaKey].total++;
+				if (stats.firstPlaceRate > 50) { // Approximate
+					firstUmaStats[umaKey].firstPlaceCount++;
+				}
+			});
+		}
+
+		// Aggregate rushed, leadCompetition, competeFight stats from runData
+		if (result.runData?.allruns?.rushed) {
+			result.runData.allruns.rushed.forEach((rushed, idx) => {
+				if (rushed.frequency > 0) {
+					rushedStats[idx === 0 ? 'uma1' : 'uma2'].count++;
+					// Approximate length from mean
+					if (rushed.mean > 0) {
+						rushedStats[idx === 0 ? 'uma1' : 'uma2'].lengths.push(rushed.mean);
+					}
+				}
+			});
+		}
+		
+		if (result.runData?.allruns?.leadCompetition) {
+			result.runData.allruns.leadCompetition.forEach((leadComp, idx) => {
+				if (leadComp.frequency > 0) {
+					leadCompetitionStats[idx === 0 ? 'uma1' : 'uma2'].count++;
+					if (leadComp.mean > 0) {
+						leadCompetitionStats[idx === 0 ? 'uma1' : 'uma2'].lengths.push(leadComp.mean);
+					}
+				}
+			});
+		}
+		
+		if (result.runData?.allruns?.competeFight) {
+			result.runData.allruns.competeFight.forEach((competeFight, idx) => {
+				if (competeFight.frequency > 0) {
+					competeFightStats[idx === 0 ? 'uma1' : 'uma2'].count++;
+					if (competeFight.mean > 0) {
+						competeFightStats[idx === 0 ? 'uma1' : 'uma2'].lengths.push(competeFight.mean);
+					}
+				}
+			});
+		}
+		
+		// Aggregate stamina stats from result.staminaStats
+		// The result contains summary stats with counts, so we need to extract and aggregate those
+		if (result.staminaStats) {
+			['uma1', 'uma2'].forEach((umaKey, idx) => {
+				const stats = result.staminaStats[umaKey];
+				const aggregated = staminaStats[umaKey];
+				
+				// Each runComparison call with nsamples=1 represents 1 sample
+				aggregated.total++;
+				
+				// Extract counts from the summary stats
+				// hpDiedPositionStatsFullSpurt.count tells us how many times HP died during full spurt
+				if (stats.hpDiedPositionStatsFullSpurt && stats.hpDiedPositionStatsFullSpurt.count > 0) {
+					aggregated.hpDiedCount += stats.hpDiedPositionStatsFullSpurt.count;
+					// We can't get the exact positions from summary, but we can track that deaths occurred
+					// For position tracking, we'd need the raw data, but since we're aggregating summaries,
+					// we'll use the mean position as an approximation (though this isn't perfect)
+					if (stats.hpDiedPositionStatsFullSpurt.mean != null) {
+						// Add the mean position for each occurrence (approximation)
+						for (let j = 0; j < stats.hpDiedPositionStatsFullSpurt.count; j++) {
+							aggregated.hpDiedPositionsFullSpurt.push(stats.hpDiedPositionStatsFullSpurt.mean);
+						}
+					}
+				}
+				
+				if (stats.hpDiedPositionStatsNonFullSpurt && stats.hpDiedPositionStatsNonFullSpurt.count > 0) {
+					aggregated.hpDiedCount += stats.hpDiedPositionStatsNonFullSpurt.count;
+					if (stats.hpDiedPositionStatsNonFullSpurt.mean != null) {
+						for (let j = 0; j < stats.hpDiedPositionStatsNonFullSpurt.count; j++) {
+							aggregated.hpDiedPositionsNonFullSpurt.push(stats.hpDiedPositionStatsNonFullSpurt.mean);
+						}
+					}
+				}
+				
+				// Full spurt rate: when nsamples=1, this is either 0% or 100%
+				// So if fullSpurtRate > 0, it means full spurt happened in this 1 sample
+				if (stats.fullSpurtRate > 0) {
+					aggregated.fullSpurtCount++;
+				}
+				
+				// Also check if HP died - we can infer this from staminaSurvivalRate
+				// When nsamples=1, if staminaSurvivalRate < 100, HP died
+				// But we've already counted deaths from hpDiedPositionStats above, so this is just a sanity check
+				
+				// Non-full spurt velocity and delay stats
+				if (stats.nonFullSpurtVelocityStats && stats.nonFullSpurtVelocityStats.count > 0) {
+					if (stats.nonFullSpurtVelocityStats.mean != null) {
+						for (let j = 0; j < stats.nonFullSpurtVelocityStats.count; j++) {
+							aggregated.nonFullSpurtVelocityDiffs.push(stats.nonFullSpurtVelocityStats.mean);
+						}
+					}
+				}
+				
+				if (stats.nonFullSpurtDelayStats && stats.nonFullSpurtDelayStats.count > 0) {
+					if (stats.nonFullSpurtDelayStats.mean != null) {
+						for (let j = 0; j < stats.nonFullSpurtDelayStats.count; j++) {
+							aggregated.nonFullSpurtDelayDistances.push(stats.nonFullSpurtDelayStats.mean);
+						}
+					}
+				}
+			});
+		}
+
+		// Report progress
+		if (onProgress && ((i + 1) % 20 === 0 || i + 1 === nsamples)) {
+			const sortedDiffs = [...allDiffs].sort((a, b) => a - b);
+			const currentMean = sortedDiffs.reduce((a, b) => a + b, 0) / sortedDiffs.length;
+			const mid = Math.floor(sortedDiffs.length / 2);
+			const currentMedian = sortedDiffs.length % 2 == 0 
+				? (sortedDiffs[mid - 1] + sortedDiffs[mid]) / 2 
+				: sortedDiffs[mid];
+
+			// Calculate aggregated stats summaries
+			const calculateStats = (stats) => {
+				if (stats.lengths.length === 0) {
+					return { min: 0, max: 0, mean: 0, frequency: 0 };
+				}
+				const min = Math.min(...stats.lengths);
+				const max = Math.max(...stats.lengths);
+				const mean = stats.lengths.reduce((a, b) => a + b, 0) / stats.lengths.length;
+				const frequency = (stats.count / (i + 1)) * 100;
+				return { min, max, mean, frequency };
+			};
+
+			const calculateHpDiedPositionStats = (positions: number[]) => {
+				if (positions.length === 0) {
+					return { count: 0, min: null, max: null, mean: null, median: null };
+				}
+				const sorted = [...positions].sort((a, b) => a - b);
+				const min = sorted[0];
+				const max = sorted[sorted.length - 1];
+				const mean = positions.reduce((a, b) => a + b, 0) / positions.length;
+				const mid = Math.floor(sorted.length / 2);
+				const median = sorted.length % 2 === 0 
+					? (sorted[mid - 1] + sorted[mid]) / 2 
+					: sorted[mid];
+				return { count: positions.length, min, max, mean, median };
+			};
+
+			// Use minrun or maxrun as fallback for meanrun/medianrun if they're not available yet
+			const fallbackRun = minrun || maxrun;
+			const cumulativeResults = {
+				results: sortedDiffs,
+				runData: {
+					minrun: minrun || fallbackRun,
+					maxrun: maxrun || fallbackRun,
+					meanrun: fallbackRun, // Use fallback until we calculate the actual mean run
+					medianrun: fallbackRun, // Use fallback until we calculate the actual median run
+					allruns: {
+						...aggregatedResults.runData.allruns,
+						totalRuns: i + 1,
+						rushed: [
+							calculateStats(rushedStats.uma1),
+							calculateStats(rushedStats.uma2)
+						],
+						leadCompetition: [
+							calculateStats(leadCompetitionStats.uma1),
+							calculateStats(leadCompetitionStats.uma2)
+						],
+						competeFight: [
+							calculateStats(competeFightStats.uma1),
+							calculateStats(competeFightStats.uma2)
+						]
+					}
+				},
+				staminaStats: {
+					uma1: {
+						staminaSurvivalRate: staminaStats.uma1.total > 0 ? ((staminaStats.uma1.total - staminaStats.uma1.hpDiedCount) / staminaStats.uma1.total * 100) : 0,
+						fullSpurtRate: staminaStats.uma1.total > 0 ? (staminaStats.uma1.fullSpurtCount / staminaStats.uma1.total * 100) : 0,
+						hpDiedPositionStatsFullSpurt: calculateHpDiedPositionStats(staminaStats.uma1.hpDiedPositionsFullSpurt),
+						hpDiedPositionStatsNonFullSpurt: calculateHpDiedPositionStats(staminaStats.uma1.hpDiedPositionsNonFullSpurt),
+						nonFullSpurtVelocityStats: calculateHpDiedPositionStats(staminaStats.uma1.nonFullSpurtVelocityDiffs),
+						nonFullSpurtDelayStats: calculateHpDiedPositionStats(staminaStats.uma1.nonFullSpurtDelayDistances)
+					},
+					uma2: {
+						staminaSurvivalRate: staminaStats.uma2.total > 0 ? ((staminaStats.uma2.total - staminaStats.uma2.hpDiedCount) / staminaStats.uma2.total * 100) : 0,
+						fullSpurtRate: staminaStats.uma2.total > 0 ? (staminaStats.uma2.fullSpurtCount / staminaStats.uma2.total * 100) : 0,
+						hpDiedPositionStatsFullSpurt: calculateHpDiedPositionStats(staminaStats.uma2.hpDiedPositionsFullSpurt),
+						hpDiedPositionStatsNonFullSpurt: calculateHpDiedPositionStats(staminaStats.uma2.hpDiedPositionsNonFullSpurt),
+						nonFullSpurtVelocityStats: calculateHpDiedPositionStats(staminaStats.uma2.nonFullSpurtVelocityDiffs),
+						nonFullSpurtDelayStats: calculateHpDiedPositionStats(staminaStats.uma2.nonFullSpurtDelayDistances)
+					}
+				},
+				firstUmaStats: {
+					uma1: {
+						firstPlaceRate: firstUmaStats.uma1.total > 0 ? (firstUmaStats.uma1.firstPlaceCount / firstUmaStats.uma1.total * 100) : 0
+					},
+					uma2: {
+						firstPlaceRate: firstUmaStats.uma2.total > 0 ? (firstUmaStats.uma2.firstPlaceCount / firstUmaStats.uma2.total * 100) : 0
+					}
+				}
+			};
+
+			onProgress(i + 1, nsamples, cumulativeResults);
+		}
+	}
+
+	// Final aggregation
+	allDiffs.sort((a, b) => a - b);
+	const mean = allDiffs.reduce((a, b) => a + b, 0) / allDiffs.length;
+	const mid = Math.floor(allDiffs.length / 2);
+	const median = allDiffs.length % 2 == 0 
+		? (allDiffs[mid - 1] + allDiffs[mid]) / 2 
+		: allDiffs[mid];
+
+	// Find mean and median runs (approximate)
+	// Use minrun/maxrun as fallback if we can't find better matches
+	const fallbackRun = minrun || maxrun;
+	let bestMeanRun: any = fallbackRun, bestMedianRun: any = fallbackRun;
+	let bestMeanDiff = Infinity, bestMedianDiff = Infinity;
+	
+	// Try to find runs closest to mean/median by sampling stored runs
+	// Since we don't store all runs, we'll use minrun/maxrun as approximations
+	if (minrun && maxrun) {
+		// Use the run that's closer to the mean
+		const minDiff = Math.abs((minrun.p && minrun.p.length > 0) ? allDiffs[0] : mean - mean);
+		const maxDiff = Math.abs((maxrun.p && maxrun.p.length > 0) ? allDiffs[allDiffs.length - 1] : maxBasinn - mean);
+		bestMeanRun = minDiff < maxDiff ? minrun : maxrun;
+		bestMedianRun = minDiff < maxDiff ? minrun : maxrun;
+	}
+
+	const calculateStats = (stats) => {
+		if (stats.lengths.length === 0) {
+			return { min: 0, max: 0, mean: 0, frequency: 0 };
+		}
+		const min = Math.min(...stats.lengths);
+		const max = Math.max(...stats.lengths);
+		const mean = stats.lengths.reduce((a, b) => a + b, 0) / stats.lengths.length;
+		const frequency = (stats.count / nsamples) * 100;
+		return { min, max, mean, frequency };
+	};
+
+	const calculateHpDiedPositionStats = (positions: number[]) => {
+		if (positions.length === 0) {
+			return { count: 0, min: null, max: null, mean: null, median: null };
+		}
+		const sorted = [...positions].sort((a, b) => a - b);
+		const min = sorted[0];
+		const max = sorted[sorted.length - 1];
+		const mean = positions.reduce((a, b) => a + b, 0) / positions.length;
+		const mid = Math.floor(sorted.length / 2);
+		const median = sorted.length % 2 === 0 
+			? (sorted[mid - 1] + sorted[mid]) / 2 
+			: sorted[mid];
+		return { count: positions.length, min, max, mean, median };
+	};
+
+	aggregatedResults.results = allDiffs;
+	// Ensure we always have valid runs - use fallbacks if needed
+	const finalFallback = minrun || maxrun;
+	aggregatedResults.runData.minrun = minrun || finalFallback;
+	aggregatedResults.runData.maxrun = maxrun || finalFallback;
+	aggregatedResults.runData.meanrun = bestMeanRun || finalFallback;
+	aggregatedResults.runData.medianrun = bestMedianRun || finalFallback;
+	aggregatedResults.runData.allruns.totalRuns = nsamples;
+	aggregatedResults.runData.allruns.rushed = [
+		calculateStats(rushedStats.uma1),
+		calculateStats(rushedStats.uma2)
+	];
+	aggregatedResults.runData.allruns.leadCompetition = [
+		calculateStats(leadCompetitionStats.uma1),
+		calculateStats(leadCompetitionStats.uma2)
+	];
+	aggregatedResults.runData.allruns.competeFight = [
+		calculateStats(competeFightStats.uma1),
+		calculateStats(competeFightStats.uma2)
+	];
+
+	aggregatedResults.staminaStats = {
+		uma1: {
+			staminaSurvivalRate: staminaStats.uma1.total > 0 ? ((staminaStats.uma1.total - staminaStats.uma1.hpDiedCount) / staminaStats.uma1.total * 100) : 0,
+			fullSpurtRate: staminaStats.uma1.total > 0 ? (staminaStats.uma1.fullSpurtCount / staminaStats.uma1.total * 100) : 0,
+			hpDiedPositionStatsFullSpurt: calculateHpDiedPositionStats(staminaStats.uma1.hpDiedPositionsFullSpurt),
+			hpDiedPositionStatsNonFullSpurt: calculateHpDiedPositionStats(staminaStats.uma1.hpDiedPositionsNonFullSpurt),
+			nonFullSpurtVelocityStats: calculateHpDiedPositionStats(staminaStats.uma1.nonFullSpurtVelocityDiffs),
+			nonFullSpurtDelayStats: calculateHpDiedPositionStats(staminaStats.uma1.nonFullSpurtDelayDistances)
+		},
+		uma2: {
+			staminaSurvivalRate: staminaStats.uma2.total > 0 ? ((staminaStats.uma2.total - staminaStats.uma2.hpDiedCount) / staminaStats.uma2.total * 100) : 0,
+			fullSpurtRate: staminaStats.uma2.total > 0 ? (staminaStats.uma2.fullSpurtCount / staminaStats.uma2.total * 100) : 0,
+			hpDiedPositionStatsFullSpurt: calculateHpDiedPositionStats(staminaStats.uma2.hpDiedPositionsFullSpurt),
+			hpDiedPositionStatsNonFullSpurt: calculateHpDiedPositionStats(staminaStats.uma2.hpDiedPositionsNonFullSpurt),
+			nonFullSpurtVelocityStats: calculateHpDiedPositionStats(staminaStats.uma2.nonFullSpurtVelocityDiffs),
+			nonFullSpurtDelayStats: calculateHpDiedPositionStats(staminaStats.uma2.nonFullSpurtDelayDistances)
+		}
+	};
+
+	aggregatedResults.firstUmaStats = {
+		uma1: {
+			firstPlaceRate: firstUmaStats.uma1.total > 0 ? (firstUmaStats.uma1.firstPlaceCount / firstUmaStats.uma1.total * 100) : 0
+		},
+		uma2: {
+			firstPlaceRate: firstUmaStats.uma2.total > 0 ? (firstUmaStats.uma2.firstPlaceCount / firstUmaStats.uma2.total * 100) : 0
+		}
+	};
+
+	// Store raw data for later processing (we'll group by value and calculate stats in the UI)
+	aggregatedResults.raceParams = {
+		locations: raceParams.locations,
+		lengths: raceParams.lengths,
+		terrains: raceParams.terrains,
+		weathers: raceParams.weathers,
+		seasons: raceParams.seasons
+	};
+
+	return aggregatedResults;
 }

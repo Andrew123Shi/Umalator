@@ -6,7 +6,8 @@ import { Record, Set as ImmSet, Map as ImmMap } from 'immutable';
 import * as d3 from 'd3';
 import { computePosition, flip } from '@floating-ui/dom';
 
-import { CourseHelpers, CourseData } from '../uma-skill-tools/CourseData';
+import { CourseHelpers, CourseData, DistanceType, Surface } from '../uma-skill-tools/CourseData';
+import courses from '../uma-skill-tools/data/course_data.json';
 import { RaceParameters, Mood, GroundCondition, Weather, Season, Time, Grade } from '../uma-skill-tools/RaceParameters';
 import { PosKeepMode } from '../uma-skill-tools/RaceSolver';
 import type { GameHpPolicy } from '../uma-skill-tools/HpPolicy';
@@ -988,6 +989,18 @@ function VelocityLines(props) {
 function ResultsTable(props) {
 	const {caption, color, chartData, idx, runData} = props;
 
+	// Handle null chartData gracefully
+	if (!chartData || !chartData.t || !chartData.t[idx] || !chartData.sdly || !chartData.v || !chartData.v[idx]) {
+		return (
+			<table>
+				<caption style={`color:${color}`}>{caption}</caption>
+				<tbody>
+					<tr><td colSpan={2}>No chart data available</td></tr>
+				</tbody>
+			</table>
+		);
+	}
+
 	return (
 		<table>
 			<caption style={`color:${color}`}>{caption}</caption>
@@ -1005,7 +1018,7 @@ function ResultsTable(props) {
 					<tr><th>Dueling frequency</th><td>{runData.allruns.competeFight[idx].frequency > 0 ? `${runData.allruns.competeFight[idx].frequency.toFixed(1)}%` : '0%'}</td></tr>
 				)}
 			</tbody>
-			{chartData.sk[idx].size > 0 &&
+			{chartData.sk && chartData.sk[idx] && chartData.sk[idx].size > 0 &&
 				<tbody>
 					{Array.from(chartData.sk[idx].entries()).map(([id,ars]) => ars.flatMap(pos =>
 						<tr>
@@ -1517,8 +1530,8 @@ export async function renameUmaProfile(profileId: string, newName: string): Prom
 
 export { getAllSavedProfiles };
 
-const EMPTY_RESULTS_STATE = {courseId: DEFAULT_COURSE_ID, results: [], runData: null, chartData: null, displaying: '', spurtInfo: null, staminaStats: null, firstUmaStats: null};
-function updateResultsState(state: typeof EMPTY_RESULTS_STATE, o: number | string | {results: any, runData: any, spurtInfo?: any, staminaStats?: any, firstUmaStats?: any}) {
+const EMPTY_RESULTS_STATE = {courseId: DEFAULT_COURSE_ID, results: [], runData: null, chartData: null, displaying: '', spurtInfo: null, staminaStats: null, firstUmaStats: null, raceParams: null};
+function updateResultsState(state: typeof EMPTY_RESULTS_STATE, o: number | string | {results: any, runData: any, spurtInfo?: any, staminaStats?: any, firstUmaStats?: any, raceParams?: any}) {
 	if (typeof o == 'number') {
 		return {
 			courseId: o,
@@ -1530,7 +1543,7 @@ function updateResultsState(state: typeof EMPTY_RESULTS_STATE, o: number | strin
 			staminaStats: null,
 			firstUmaStats: null
 		};
-	} else if (typeof o == 'string') {
+		} else if (typeof o == 'string') {
 		postEvent('setChartData', {display: o});
 		return {
 			courseId: state.courseId,
@@ -1540,20 +1553,28 @@ function updateResultsState(state: typeof EMPTY_RESULTS_STATE, o: number | strin
 			displaying: o,
 			spurtInfo: state.spurtInfo,
 			staminaStats: state.staminaStats,
-			firstUmaStats: state.firstUmaStats
+			firstUmaStats: state.firstUmaStats,
+			raceParams: state.raceParams
 		};
-	} else {
-		return {
-			courseId: state.courseId,
-			results: o.results,
-			runData: o.runData,
-			chartData: o.runData[state.displaying || 'meanrun'],
-			displaying: state.displaying || 'meanrun',
-			spurtInfo: o.spurtInfo || null,
-			staminaStats: o.staminaStats || null,
-			firstUmaStats: o.firstUmaStats || null
-		};
-	}
+		} else {
+			// Ensure we have a valid chartData - try meanrun, then medianrun, then minrun, then maxrun
+			const displayKey = state.displaying || 'meanrun';
+			let chartData = o.runData?.[displayKey];
+			if (!chartData && o.runData) {
+				chartData = o.runData.medianrun || o.runData.minrun || o.runData.maxrun || null;
+			}
+			return {
+				courseId: state.courseId,
+				results: o.results,
+				runData: o.runData,
+				chartData: chartData,
+				displaying: state.displaying || 'meanrun',
+				spurtInfo: o.spurtInfo || null,
+				staminaStats: o.staminaStats || null,
+				firstUmaStats: o.firstUmaStats || null,
+				raceParams: o.raceParams || null
+			};
+		}
 }
 
 function RacePresets(props) {
@@ -1572,8 +1593,8 @@ function RacePresets(props) {
 
 const baseSkillsToTest = Object.keys(skilldata).filter(id => isGeneralSkill(id));
 
-const enum Mode { Compare, Chart, UniquesChart }
-const enum UiStateMsg { SetModeCompare, SetModeChart, SetModeUniquesChart, SetCurrentIdx0, SetCurrentIdx1, SetCurrentIdx2, ToggleExpand }
+const enum Mode { Compare, Chart, UniquesChart, GlobalCompare }
+const enum UiStateMsg { SetModeCompare, SetModeChart, SetModeUniquesChart, SetModeGlobalCompare, SetCurrentIdx0, SetCurrentIdx1, SetCurrentIdx2, ToggleExpand }
 
 const DEFAULT_UI_STATE = {mode: Mode.Compare, currentIdx: 0, expanded: false};
 
@@ -1585,6 +1606,8 @@ function nextUiState(state: typeof DEFAULT_UI_STATE, msg: UiStateMsg) {
 			return {...state, mode: Mode.Chart, currentIdx: 0, expanded: false};
 		case UiStateMsg.SetModeUniquesChart:
 			return {...state, mode: Mode.UniquesChart, currentIdx: 0, expanded: false};
+		case UiStateMsg.SetModeGlobalCompare:
+			return {...state, mode: Mode.GlobalCompare, currentIdx: 0, expanded: false};
 		case UiStateMsg.SetCurrentIdx0:
 			return {...state, currentIdx: 0};
 		case UiStateMsg.SetCurrentIdx1:
@@ -1596,47 +1619,115 @@ function nextUiState(state: typeof DEFAULT_UI_STATE, msg: UiStateMsg) {
 	}
 }
 
-function StatsTable({ caption, captionColor, rows }) {
-	const formatValue = (value, label) => {
+function StatsTable({ caption, captionColor, rows, enableSorting = false }) {
+	const [sortColumn, setSortColumn] = useState<string | null>(null);
+	const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+	
+	const formatValue = (value, rowLabel) => {
 		if (value == null) return 'N/A';
-		if (label === 'Velocity') {
+		if (typeof value === 'string') {
+			return value;
+		}
+		// For race parameter statistics (separate tables), Min/Max/Mean/Median are basinn differences
+		if (caption && (caption.includes('Racetrack') || caption.includes('Terrain') || caption.includes('Weather') || caption.includes('Season'))) {
+			return value.toFixed(2);
+		}
+		// For other stats tables
+		if (rowLabel === 'Velocity') {
 			return value.toFixed(3) + ' m/s';
+		}
+		if (rowLabel && (rowLabel.includes('Length') || rowLabel.includes('m'))) {
+			return value.toFixed(0) + ' m';
 		}
 		return value.toFixed(2) + ' m';
 	};
-	
+
+	const handleSort = (column: string) => {
+		if (!enableSorting) return;
+		if (sortColumn === column) {
+			setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+		} else {
+			setSortColumn(column);
+			setSortDirection('asc');
+		}
+	};
+
+	let sortedRows = rows;
+	if (enableSorting && sortColumn) {
+		sortedRows = [...rows].sort((a, b) => {
+			let aVal, bVal;
+			if (sortColumn === 'label') {
+				aVal = a.label;
+				bVal = b.label;
+				const result = String(aVal).localeCompare(String(bVal));
+				return sortDirection === 'asc' ? result : -result;
+			} else {
+				aVal = a.stats[sortColumn];
+				bVal = b.stats[sortColumn];
+				if (aVal == null && bVal == null) return 0;
+				if (aVal == null) return 1;
+				if (bVal == null) return -1;
+				const result = aVal - bVal;
+				return sortDirection === 'asc' ? result : -result;
+			}
+		});
+	}
+
+	const getSortIndicator = (column: string) => {
+		if (!enableSorting || sortColumn !== column) return '';
+		return sortDirection === 'asc' ? ' ▲' : ' ▼';
+	};
+
+	const getFirstColumnHeader = () => {
+		if (enableSorting) {
+			if (caption.includes('Location')) return 'Location';
+			if (caption.includes('Length')) return 'Length';
+			if (caption.includes('Terrain')) return 'Terrain';
+			if (caption.includes('Weather')) return 'Weather';
+			if (caption.includes('Season')) return 'Season';
+			return 'Location/Condition';
+		}
+		return '';
+	};
+
+	const headerStyle = enableSorting 
+		? {border: '1px solid #ccc', padding: '8px', textAlign: 'center', cursor: 'pointer', userSelect: 'none'}
+		: {border: '1px solid #ccc', padding: '8px', textAlign: 'center'};
+
 	return (
-		<table style={{borderCollapse: 'collapse', marginTop: '0', width: '100%'}}>
-			<caption style={{fontWeight: 'bold', marginBottom: '8px', marginTop: '10px', color: captionColor}}>{caption}</caption>
+		<table style={{borderCollapse: 'collapse', marginTop: '0', width: '100%', display: 'table', borderSpacing: 0}}>
+			<caption style={{fontWeight: 'bold', marginBottom: '8px', marginTop: '10px', color: captionColor, captionSide: 'top', display: 'table-caption'}}>{caption}</caption>
 			<thead>
 				<tr>
-					<th style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}></th>
-					<th style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>Count</th>
-					<th style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>Min</th>
-					<th style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>Max</th>
-					<th style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>Mean</th>
-					<th style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>Median</th>
+					<th style={{border: '1px solid #ccc', padding: '8px', textAlign: 'left', cursor: enableSorting ? 'pointer' : 'default', userSelect: enableSorting ? 'none' : 'auto'}} onClick={() => handleSort('label')}>
+						{getFirstColumnHeader()}{getSortIndicator('label')}
+					</th>
+					<th style={headerStyle} onClick={() => handleSort('count')}>
+						Count{getSortIndicator('count')}
+					</th>
+					<th style={headerStyle} onClick={() => handleSort('min')}>
+						Min{getSortIndicator('min')}
+					</th>
+					<th style={headerStyle} onClick={() => handleSort('max')}>
+						Max{getSortIndicator('max')}
+					</th>
+					<th style={headerStyle} onClick={() => handleSort('mean')}>
+						Mean{getSortIndicator('mean')}
+					</th>
+					<th style={headerStyle} onClick={() => handleSort('median')}>
+						Median{getSortIndicator('median')}
+					</th>
 				</tr>
 			</thead>
 			<tbody>
-				{rows.map(({ label, stats }) => (
-					<tr key={label}>
-						<th style={{border: '1px solid #ccc', padding: '8px', textAlign: 'left'}}>{label}</th>
-						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>
-							{stats.count != null ? stats.count : 0}
-						</td>
-						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>
-							{formatValue(stats.min, label)}
-						</td>
-						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>
-							{formatValue(stats.max, label)}
-						</td>
-						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>
-							{formatValue(stats.mean, label)}
-						</td>
-						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>
-							{formatValue(stats.median, label)}
-						</td>
+				{sortedRows.map(({ label, stats }, idx) => (
+					<tr key={`${caption}-${label}-${idx}`}>
+						<th scope="row" style={{border: '1px solid #ccc', padding: '8px', textAlign: 'left', fontWeight: 'normal'}}>{label}</th>
+						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>{stats.count != null ? stats.count : 0}</td>
+						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>{formatValue(stats.min, label)}</td>
+						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>{formatValue(stats.max, label)}</td>
+						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>{formatValue(stats.mean, label)}</td>
+						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>{formatValue(stats.median, label)}</td>
 					</tr>
 				))}
 			</tbody>
@@ -1689,6 +1780,8 @@ function App(props) {
 	const [pacemakerCount, setPacemakerCount] = useState(1);
 	const [selectedPacemakerIndices, setSelectedPacemakerIndices] = useState([]); // Array of selected pacemaker indices (0, 1, 2), empty means none selected
 	const [isPacemakerDropdownOpen, setIsPacemakerDropdownOpen] = useState(false);
+	const [globalCompareDistance, setGlobalCompareDistance] = useState<DistanceType>(DistanceType.Mile);
+	const [globalCompareTerrain, setGlobalCompareTerrain] = useState<Surface>(Surface.Turf);
 	
 	function handlePacemakerCountChange(newCount: number) {
 		setPacemakerCount(newCount);
@@ -1758,7 +1851,7 @@ function App(props) {
 		setPacer(new HorseState({strategy: 'Nige'}));
 	}
 	
-	const [{courseId, results, runData, chartData, displaying, spurtInfo, staminaStats, firstUmaStats}, setSimState] = useReducer(updateResultsState, EMPTY_RESULTS_STATE);
+	const [{courseId, results, runData, chartData, displaying, spurtInfo, staminaStats, firstUmaStats, raceParams}, setSimState] = useReducer(updateResultsState, EMPTY_RESULTS_STATE);
 	const setCourseId = setSimState;
 	const setResults = setSimState;
 	const setChartData = setSimState;
@@ -2021,6 +2114,36 @@ function App(props) {
 					competeFight: competeFight,
 					leadCompetition: leadCompetition,
 					duelingRates: duelingRates
+				}
+			}
+		});
+	}
+
+	function doGlobalComparison() {
+		postEvent('doGlobalComparison', {});
+		setIsSimulationRunning(true);
+		setSimulationProgress(null);
+		worker1.postMessage({
+			msg: 'global-compare',
+			data: {
+				nsamples,
+				distanceType: globalCompareDistance,
+				surface: globalCompareTerrain,
+				uma1: uma1.toJS(),
+				uma2: uma2.toJS(),
+				pacer: pacer.toJS(),
+				options: {
+					seed, 
+					posKeepMode, 
+					pacemakerCount: posKeepMode === PosKeepMode.Virtual ? pacemakerCount : 1,
+					syncRng: syncRng,
+					skillWisdomCheck: skillWisdomCheck,
+					rushedKakari: rushedKakari,
+					competeFight: competeFight,
+					leadCompetition: leadCompetition,
+					duelingRates: duelingRates,
+					time: racedef.time,
+					grade: racedef.grade
 				}
 			}
 		});
@@ -2414,10 +2537,11 @@ function App(props) {
 	
 	const posKeepLabels = [];
 	
+	const courseDistanceForLabels = mode == Mode.GlobalCompare ? 1600 : course.distance;
 	const tempLabels = [...posKeepData, ...virtualPacemakerPosKeepData, ...competeFightData, ...leadCompetitionData, ...virtualPacemakerLeadCompetitionData, ...downhillData].map(posKeep => ({
 		...posKeep,
-		x: posKeep.start / course.distance * 960,
-		width: posKeep.duration / course.distance * 960,
+		x: posKeep.start / courseDistanceForLabels * 960,
+		width: posKeep.duration / courseDistanceForLabels * 960,
 		yOffset: 0
 	}));
 	
@@ -2449,8 +2573,8 @@ function App(props) {
 	const umaTabs = (
 		<Fragment>
 			<div class={`umaTab ${currentIdx == 0 ? 'selected' : ''}`} onClick={() => updateUiState(UiStateMsg.SetCurrentIdx0)}>Umamusume 1</div>
-			{mode == Mode.Compare && <div class={`umaTab ${currentIdx == 1 ? 'selected' : ''}`} onClick={() => updateUiState(UiStateMsg.SetCurrentIdx1)}>Umamusume 2{posKeepMode != PosKeepMode.Virtual && <div id="expandBtn" title="Expand panel" onClick={toggleExpand} />}</div>}
-			{posKeepMode == PosKeepMode.Virtual && mode == Mode.Compare && <div class={`umaTab ${currentIdx == 2 ? 'selected' : ''}`} onClick={() => updateUiState(UiStateMsg.SetCurrentIdx2)}>Virtual Pacemaker<div id="expandBtn" title="Expand panel" onClick={toggleExpand} /></div>}
+			{(mode == Mode.Compare || mode == Mode.GlobalCompare) && <div class={`umaTab ${currentIdx == 1 ? 'selected' : ''}`} onClick={() => updateUiState(UiStateMsg.SetCurrentIdx1)}>Umamusume 2{posKeepMode != PosKeepMode.Virtual && <div id="expandBtn" title="Expand panel" onClick={toggleExpand} />}</div>}
+			{posKeepMode == PosKeepMode.Virtual && (mode == Mode.Compare || mode == Mode.GlobalCompare) && <div class={`umaTab ${currentIdx == 2 ? 'selected' : ''}`} onClick={() => updateUiState(UiStateMsg.SetCurrentIdx2)}>Virtual Pacemaker<div id="expandBtn" title="Expand panel" onClick={toggleExpand} /></div>}
 		</Fragment>
 	);
 
@@ -2532,10 +2656,11 @@ function App(props) {
 	}, [displaying, loadingAdditionalSamples, isSimulationRunning, runAdditionalSamplesForSkill]);
 
 	let resultsPane;
-	if (mode == Mode.Compare && results.length > 0) {
+	if ((mode == Mode.Compare || mode == Mode.GlobalCompare) && results.length > 0) {
 		resultsPane = (
-			<div id="resultsPaneWrapper">
-				<div id="resultsPane" class="mode-compare">
+			mode == Mode.GlobalCompare ? (
+				<div id="globalCompareWrapper" style="display: flex; align-items: flex-start; gap: 20px; grid-column: 1; grid-row: 1;">
+					<div id="resultsPane" class="mode-compare global-compare-mode">
 					<table id="resultsSummary">
 						<tfoot>
 							<tr>
@@ -2661,12 +2786,266 @@ function App(props) {
 							)}
 						</div>
 					)}
+					</div>
+					<div id="infoTables">
+						<ResultsTable caption="Umamusume 1" color="#2a77c5" chartData={chartData} idx={0} runData={runData} />
+						<ResultsTable caption="Umamusume 2" color="#c52a2a" chartData={chartData} idx={1} runData={runData} />
+						{mode == Mode.GlobalCompare && raceParams && (() => {
+							// Group results by parameter value and calculate statistics for each value
+							const groupByValue = <T,>(data: Array<{value: T, result: number}>, getLabel: (val: T) => string, sortFn?: (a: T, b: T) => number) => {
+								const grouped = new Map<string, number[]>();
+								data.forEach(({value, result}) => {
+									const key = getLabel(value);
+									if (!grouped.has(key)) {
+										grouped.set(key, []);
+									}
+									grouped.get(key)!.push(result);
+								});
+
+								// Calculate stats for each group
+								const stats = Array.from(grouped.entries()).map(([label, results]) => {
+									const sorted = [...results].sort((a, b) => a - b);
+									const count = results.length;
+									const min = sorted[0];
+									const max = sorted[sorted.length - 1];
+									const mean = results.reduce((a, b) => a + b, 0) / results.length;
+									const mid = Math.floor(sorted.length / 2);
+									const median = sorted.length % 2 === 0 
+										? (sorted[mid - 1] + sorted[mid]) / 2 
+										: sorted[mid];
+									return { label, stats: { count, min, max, mean, median } };
+								});
+
+								// Sort by label or value if sortFn provided
+								if (sortFn) {
+									// Extract original values and sort
+									const valueMap = new Map<string, T>();
+									data.forEach(({value}) => {
+										const key = getLabel(value);
+										if (!valueMap.has(key)) {
+											valueMap.set(key, value);
+										}
+									});
+									stats.sort((a, b) => {
+										const valA = valueMap.get(a.label)!;
+										const valB = valueMap.get(b.label)!;
+										return sortFn(valA, valB);
+									});
+								} else {
+									stats.sort((a, b) => a.label.localeCompare(b.label));
+								}
+
+								return stats;
+							};
+
+							// Helper functions to convert enum values to labels
+							const getLocationName = (trackIdStr: string) => TRACKNAMES_en[+trackIdStr] || trackIdStr;
+							const getTerrainLabel = (terrain: number) => {
+								const labels = ['', 'Firm', 'Good', 'Soft', 'Heavy'];
+								return labels[terrain] || terrain.toString();
+							};
+							const getWeatherLabel = (weather: number) => {
+								const labels = ['', 'Sunny', 'Cloudy', 'Rainy', 'Snowy'];
+								return labels[weather] || weather.toString();
+							};
+							const getSeasonLabel = (season: number) => {
+								const labels = ['', 'Spring', 'Summer', 'Autumn', 'Winter', 'Sakura'];
+								return labels[season] || season.toString();
+							};
+
+							const locationRows = groupByValue(raceParams.locations || [], getLocationName);
+							const lengthRows = groupByValue(raceParams.lengths || [], (val: number) => val.toString() + ' m', (a, b) => a - b);
+							const terrainRows = groupByValue(raceParams.terrains || [], getTerrainLabel);
+							const weatherRows = groupByValue(raceParams.weathers || [], getWeatherLabel);
+							const seasonRows = groupByValue(raceParams.seasons || [], getSeasonLabel);
+
+							return (
+								<div style={{marginTop: '20px', width: '100%'}}>
+									{locationRows.length > 0 && (
+										<StatsTable
+											key="location-table"
+											caption="Racetrack Location"
+											captionColor="#666"
+											rows={locationRows}
+											enableSorting={true}
+										/>
+									)}
+									{lengthRows.length > 0 && (
+										<StatsTable
+											key="length-table"
+											caption="Racetrack Length"
+											captionColor="#666"
+											rows={lengthRows}
+											enableSorting={true}
+										/>
+									)}
+									{terrainRows.length > 0 && (
+										<StatsTable
+											key="terrain-table"
+											caption="Terrain Condition"
+											captionColor="#666"
+											rows={terrainRows}
+											enableSorting={true}
+										/>
+									)}
+									{weatherRows.length > 0 && (
+										<StatsTable
+											key="weather-table"
+											caption="Weather Condition"
+											captionColor="#666"
+											rows={weatherRows}
+											enableSorting={true}
+										/>
+									)}
+									{seasonRows.length > 0 && (
+										<StatsTable
+											key="season-table"
+											caption="Season Condition"
+											captionColor="#666"
+											rows={seasonRows}
+											enableSorting={true}
+										/>
+									)}
+								</div>
+							);
+						})()}
+					</div>
 				</div>
-				<div id="infoTables">
-					<ResultsTable caption="Umamusume 1" color="#2a77c5" chartData={chartData} idx={0} runData={runData} />
-					<ResultsTable caption="Umamusume 2" color="#c52a2a" chartData={chartData} idx={1} runData={runData} />
+			) : (
+				<div id="resultsPaneWrapper">
+					<div id="resultsPane" class="mode-compare" key="compare-results">
+						<table id="resultsSummary">
+							<tfoot>
+								<tr>
+									{Object.entries({
+										minrun: ['Minimum', 'Set chart display to the run with minimum bashin difference'],
+										maxrun: ['Maximum', 'Set chart display to the run with maximum bashin difference'],
+										meanrun: ['Mean', 'Set chart display to a run representative of the mean bashin difference'],
+										medianrun: ['Median', 'Set chart display to a run representative of the median bashin difference']
+									}).map(([k,label]) =>
+										<th scope="col" class={displaying == k ? 'selected' : ''} title={label[1]} onClick={() => setChartData(k)}>{label[0]}</th>
+									)}
+								</tr>
+							</tfoot>
+							<tbody>
+								<tr>
+									<td onClick={() => setChartData('minrun')}>{results[0].toFixed(2)}<span class="unit-basinn">{CC_GLOBAL?'lengths':'バ身'}</span></td>
+									<td onClick={() => setChartData('maxrun')}>{results[results.length-1].toFixed(2)}<span class="unit-basinn">{CC_GLOBAL?'lengths':'バ身'}</span></td>
+									<td onClick={() => setChartData('meanrun')}>{mean.toFixed(2)}<span class="unit-basinn">{CC_GLOBAL?'lengths':'バ身'}</span></td>
+									<td onClick={() => setChartData('medianrun')}>{median.toFixed(2)}<span class="unit-basinn">{CC_GLOBAL?'lengths':'バ身'}</span></td>
+								</tr>
+							</tbody>
+						</table>
+						<div id="resultsHelp">Negative numbers mean <strong style="color:#2a77c5">Umamusume 1</strong> is faster, positive numbers mean <strong style="color:#c52a2a">Umamusume 2</strong> is faster.</div>
+						
+						
+						{(firstUmaStats || staminaStats) && (
+							<div style={{marginTop: '15px', marginBottom: '10px', textAlign: 'center'}}>
+								{firstUmaStats && (
+									<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
+										<div style={{textAlign: 'right', minWidth: '250px'}}>
+											<strong>Uma 1:</strong> Final leg 1st place: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{firstUmaStats.uma1.firstPlaceRate.toFixed(1)}%</span>
+										</div>
+										<div style={{textAlign: 'left', minWidth: '250px'}}>
+											<strong>Uma 2:</strong> Final leg 1st place: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{firstUmaStats.uma2.firstPlaceRate.toFixed(1)}%</span>
+										</div>
+									</div>
+								)}
+								{staminaStats && (
+									<>
+										<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
+											<div style={{textAlign: 'right', minWidth: '250px'}}>
+												<strong>Uma 1:</strong> Spurt Rate: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{staminaStats.uma1.fullSpurtRate.toFixed(1)}%</span>
+											</div>
+											<div style={{textAlign: 'left', minWidth: '250px'}}>
+												<strong>Uma 2:</strong> Spurt Rate: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{staminaStats.uma2.fullSpurtRate.toFixed(1)}%</span>
+											</div>
+										</div>
+										<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
+											<div style={{textAlign: 'right', minWidth: '250px'}}>
+												<strong>Uma 1:</strong> Survival Rate: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{staminaStats.uma1.staminaSurvivalRate.toFixed(1)}%</span>
+											</div>
+											<div style={{textAlign: 'left', minWidth: '250px'}}>
+												<strong>Uma 2:</strong> Survival Rate: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{staminaStats.uma2.staminaSurvivalRate.toFixed(1)}%</span>
+											</div>
+										</div>
+									</>
+								)}
+							</div>
+						)}
+						
+						<Histogram width={500} height={333} data={results} />
+						{staminaStats && (
+							<div style={{marginTop: '20px', width: '500px', paddingBottom: '20px'}}>
+								<div style={{display: 'flex', marginBottom: '0'}}>
+									<div 
+										class={`umaTab staminaTab ${hpDeathPositionTab == 0 ? 'selected' : ''}`} 
+										onClick={() => setHpDeathPositionTab(0)}
+										style={{cursor: 'pointer'}}
+									>
+										Uma 1
+									</div>
+									<div 
+										class={`umaTab staminaTab ${hpDeathPositionTab == 1 ? 'selected' : ''}`} 
+										onClick={() => setHpDeathPositionTab(1)}
+										style={{cursor: 'pointer'}}
+									>
+										Uma 2
+									</div>
+								</div>
+								{hpDeathPositionTab == 0 && (
+									<>
+										<StatsTable 
+											caption="Stamina Death Stats"
+											captionColor="#2a77c5"
+											rows={[
+												{ label: 'Full Spurt', stats: staminaStats.uma1.hpDiedPositionStatsFullSpurt },
+												{ label: 'Non-Full Spurt', stats: staminaStats.uma1.hpDiedPositionStatsNonFullSpurt }
+											]}
+										/>
+										{staminaStats.uma1.nonFullSpurtVelocityStats && staminaStats.uma1.nonFullSpurtDelayStats && (
+											<StatsTable 
+												caption="Non-Full Spurt Stats"
+												captionColor="#2a77c5"
+												rows={[
+													{ label: 'Velocity', stats: staminaStats.uma1.nonFullSpurtVelocityStats },
+													{ label: 'Delay', stats: staminaStats.uma1.nonFullSpurtDelayStats }
+												]}
+											/>
+										)}
+									</>
+								)}
+								{hpDeathPositionTab == 1 && (
+									<>
+										<StatsTable 
+											caption="Stamina Death Stats"
+											captionColor="#c52a2a"
+											rows={[
+												{ label: 'Full Spurt', stats: staminaStats.uma2.hpDiedPositionStatsFullSpurt },
+												{ label: 'Non-Full Spurt', stats: staminaStats.uma2.hpDiedPositionStatsNonFullSpurt }
+											]}
+										/>
+										{staminaStats.uma2.nonFullSpurtVelocityStats && staminaStats.uma2.nonFullSpurtDelayStats && (
+											<StatsTable 
+												caption="Non-Full Spurt Stats"
+												captionColor="#c52a2a"
+												rows={[
+													{ label: 'Velocity', stats: staminaStats.uma2.nonFullSpurtVelocityStats },
+													{ label: 'Delay', stats: staminaStats.uma2.nonFullSpurtDelayStats }
+												]}
+											/>
+										)}
+									</>
+								)}
+							</div>
+						)}
+					</div>
+					<div id="infoTables">
+						<ResultsTable caption="Umamusume 1" color="#2a77c5" chartData={chartData} idx={0} runData={runData} />
+						<ResultsTable caption="Umamusume 2" color="#c52a2a" chartData={chartData} idx={1} runData={runData} />
+					</div>
 				</div>
-			</div>
+		)
 		);
 	} else if ((mode == Mode.Chart || mode == Mode.UniquesChart) && tableData.size > 0) {
 		const dirty = !uma1.equals(lastRunChartUma);
@@ -2708,8 +3087,9 @@ function App(props) {
 		<Language.Provider value={props.lang}>
 			<IntlProvider definition={strings}>
 				<div id="topPane" class={chartData ? 'hasResults' : ''}>
-					<RaceTrack courseid={courseId} width={960} height={240} xOffset={20} yOffset={15} yExtra={20} mouseMove={rtMouseMove} mouseLeave={rtMouseLeave} onSkillDrag={handleSkillDrag} regions={[...skillActivations, ...rushedIndicators]} posKeepLabels={posKeepLabels} uma1={uma1} uma2={uma2} pacer={pacer}>
-						<VelocityLines data={chartData} courseDistance={course.distance} width={960} height={250} xOffset={20} showHp={showHp} showLanes={mode == Mode.Compare ? showLanes : false} horseLane={course.horseLane} showVirtualPacemaker={showVirtualPacemakerOnGraph && posKeepMode === PosKeepMode.Virtual} selectedPacemakers={getSelectedPacemakers()} />
+					{mode != Mode.GlobalCompare && (
+						<RaceTrack courseid={courseId} width={960} height={240} xOffset={20} yOffset={15} yExtra={20} mouseMove={rtMouseMove} mouseLeave={rtMouseLeave} onSkillDrag={handleSkillDrag} regions={[...skillActivations, ...rushedIndicators]} posKeepLabels={posKeepLabels} uma1={uma1} uma2={uma2} pacer={pacer}>
+							<VelocityLines data={chartData} courseDistance={course.distance} width={960} height={250} xOffset={20} showHp={showHp} showLanes={mode == Mode.Compare ? showLanes : false} horseLane={course.horseLane} showVirtualPacemaker={showVirtualPacemakerOnGraph && posKeepMode === PosKeepMode.Virtual} selectedPacemakers={getSelectedPacemakers()} />
 						
 						<g id="rtMouseOverBox" style="display:none">
 							<text id="rtV1" x="25" y="10" fill="#2a77c5" font-size="10px"></text>
@@ -2719,25 +3099,56 @@ function App(props) {
 							<text id="pd2" x="25" y="20" fill="#c52a2a" font-size="10px"></text>
 						</g>
 					</RaceTrack>
+					)}
+					{mode == Mode.GlobalCompare && results.length > 0 ? resultsPane : null}
+					{mode == Mode.GlobalCompare && results.length === 0 ? (
+						<div style={{width: '960px', height: '240px', visibility: 'hidden', pointerEvents: 'none'}}></div>
+					) : null}
 					<div id="runPane">
 						<fieldset>
 							<legend>Mode:</legend>
 							<div>
 								<input type="radio" id="mode-compare" name="mode" value="compare" checked={mode == Mode.Compare} onClick={() => updateUiState(UiStateMsg.SetModeCompare)} />
-								<label for="mode-compare">Compare</label>
+								<label for="mode-compare">Race Compare</label>
+							</div>
+							<div>
+								<input type="radio" id="mode-global-compare" name="mode" value="global-compare" checked={mode == Mode.GlobalCompare} onClick={() => updateUiState(UiStateMsg.SetModeGlobalCompare)} />
+								<label for="mode-global-compare">Global Compare</label>
 							</div>
 							<div>
 								<input type="radio" id="mode-chart" name="mode" value="chart" checked={mode == Mode.Chart} onClick={() => updateUiState(UiStateMsg.SetModeChart)} />
-								<label for="mode-chart">Skill chart</label>
+								<label for="mode-chart">Skill Chart</label>
 							</div>
 							<div>
 								<input type="radio" id="mode-uniques-chart" name="mode" value="uniques-chart" checked={mode == Mode.UniquesChart} onClick={() => updateUiState(UiStateMsg.SetModeUniquesChart)} />
-								<label for="mode-uniques-chart">Uma chart</label>
+								<label for="mode-uniques-chart">Uma Chart</label>
 							</div>
 						</fieldset>
+						{mode == Mode.GlobalCompare && (
+							<>
+								<fieldset id="globalDistanceFieldset" style="border: 1px solid rgb(148, 150, 189); border-radius: 8px; padding: 8px; margin: 5px 0;">
+									<legend style="padding: 0 5px;">Distance:</legend>
+									<select id="global-distance" value={globalCompareDistance} onInput={(e) => setGlobalCompareDistance(+e.currentTarget.value)} tabindex={2} style="background: none; border: 1px solid rgb(148, 150, 189); border-radius: 4px; padding: 4px 8px; width: 100%;">
+										<option value={DistanceType.Short}>Sprint (≤1400m)</option>
+										<option value={DistanceType.Mile}>Mile (1401-1800m)</option>
+										<option value={DistanceType.Mid}>Medium (1801-2400m)</option>
+										<option value={DistanceType.Long}>Long (≥2400m)</option>
+									</select>
+								</fieldset>
+								<fieldset id="globalTerrainFieldset" style="border: 1px solid rgb(148, 150, 189); border-radius: 8px; padding: 8px; margin: 5px 0;">
+									<legend style="padding: 0 5px;">Terrain:</legend>
+									<select id="global-terrain" value={globalCompareTerrain} onInput={(e) => setGlobalCompareTerrain(+e.currentTarget.value)} tabindex={3} style="background: none; border: 1px solid rgb(148, 150, 189); border-radius: 4px; padding: 4px 8px; width: 100%;">
+										<option value={Surface.Turf}>Turf</option>
+										<option value={Surface.Dirt}>Dirt</option>
+									</select>
+								</fieldset>
+							</>
+						)}
 						{
 							mode == Mode.Compare
 							? <button id="run" onClick={doComparison} tabindex={1} disabled={isSimulationRunning || loadingAdditionalSamples.size > 0}>COMPARE</button>
+							: mode == Mode.GlobalCompare
+							? <button id="run" onClick={doGlobalComparison} tabindex={1} disabled={isSimulationRunning || loadingAdditionalSamples.size > 0}>GLOBAL COMPARE</button>
 							: <button id="run" onClick={doBasinnChart} tabindex={1} disabled={isSimulationRunning || loadingAdditionalSamples.size > 0}>
 								{simulationProgress ? `Run (${simulationProgress.round}/${simulationProgress.total})` : 'RUN'}
 							</button>
@@ -2749,7 +3160,7 @@ function App(props) {
 						}
 						<label for="nsamples">Samples:</label>
 						<input type="number" id="nsamples" min="1" max="10000" value={nsamples} onInput={(e) => setSamples(+e.currentTarget.value)} />
-						{mode == Mode.Compare && isSimulationRunning && simulationProgress && (
+						{(mode == Mode.Compare || mode == Mode.GlobalCompare) && isSimulationRunning && simulationProgress && (
 							<div id="compareProgressBar">
 								<div id="compareProgressBarFill" style={`width: ${(simulationProgress.round / simulationProgress.total) * 100}%`}></div>
 								<span id="compareProgressText">{simulationProgress.round} / {simulationProgress.total}</span>
@@ -2760,7 +3171,7 @@ function App(props) {
 							<input type="number" id="seed" value={seed} onInput={(e) => { setSeed(+e.currentTarget.value); setRunOnceCounter(0); }} />
 							<button title="Randomize seed" onClick={() => { setSeed(Math.floor(Math.random() * (-1 >>> 0)) >>> 0); setRunOnceCounter(0); }}>🎲</button>
 						</div>
-						{mode == Mode.Compare && (
+						{(mode == Mode.Compare || mode == Mode.GlobalCompare) && (
 							<fieldset id="posKeepFieldset">
 								<legend>Position Keep:</legend>
 								<select id="poskeepmode" value={posKeepMode} onInput={(e) => setPosKeepMode(+e.currentTarget.value)}>
@@ -2832,7 +3243,7 @@ function App(props) {
 								<input type="checkbox" id="showlanes" checked={showLanes} onClick={toggleShowLanes} />
 							</div>
 						)} **/}
-						{mode == Mode.Compare && (
+						{(mode == Mode.Compare || mode == Mode.GlobalCompare) && (
 							<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0;">
 								<div style="display: flex; flex-direction: column; gap: 0;">
 									<div>
@@ -2872,30 +3283,36 @@ function App(props) {
 								</div>
 							</div>
 						)}
-						<div>
-							<label for="showhp">Show HP</label>
-							<input type="checkbox" id="showhp" checked={showHp} onClick={toggleShowHp} />
-						</div>
+						{mode != Mode.GlobalCompare && (
+							<div>
+								<label for="showhp">Show HP</label>
+								<input type="checkbox" id="showhp" checked={showHp} onClick={toggleShowHp} />
+							</div>
+						)}
 
 						<a href="#" onClick={copyStateUrl}>Copy link</a>
-						<RacePresets courseId={courseId} racedef={racedef} set={(courseId, racedef) => { setCourseId(courseId); setRaceDef(racedef); }} />
+						{mode != Mode.GlobalCompare && (
+							<RacePresets courseId={courseId} racedef={racedef} set={(courseId, racedef) => { setCourseId(courseId); setRaceDef(racedef); }} />
+						)}
 					</div>
-					<div id="buttonsRow">
-						<TrackSelect key={courseId} courseid={courseId} setCourseid={setCourseId} tabindex={2} />
-						<div id="buttonsRowSpace" />
-						<TimeOfDaySelect value={racedef.time} set={racesetter('time')} />
-						<div>
-							<GroundSelect value={racedef.ground} set={racesetter('ground')} />
-							<WeatherSelect value={racedef.weather} set={racesetter('weather')} />
+					{mode != Mode.GlobalCompare && (
+						<div id="buttonsRow">
+							<TrackSelect key={courseId} courseid={courseId} setCourseid={setCourseId} tabindex={2} />
+							<div id="buttonsRowSpace" />
+							<TimeOfDaySelect value={racedef.time} set={racesetter('time')} />
+							<div>
+								<GroundSelect value={racedef.ground} set={racesetter('ground')} />
+								<WeatherSelect value={racedef.weather} set={racesetter('weather')} />
+							</div>
+							<SeasonSelect value={racedef.season} set={racesetter('season')} />
 						</div>
-						<SeasonSelect value={racedef.season} set={racesetter('season')} />
-					</div>
+					)}
 				</div>
-				{resultsPane}
+				{mode != Mode.GlobalCompare && resultsPane}
 				{expanded && <div id="umaPane" />}
 				<div id={expanded ? 'umaOverlay' : 'umaPane'}>
 					<div class={!expanded && currentIdx == 0 ? 'selected' : ''}>
-						<HorseDef key={uma1.outfitId} state={uma1} setState={setUma1} courseDistance={course.distance} tabstart={() => 4} onResetAll={resetAllUmas} runData={mode == Mode.Compare ? runData : null} umaIndex={mode == Mode.Compare ? 0 : null}>
+						<HorseDef key={uma1.outfitId} state={uma1} setState={setUma1} courseDistance={mode == Mode.GlobalCompare ? 1600 : course.distance} tabstart={() => 4} onResetAll={resetAllUmas} runData={(mode == Mode.Compare || mode == Mode.GlobalCompare) ? runData : null} umaIndex={(mode == Mode.Compare || mode == Mode.GlobalCompare) ? 0 : null}>
 							{expanded ? 'Umamusume 1' : umaTabs}
 						</HorseDef>
 					</div>
@@ -2905,13 +3322,13 @@ function App(props) {
 							<div id="copyUmaToLeft" title="Copy uma 2 to uma 1" onClick={copyUmaToLeft} />
 							<div id="swapUmas" title="Swap umas" onClick={swapUmas}>⮂</div>
 						</div>}
-					{mode == Mode.Compare && <div class={!expanded && currentIdx == 1 ? 'selected' : ''}>
+					{(mode == Mode.Compare || mode == Mode.GlobalCompare) && <div class={!expanded && currentIdx == 1 ? 'selected' : ''}>
 						<HorseDef key={uma2.outfitId} state={uma2} setState={setUma2} courseDistance={course.distance} tabstart={() => 4 + horseDefTabs()} onResetAll={resetAllUmas} runData={runData} umaIndex={1}>
 							{expanded ? 'Umamusume 2' : umaTabs}
 						</HorseDef>
 					</div>}
-					{posKeepMode == PosKeepMode.Virtual && mode == Mode.Compare && <div class={!expanded && currentIdx == 2 ? 'selected' : ''}>
-						<HorseDef key={pacer.outfitId} state={pacer} setState={setPacer} courseDistance={course.distance} tabstart={() => 4 + (mode == Mode.Compare ? 2 : 1) * horseDefTabs()} onResetAll={resetAllUmas}>
+					{posKeepMode == PosKeepMode.Virtual && (mode == Mode.Compare || mode == Mode.GlobalCompare) && <div class={!expanded && currentIdx == 2 ? 'selected' : ''}>
+						<HorseDef key={pacer.outfitId} state={pacer} setState={setPacer} courseDistance={mode == Mode.GlobalCompare ? 1600 : course.distance} tabstart={() => 4 + ((mode == Mode.Compare || mode == Mode.GlobalCompare) ? 2 : 1) * horseDefTabs()} onResetAll={resetAllUmas}>
 							{expanded ? 'Virtual Pacemaker' : umaTabs}
 						</HorseDef>
 					</div>}

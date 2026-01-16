@@ -5,7 +5,8 @@ import type { RaceParameters } from '../uma-skill-tools/RaceParameters';
 
 import { Map as ImmMap } from 'immutable';
 import { HorseState } from '../components/HorseDefTypes';
-import { runComparison } from './compare';
+import { runComparison, runGlobalComparison } from './compare';
+import { DistanceType, Surface } from '../uma-skill-tools/CourseData';
 import skillmeta from '../skill_meta.json';
 
 function mergeSkillMaps(map1, map2) {
@@ -153,6 +154,26 @@ function runCompare({nsamples, course, racedef, uma1, uma2, pacer, options}) {
 	postMessage({type: 'compare-complete'});
 }
 
+function runGlobalCompare({nsamples, distanceType, surface, uma1, uma2, pacer, options}) {
+	const uma1_ = new HorseState(uma1)
+		.set('skills', fromJS(uma1.skills))
+		.set('forcedSkillPositions', ImmMap(uma1.forcedSkillPositions || {}));
+	const uma2_ = new HorseState(uma2)
+		.set('skills', fromJS(uma2.skills))
+		.set('forcedSkillPositions', ImmMap(uma2.forcedSkillPositions || {}));
+	const pacer_ = pacer ? new HorseState(pacer)
+		.set('skills', fromJS(pacer.skills || []))
+		.set('forcedSkillPositions', ImmMap(pacer.forcedSkillPositions || {})) : null;
+	const compareOptions = {...options, mode: 'compare'};
+	// Run the full batch with progress updates every 20 samples
+	const results = runGlobalComparison(nsamples, distanceType, surface, uma1_, uma2_, pacer_, compareOptions, (completed, total, cumulativeResults) => {
+		postMessage({type: 'compare-progress', completed, total: nsamples, results: cumulativeResults});
+	});
+	// Send final results
+	postMessage({type: 'compare', results});
+	postMessage({type: 'compare-complete'});
+}
+
 function runAdditionalSamples({skillId, nsamples, course, racedef, uma, pacer, options}) {
 	const uma_ = new HorseState(uma)
 		.set('skills', SkillSet(uma.skills))
@@ -196,6 +217,9 @@ self.addEventListener('message', function (e) {
 			break;
 		case 'compare':
 			runCompare(data);
+			break;
+		case 'global-compare':
+			runGlobalCompare(data);
 			break;
 		case 'additional-samples':
 			runAdditionalSamples(data);
