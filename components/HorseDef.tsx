@@ -48,15 +48,39 @@ export function UmaProfileManager(props) {
 	const [loading, setLoading] = useState(true);
 	const [searchQuery, setSearchQuery] = useState('');
 
-	// Filter profiles based on search query (by profile name)
+	// Filter profiles based on search query (by profile name and uma character name)
 	const filteredProfiles = useMemo(() => {
 		if (!searchQuery.trim()) {
 			return profiles;
 		}
 		const query = searchQuery.trim().toLowerCase();
-		return profiles.filter(profile => 
-			profile.name.toLowerCase().includes(query)
-		);
+		return profiles.filter(profile => {
+			// Search by profile name
+			if (profile.name.toLowerCase().includes(query)) {
+				return true;
+			}
+			// Search by uma character name
+			const umaData = profile.data;
+			const umaId = umaData.outfitId;
+			if (umaId) {
+				const u = umas[umaId.slice(0,4)];
+				if (u && u.name && u.name[1]) {
+					// Check English name (index 1)
+					if (u.name[1].toLowerCase().includes(query)) {
+						return true;
+					}
+					// Also check Japanese name (index 0) if it exists
+					if (u.name[0] && u.name[0].toLowerCase().includes(query)) {
+						return true;
+					}
+					// Check outfit/epithet name if it exists
+					if (u.outfits && u.outfits[umaId] && u.outfits[umaId].toLowerCase().includes(query)) {
+						return true;
+					}
+				}
+			}
+			return false;
+		});
 	}, [profiles, searchQuery]);
 
 	// Load profiles on mount - try to load from file
@@ -216,7 +240,7 @@ export function UmaProfileManager(props) {
 							<input
 								type="text"
 								class="umaProfileManagerSearchInput"
-								placeholder="Search by profile name..."
+								placeholder="Search by profile name or uma character..."
 								value={searchQuery}
 								onInput={(e) => setSearchQuery(e.currentTarget.value)}
 							/>

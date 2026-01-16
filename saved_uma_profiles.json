@@ -1,0 +1,502 @@
+[
+  {
+    "id": "1768524502844",
+    "name": "14184",
+    "timestamp": 1768524502844,
+    "data": {
+      "outfitId": "102801",
+      "speed": 1200,
+      "stamina": 535,
+      "power": 1200,
+      "guts": 500,
+      "wisdom": 443,
+      "strategy": "Senkou",
+      "distanceAptitude": "S",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "200962",
+        "201312",
+        "201532",
+        "200992",
+        "201322",
+        "200331",
+        "201002",
+        "200461",
+        "200582",
+        "200491",
+        "100281",
+        "900101"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768524570407",
+    "name": "12742",
+    "timestamp": 1768524570407,
+    "data": {
+      "outfitId": "102801",
+      "speed": 1200,
+      "stamina": 416,
+      "power": 1200,
+      "guts": 426,
+      "wisdom": 394,
+      "strategy": "Senkou",
+      "distanceAptitude": "S",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "100281",
+        "201001",
+        "200491",
+        "200331",
+        "200461",
+        "900581",
+        "900411",
+        "900101"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768524729308",
+    "name": "13117",
+    "timestamp": 1768524729308,
+    "data": {
+      "outfitId": "103801",
+      "speed": 1200,
+      "stamina": 561,
+      "power": 1195,
+      "guts": 472,
+      "wisdom": 419,
+      "strategy": "Senkou",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "100381",
+        "200461",
+        "201002",
+        "200491",
+        "200582",
+        "201902",
+        "200331",
+        "201311"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768524810193",
+    "name": "12508",
+    "timestamp": 1768524810193,
+    "data": {
+      "outfitId": "104101",
+      "speed": 1200,
+      "stamina": 402,
+      "power": 1102,
+      "guts": 400,
+      "wisdom": 551,
+      "strategy": "Senkou",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "200502",
+        "100411",
+        "201311",
+        "201531",
+        "210012",
+        "201002",
+        "201332",
+        "200461",
+        "200362",
+        "200491",
+        "900101"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768525045527",
+    "name": "10634",
+    "timestamp": 1768525045527,
+    "data": {
+      "outfitId": "106101",
+      "speed": 1059,
+      "stamina": 549,
+      "power": 878,
+      "guts": 445,
+      "wisdom": 527,
+      "strategy": "Sasi",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "100611",
+        "200512",
+        "210012",
+        "200331",
+        "201661",
+        "200462",
+        "200362",
+        "201031",
+        "200492",
+        "900561"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768525181073",
+    "name": "10616",
+    "timestamp": 1768525181073,
+    "data": {
+      "outfitId": "100801",
+      "speed": 1017,
+      "stamina": 455,
+      "power": 901,
+      "guts": 566,
+      "wisdom": 356,
+      "strategy": "Sasi",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "200432",
+        "200331",
+        "200461",
+        "200682",
+        "200361",
+        "200372",
+        "201052",
+        "201062",
+        "100081",
+        "900011"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768525262918",
+    "name": "8616",
+    "timestamp": 1768525262918,
+    "data": {
+      "outfitId": "104001",
+      "speed": 770,
+      "stamina": 485,
+      "power": 741,
+      "guts": 556,
+      "wisdom": 410,
+      "strategy": "Senkou",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "100401",
+        "200502",
+        "200732",
+        "201101",
+        "200332",
+        "201651",
+        "200352",
+        "200362",
+        "200381",
+        "900231"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768525321535",
+    "name": "10639",
+    "timestamp": 1768525321535,
+    "data": {
+      "outfitId": "105601",
+      "speed": 1021,
+      "stamina": 653,
+      "power": 808,
+      "guts": 551,
+      "wisdom": 540,
+      "strategy": "Sasi",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "900081",
+        "100561",
+        "200331",
+        "200461",
+        "200362",
+        "200382",
+        "201391",
+        "900011",
+        "900271"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768525404431",
+    "name": "10176",
+    "timestamp": 1768525404431,
+    "data": {
+      "outfitId": "105801",
+      "speed": 796,
+      "stamina": 703,
+      "power": 764,
+      "guts": 578,
+      "wisdom": 365,
+      "strategy": "Senkou",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "200721",
+        "201312",
+        "201322",
+        "200331",
+        "201111",
+        "100581",
+        "200362",
+        "200582",
+        "200371",
+        "900241"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768525646120",
+    "name": "8877",
+    "timestamp": 1768525646120,
+    "data": {
+      "outfitId": "102701",
+      "speed": 685,
+      "stamina": 615,
+      "power": 657,
+      "guts": 642,
+      "wisdom": 342,
+      "strategy": "Sasi",
+      "distanceAptitude": "S",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "200721",
+        "200732",
+        "201111",
+        "200342",
+        "200562",
+        "200352",
+        "200572",
+        "200362",
+        "200152",
+        "100271",
+        "200382"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768525714677",
+    "name": "11343",
+    "timestamp": 1768525714677,
+    "data": {
+      "outfitId": "102302",
+      "speed": 832,
+      "stamina": 905,
+      "power": 661,
+      "guts": 711,
+      "wisdom": 439,
+      "strategy": "Senkou",
+      "distanceAptitude": "S",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "200511",
+        "110231",
+        "201201",
+        "201212",
+        "200562",
+        "200352",
+        "200572",
+        "200362",
+        "200582",
+        "900241",
+        "900031"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768525796119",
+    "name": "10518",
+    "timestamp": 1768525796119,
+    "data": {
+      "outfitId": "100101",
+      "speed": 873,
+      "stamina": 871,
+      "power": 634,
+      "guts": 641,
+      "wisdom": 384,
+      "strategy": "Senkou",
+      "distanceAptitude": "S",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "200512",
+        "200742",
+        "200331",
+        "100011",
+        "200562",
+        "201351",
+        "200362",
+        "201571",
+        "200382",
+        "900241"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768525875848",
+    "name": "9631",
+    "timestamp": 1768525875848,
+    "data": {
+      "outfitId": "100602",
+      "speed": 737,
+      "stamina": 644,
+      "power": 664,
+      "guts": 530,
+      "wisdom": 605,
+      "strategy": "Sasi",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "200742",
+        "201202",
+        "201422",
+        "201641",
+        "201661",
+        "200351",
+        "200362",
+        "201571",
+        "110061",
+        "200492",
+        "201391",
+        "900561"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768526007786",
+    "name": "11424",
+    "timestamp": 1768526007786,
+    "data": {
+      "outfitId": "105201",
+      "speed": 1200,
+      "stamina": 503,
+      "power": 1008,
+      "guts": 441,
+      "wisdom": 411,
+      "strategy": "Sasi",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "200702",
+        "200602",
+        "100521",
+        "200332",
+        "900611",
+        "200352",
+        "200461",
+        "200142",
+        "200491",
+        "201391",
+        "910141"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768526108202",
+    "name": "12104",
+    "timestamp": 1768526108202,
+    "data": {
+      "outfitId": "104601",
+      "speed": 1200,
+      "stamina": 499,
+      "power": 1011,
+      "guts": 438,
+      "wisdom": 449,
+      "strategy": "Nige",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "S",
+      "mood": 2,
+      "skills": [
+        "200102",
+        "200432",
+        "200331",
+        "100461",
+        "201671",
+        "201241",
+        "200362",
+        "201251",
+        "201262",
+        "200382",
+        "201272"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768526255245",
+    "name": "10422",
+    "timestamp": 1768526255245,
+    "data": {
+      "outfitId": "101901",
+      "speed": 1037,
+      "stamina": 513,
+      "power": 810,
+      "guts": 453,
+      "wisdom": 461,
+      "strategy": "Sasi",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "200512",
+        "200331",
+        "200362",
+        "201681",
+        "200152",
+        "201041",
+        "201592",
+        "201381",
+        "100191",
+        "910141"
+      ],
+      "forcedSkillPositions": {}
+    }
+  }
+]
