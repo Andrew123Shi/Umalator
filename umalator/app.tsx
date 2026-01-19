@@ -3154,7 +3154,7 @@ function App(props) {
 					)}
 					{mode == Mode.GlobalCompare && results.length > 0 ? resultsPane : null}
 					{mode == Mode.GlobalCompare && results.length === 0 ? (
-						<div style={{width: '960px', height: '240px', visibility: 'hidden', pointerEvents: 'none'}}></div>
+						<div style={{width: '980px', height: '240px', visibility: 'hidden', pointerEvents: 'none'}}></div>
 					) : null}
 					<div id="runPane">
 						<fieldset>

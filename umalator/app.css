@@ -203,6 +203,13 @@ body {
 	grid-template-rows: 1fr;
 }
 
+/* Fix width of globalCompareWrapper to match RaceTrack width (960px) to keep runPane in same position */
+#globalCompareWrapper {
+	width: 980px;
+	min-width: 980px;
+	max-width: 980px;
+}
+
 #topPane:has([id="buttonsRow"].trackSelect) {
 	grid-template-rows: auto 1fr;
 	gap: 10px 10px;
