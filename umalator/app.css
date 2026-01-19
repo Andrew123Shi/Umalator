@@ -331,6 +331,27 @@ body {
 	box-shadow: 0 2px 4px rgba(107, 114, 128, 0.2);
 }
 
+#run.abort-button {
+	background: linear-gradient(135deg, #dc2626, #b91c1c);
+	border: 2px solid #991b1b;
+	color: white;
+	cursor: pointer;
+}
+
+#run.abort-button:hover {
+	background: linear-gradient(135deg, #b91c1c, #991b1b);
+	border-color: #7f1d1d;
+	transform: translateY(-2px);
+	box-shadow: 0 6px 16px rgba(220, 38, 38, 0.4);
+}
+
+#run.abort-button:active {
+	background: linear-gradient(135deg, #991b1b, #7f1d1d);
+	border-color: #7f1d1d;
+	transform: translateY(0);
+	box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+}
+
 #runOnce {
 	background: linear-gradient(135deg, #6b7280, #4b5563);
 	border: 2px solid #374151;

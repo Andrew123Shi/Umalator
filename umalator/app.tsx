@@ -1746,11 +1746,13 @@ function App(props) {
 	const [runOnceCounter, setRunOnceCounter] = useState(0);
 	const [isSimulationRunning, setIsSimulationRunning] = useState(false);
 	const [simulationProgress, setSimulationProgress] = useState<{round: number, total: number, completed?: number, totalSkills?: number} | null>(null);
+	const [workerVersion, setWorkerVersion] = useState(0);
 	const chartWorkersCompletedRef = useRef(0);
 	const chartWorkersProgressRef = useRef<Map<number, {round: number, completed: number, totalSkills: number}>>(new Map());
 	const chartWorkersInitialSkillsRef = useRef<Map<number, number>>(new Map());
 	const chartWorkersCompletedSetRef = useRef<Set<number>>(new Set());
 	const chartWorkerCountRef = useRef(8);
+	const activeWorkersRef = useRef<Set<number>>(new Set());
 	const [posKeepMode, setPosKeepModeRaw] = useState(PosKeepMode.Approximate);
 	const [showHp, toggleShowHp] = useReducer((b,_) => !b, false);
 	const [showLanes, toggleShowLanes] = useReducer((b,_) => !b, false);
@@ -1934,11 +1936,13 @@ function App(props) {
 					}
 					break;
 				case 'compare-complete':
+					activeWorkersRef.current.delete(workerIndex);
 					setIsSimulationRunning(false);
 					setSimulationProgress(null);
 					break;
 				case 'chart-complete':
 					// Mark worker as completed (don't delete progress)
+					activeWorkersRef.current.delete(workerIndex);
 					chartWorkersCompletedSetRef.current.add(workerIndex);
 					chartWorkersCompletedRef.current += 1;
 					if (chartWorkersCompletedRef.current >= chartWorkerCountRef.current) {
@@ -1948,6 +1952,7 @@ function App(props) {
 						chartWorkersProgressRef.current.clear();
 						chartWorkersInitialSkillsRef.current.clear();
 						chartWorkersCompletedSetRef.current.clear();
+						activeWorkersRef.current.clear();
 					}
 					break;
 				case 'additional-samples':
@@ -1973,7 +1978,7 @@ function App(props) {
 			});
 			return w;
 		});
-	}, []);
+	}, [workerVersion]);
 
 	function loadState() {
 		if (window.location.hash) {
@@ -2114,10 +2119,32 @@ function App(props) {
 	const langid = +(props.lang == 'en');
 	Object.keys(skillnames).forEach(id => strings.skillnames[id] = skillnames[id][langid]);
 
+	function abortSimulation() {
+		postEvent('abortSimulation', {});
+		// Terminate all active workers
+		activeWorkersRef.current.forEach(workerIndex => {
+			if (workers[workerIndex]) {
+				workers[workerIndex].terminate();
+			}
+		});
+		// Clear active workers and reset state
+		activeWorkersRef.current.clear();
+		setIsSimulationRunning(false);
+		setSimulationProgress(null);
+		chartWorkersCompletedRef.current = 0;
+		chartWorkersProgressRef.current.clear();
+		chartWorkersInitialSkillsRef.current.clear();
+		chartWorkersCompletedSetRef.current.clear();
+		// Force worker recreation by incrementing version
+		setWorkerVersion(prev => prev + 1);
+	}
+
 	function doComparison() {
 		postEvent('doComparison', {});
 		setIsSimulationRunning(true);
 		setSimulationProgress(null);
+		activeWorkersRef.current.clear();
+		activeWorkersRef.current.add(0);
 		workers[0].postMessage({
 			msg: 'compare',
 			data: {
@@ -2146,6 +2173,8 @@ function App(props) {
 		postEvent('doGlobalComparison', {});
 		setIsSimulationRunning(true);
 		setSimulationProgress(null);
+		activeWorkersRef.current.clear();
+		activeWorkersRef.current.add(0);
 		workers[0].postMessage({
 			msg: 'global-compare',
 			data: {
@@ -2177,6 +2206,8 @@ function App(props) {
 		setIsSimulationRunning(true);
 		const effectiveSeed = seed + runOnceCounter;
 		setRunOnceCounter(prev => prev + 1);
+		activeWorkersRef.current.clear();
+		activeWorkersRef.current.add(0);
 		workers[0].postMessage({
 			msg: 'compare',
 			data: {
@@ -2266,8 +2297,11 @@ function App(props) {
 			competeFight: false
 		};
 		
-		// Send work to all active workers
+		// Send work to all active workers simultaneously
+		// All postMessage calls happen synchronously, so messages are queued in each worker's message queue immediately
+		activeWorkersRef.current.clear();
 		for (let i = 0; i < workerCount; i++) {
+			activeWorkersRef.current.add(i);
 			workers[i].postMessage({
 				msg: 'chart', 
 				data: {
@@ -3163,17 +3197,19 @@ function App(props) {
 							</>
 						)}
 						{
-							mode == Mode.Compare
-							? <button id="run" onClick={doComparison} tabindex={1} disabled={isSimulationRunning || loadingAdditionalSamples.size > 0}>COMPARE</button>
+							isSimulationRunning
+							? <button id="run" class="abort-button" onClick={abortSimulation} tabindex={1}>ABORT</button>
+							: mode == Mode.Compare
+							? <button id="run" onClick={doComparison} tabindex={1} disabled={loadingAdditionalSamples.size > 0}>COMPARE</button>
 							: mode == Mode.GlobalCompare
-							? <button id="run" onClick={doGlobalComparison} tabindex={1} disabled={isSimulationRunning || loadingAdditionalSamples.size > 0}>GLOBAL COMPARE</button>
-							: <button id="run" onClick={doBasinnChart} tabindex={1} disabled={isSimulationRunning || loadingAdditionalSamples.size > 0}>
+							? <button id="run" onClick={doGlobalComparison} tabindex={1} disabled={loadingAdditionalSamples.size > 0}>GLOBAL COMPARE</button>
+							: <button id="run" onClick={doBasinnChart} tabindex={1} disabled={loadingAdditionalSamples.size > 0}>
 								RUN
 							</button>
 						}
 						{
-							mode == Mode.Compare
-							? <button id="runOnce" onClick={doRunOnce} tabindex={1} disabled={isSimulationRunning || loadingAdditionalSamples.size > 0}>Run Once</button>
+							mode == Mode.Compare && !isSimulationRunning
+							? <button id="runOnce" onClick={doRunOnce} tabindex={1} disabled={loadingAdditionalSamples.size > 0}>Run Once</button>
 							: null
 						}
 						<label for="nsamples">Samples:</label>
