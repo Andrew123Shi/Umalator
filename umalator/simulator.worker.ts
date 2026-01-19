@@ -78,9 +78,10 @@ function mergeResultSets(data1, data2) {
 	});
 }
 
-function run1Round(nsamples: number, skills: string[], course: CourseData, racedef: RaceParameters, uma: HorseState, pacer, options) {
+function run1Round(nsamples: number, skills: string[], course: CourseData, racedef: RaceParameters, uma: HorseState, pacer, options, onProgress?: (completed: number, total: number) => void) {
 	const data = new Map();
-	skills.forEach(id => {
+	const totalSkills = skills.length;
+	skills.forEach((id, index) => {
 		const newSkillGroupId = skillmeta[id]?.groupId;
 		let skillsToUse = uma.skills;
 		
@@ -103,6 +104,11 @@ function run1Round(nsamples: number, skills: string[], course: CourseData, raced
 			mean,
 			median
 		});
+		
+		// Report progress after each skill
+		if (onProgress) {
+			onProgress(index + 1, totalSkills);
+		}
 	});
 	return data;
 }
@@ -114,21 +120,37 @@ function runChart({skills, course, racedef, uma, pacer, options}) {
 	const pacer_ = pacer ? new HorseState(pacer)
 		.set('skills', fromJS(pacer.skills || []))
 		.set('forcedSkillPositions', ImmMap(pacer.forcedSkillPositions || {})) : null;
-	postMessage({type: 'chart-progress', round: 1, total: 4});
-	let results = run1Round(5, skills, course, racedef, uma_, pacer_, options);
+	
+	// Round 1
+	postMessage({type: 'chart-progress', round: 1, total: 4, completed: 0, totalSkills: skills.length});
+	let results = run1Round(5, skills, course, racedef, uma_, pacer_, options, (completed, total) => {
+		postMessage({type: 'chart-progress', round: 1, total: 4, completed, totalSkills: total});
+	});
 	postMessage({type: 'chart', results});
 	skills = skills.filter(id => results.get(id).max > 0.1);
-	postMessage({type: 'chart-progress', round: 2, total: 4});
-	let update = run1Round(20, skills, course, racedef, uma_, pacer_, options);
+	
+	// Round 2
+	postMessage({type: 'chart-progress', round: 2, total: 4, completed: 0, totalSkills: skills.length});
+	let update = run1Round(20, skills, course, racedef, uma_, pacer_, options, (completed, total) => {
+		postMessage({type: 'chart-progress', round: 2, total: 4, completed, totalSkills: total});
+	});
 	mergeResultSets(results, update);
 	postMessage({type: 'chart', results});
 	skills = skills.filter(id => Math.abs(results.get(id).max - results.get(id).min) > 0.1);
-	postMessage({type: 'chart-progress', round: 3, total: 4});
-	update = run1Round(50, skills, course, racedef, uma_, pacer_, options);
+	
+	// Round 3
+	postMessage({type: 'chart-progress', round: 3, total: 4, completed: 0, totalSkills: skills.length});
+	update = run1Round(50, skills, course, racedef, uma_, pacer_, options, (completed, total) => {
+		postMessage({type: 'chart-progress', round: 3, total: 4, completed, totalSkills: total});
+	});
 	mergeResultSets(results, update);
 	postMessage({type: 'chart', results});
-	postMessage({type: 'chart-progress', round: 4, total: 4});
-	update = run1Round(200, skills, course, racedef, uma_, pacer_, options);
+	
+	// Round 4
+	postMessage({type: 'chart-progress', round: 4, total: 4, completed: 0, totalSkills: skills.length});
+	update = run1Round(200, skills, course, racedef, uma_, pacer_, options, (completed, total) => {
+		postMessage({type: 'chart-progress', round: 4, total: 4, completed, totalSkills: total});
+	});
 	mergeResultSets(results, update);
 	postMessage({type: 'chart', results});
 	postMessage({type: 'chart-complete'});

@@ -1170,6 +1170,13 @@ export function runGlobalComparison(
 					uma2: {
 						firstPlaceRate: firstUmaStats.uma2.total > 0 ? (firstUmaStats.uma2.firstPlaceCount / firstUmaStats.uma2.total * 100) : 0
 					}
+				},
+				raceParams: {
+					locations: raceParams.locations,
+					lengths: raceParams.lengths,
+					terrains: raceParams.terrains,
+					weathers: raceParams.weathers,
+					seasons: raceParams.seasons
 				}
 			};
 

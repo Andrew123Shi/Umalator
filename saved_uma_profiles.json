@@ -498,5 +498,158 @@
       ],
       "forcedSkillPositions": {}
     }
+  },
+  {
+    "id": "1768613709557",
+    "name": "11161",
+    "timestamp": 1768613709557,
+    "data": {
+      "outfitId": "103201",
+      "speed": 930,
+      "stamina": 931,
+      "power": 637,
+      "guts": 577,
+      "wisdom": 519,
+      "strategy": "Senkou",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "100321",
+        "201101",
+        "201321",
+        "200331",
+        "201651",
+        "201121",
+        "200461",
+        "200362",
+        "900561"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768613948645",
+    "name": "11320",
+    "timestamp": 1768613948645,
+    "data": {
+      "outfitId": "102801",
+      "speed": 923,
+      "stamina": 387,
+      "power": 895,
+      "guts": 703,
+      "wisdom": 475,
+      "strategy": "Senkou",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "200702",
+        "200331",
+        "201332",
+        "200461",
+        "200682",
+        "200582",
+        "201031",
+        "201041",
+        "200491",
+        "100281",
+        "201052"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768614088071",
+    "name": "10819",
+    "timestamp": 1768614088071,
+    "data": {
+      "outfitId": "102801",
+      "speed": 938,
+      "stamina": 543,
+      "power": 873,
+      "guts": 568,
+      "wisdom": 338,
+      "strategy": "Senkou",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "200512",
+        "201641",
+        "200331",
+        "200461",
+        "200361",
+        "201591",
+        "100281",
+        "201052",
+        "201062",
+        "201072",
+        "900041",
+        "201082"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768625279958",
+    "name": "10813",
+    "timestamp": 1768625279958,
+    "data": {
+      "outfitId": "101901",
+      "speed": 1146,
+      "stamina": 494,
+      "power": 895,
+      "guts": 485,
+      "wisdom": 324,
+      "strategy": "Sasi",
+      "distanceAptitude": "S",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "100191",
+        "200331",
+        "200451",
+        "201592",
+        "201681",
+        "200461",
+        "910141"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768782192132",
+    "name": "12998",
+    "timestamp": 1768782192132,
+    "data": {
+      "outfitId": "105601",
+      "speed": 1190,
+      "stamina": 779,
+      "power": 948,
+      "guts": 524,
+      "wisdom": 373,
+      "strategy": "Sasi",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "100561",
+        "201121",
+        "210032",
+        "200351",
+        "200461",
+        "200152",
+        "200371",
+        "200381",
+        "900271"
+      ],
+      "forcedSkillPositions": {}
+    }
   }
 ]

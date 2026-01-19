@@ -1741,11 +1741,16 @@ function App(props) {
 	const [skillsOpen, setSkillsOpen] = useState(false);
 	const [racedef, setRaceDef] = useState(() => DEFAULT_PRESET.racedef);
 	const [nsamples, setSamples] = useState(DEFAULT_SAMPLES);
+	const [workerCount, setWorkerCount] = useState(8);
 	const [seed, setSeed] = useState(DEFAULT_SEED);
 	const [runOnceCounter, setRunOnceCounter] = useState(0);
 	const [isSimulationRunning, setIsSimulationRunning] = useState(false);
-	const [simulationProgress, setSimulationProgress] = useState<{round: number, total: number} | null>(null);
+	const [simulationProgress, setSimulationProgress] = useState<{round: number, total: number, completed?: number, totalSkills?: number} | null>(null);
 	const chartWorkersCompletedRef = useRef(0);
+	const chartWorkersProgressRef = useRef<Map<number, {round: number, completed: number, totalSkills: number}>>(new Map());
+	const chartWorkersInitialSkillsRef = useRef<Map<number, number>>(new Map());
+	const chartWorkersCompletedSetRef = useRef<Set<number>>(new Set());
+	const chartWorkerCountRef = useRef(8);
 	const [posKeepMode, setPosKeepModeRaw] = useState(PosKeepMode.Approximate);
 	const [showHp, toggleShowHp] = useReducer((b,_) => !b, false);
 	const [showLanes, toggleShowLanes] = useReducer((b,_) => !b, false);
@@ -1895,10 +1900,12 @@ function App(props) {
 	const [loadingAdditionalSamples, setLoadingAdditionalSamples] = useState<Set<string>>(new Set());
 	const [additionalSamplesRunCount, setAdditionalSamplesRunCount] = useState<Map<string, number>>(new Map());
 
-	const [worker1, worker2, worker3, worker4] = [1,2,3,4].map(_ => useMemo(() => {
-		const w = new Worker('./simulator.worker.js');
-		w.addEventListener('message', function (e) {
-			const {type, results, round, total, skillId, result, completed} = e.data;
+	// Create dynamic workers array (max 16 workers)
+	const workers = useMemo(() => {
+		return Array.from({length: 16}, (_, i) => i + 1).map((workerIndex) => {
+			const w = new Worker('./simulator.worker.js');
+			w.addEventListener('message', function (e) {
+			const {type, results, round, total, skillId, result, completed, totalSkills} = e.data;
 			switch (type) {
 				case 'compare':
 					setResults(results);
@@ -1907,7 +1914,17 @@ function App(props) {
 					updateTableData(results);
 					break;
 				case 'chart-progress':
-					setSimulationProgress({round, total});
+					// Store progress for this specific worker
+					if (round !== undefined && completed !== undefined && totalSkills !== undefined) {
+						// Track initial skill count for this worker (on round 1, completed 0)
+						if (round === 1 && completed === 0) {
+							chartWorkersInitialSkillsRef.current.set(workerIndex, totalSkills);
+						}
+						
+						chartWorkersProgressRef.current.set(workerIndex, {round, completed, totalSkills});
+						// Trigger re-render by setting a dummy progress (we'll display per-worker progress from the ref)
+						setSimulationProgress({round: 0, total: 0});
+					}
 					break;
 				case 'compare-progress':
 					setSimulationProgress({round: completed, total});
@@ -1921,11 +1938,16 @@ function App(props) {
 					setSimulationProgress(null);
 					break;
 				case 'chart-complete':
+					// Mark worker as completed (don't delete progress)
+					chartWorkersCompletedSetRef.current.add(workerIndex);
 					chartWorkersCompletedRef.current += 1;
-					if (chartWorkersCompletedRef.current >= 4) {
+					if (chartWorkersCompletedRef.current >= chartWorkerCountRef.current) {
 						setIsSimulationRunning(false);
 						setSimulationProgress(null);
 						chartWorkersCompletedRef.current = 0;
+						chartWorkersProgressRef.current.clear();
+						chartWorkersInitialSkillsRef.current.clear();
+						chartWorkersCompletedSetRef.current.clear();
 					}
 					break;
 				case 'additional-samples':
@@ -1948,9 +1970,10 @@ function App(props) {
 					});
 					break;
 			}
+			});
+			return w;
 		});
-		return w;
-	}, []));
+	}, []);
 
 	function loadState() {
 		if (window.location.hash) {
@@ -2095,7 +2118,7 @@ function App(props) {
 		postEvent('doComparison', {});
 		setIsSimulationRunning(true);
 		setSimulationProgress(null);
-		worker1.postMessage({
+		workers[0].postMessage({
 			msg: 'compare',
 			data: {
 				nsamples,
@@ -2123,7 +2146,7 @@ function App(props) {
 		postEvent('doGlobalComparison', {});
 		setIsSimulationRunning(true);
 		setSimulationProgress(null);
-		worker1.postMessage({
+		workers[0].postMessage({
 			msg: 'global-compare',
 			data: {
 				nsamples,
@@ -2154,7 +2177,7 @@ function App(props) {
 		setIsSimulationRunning(true);
 		const effectiveSeed = seed + runOnceCounter;
 		setRunOnceCounter(prev => prev + 1);
-		worker1.postMessage({
+		workers[0].postMessage({
 			msg: 'compare',
 			data: {
 				nsamples: 1,
@@ -2195,6 +2218,10 @@ function App(props) {
 		postEvent('doBasinnChart', {});
 		setLastRunChartUma(uma1);
 		chartWorkersCompletedRef.current = 0;
+		chartWorkersProgressRef.current.clear();
+		chartWorkersInitialSkillsRef.current.clear();
+		chartWorkersCompletedSetRef.current.clear();
+		chartWorkerCountRef.current = workerCount;
 		setIsSimulationRunning(true);
 		setSimulationProgress(null);
 		const params = racedefToParams(racedef, uma1.strategy);
@@ -2217,11 +2244,16 @@ function App(props) {
 		
 		const filler = new Map();
 		skills.forEach(id => filler.set(id, getNullRow(id)));
-		const quarter = Math.floor(skills.length/4);
-		const skills1 = skills.slice(0, quarter);
-		const skills2 = skills.slice(quarter, quarter * 2);
-		const skills3 = skills.slice(quarter * 2, quarter * 3);
-		const skills4 = skills.slice(quarter * 3);
+		
+		// Split skills among workers
+		const skillsPerWorker = Math.floor(skills.length / workerCount);
+		const skillChunks: string[][] = [];
+		for (let i = 0; i < workerCount; i++) {
+			const start = i * skillsPerWorker;
+			const end = i === workerCount - 1 ? skills.length : (i + 1) * skillsPerWorker;
+			skillChunks.push(skills.slice(start, end));
+		}
+		
 		updateTableData('reset');
 		updateTableData(filler);
 		setAdditionalSamplesRunCount(new Map());
@@ -2233,30 +2265,16 @@ function App(props) {
 			rushedKakari: false,
 			competeFight: false
 		};
-		worker1.postMessage({
-			msg: 'chart', 
-			data: {
-				skills: skills1, course, racedef: params, uma, pacer: pacer.toJS(), options: chartOptions
-			}
-		});
-		worker2.postMessage({
-			msg: 'chart', 
-			data: {
-				skills: skills2, course, racedef: params, uma, pacer: pacer.toJS(), options: chartOptions
-			}
-		});
-		worker3.postMessage({
-			msg: 'chart', 
-			data: {
-				skills: skills3, course, racedef: params, uma, pacer: pacer.toJS(), options: chartOptions
-			}
-		});
-		worker4.postMessage({
-			msg: 'chart', 
-			data: {
-				skills: skills4, course, racedef: params, uma, pacer: pacer.toJS(), options: chartOptions
-			}
-		});
+		
+		// Send work to all active workers
+		for (let i = 0; i < workerCount; i++) {
+			workers[i].postMessage({
+				msg: 'chart', 
+				data: {
+					skills: skillChunks[i], course, racedef: params, uma, pacer: pacer.toJS(), options: chartOptions
+				}
+			});
+		}
 	}
 
 	const [selectedSkillId, setSelectedSkillId] = useState('');
@@ -2296,7 +2314,7 @@ function App(props) {
 			uma = uma1.toJS();
 		}
 		
-		worker1.postMessage({
+		workers[0].postMessage({
 			msg: 'additional-samples',
 			data: {
 				skillId,
@@ -3150,7 +3168,7 @@ function App(props) {
 							: mode == Mode.GlobalCompare
 							? <button id="run" onClick={doGlobalComparison} tabindex={1} disabled={isSimulationRunning || loadingAdditionalSamples.size > 0}>GLOBAL COMPARE</button>
 							: <button id="run" onClick={doBasinnChart} tabindex={1} disabled={isSimulationRunning || loadingAdditionalSamples.size > 0}>
-								{simulationProgress ? `Run (${simulationProgress.round}/${simulationProgress.total})` : 'RUN'}
+								RUN
 							</button>
 						}
 						{
@@ -3160,10 +3178,45 @@ function App(props) {
 						}
 						<label for="nsamples">Samples:</label>
 						<input type="number" id="nsamples" min="1" max="10000" value={nsamples} onInput={(e) => setSamples(+e.currentTarget.value)} />
+						{(mode == Mode.Chart || mode == Mode.UniquesChart) && (
+							<>
+								<label for="workerCount">Workers:</label>
+								<input type="number" id="workerCount" min="1" max="16" value={workerCount} onInput={(e) => setWorkerCount(Math.max(1, Math.min(16, +e.currentTarget.value)))} />
+							</>
+						)}
 						{(mode == Mode.Compare || mode == Mode.GlobalCompare) && isSimulationRunning && simulationProgress && (
 							<div id="compareProgressBar">
 								<div id="compareProgressBarFill" style={`width: ${(simulationProgress.round / simulationProgress.total) * 100}%`}></div>
 								<span id="compareProgressText">{simulationProgress.round} / {simulationProgress.total}</span>
+							</div>
+						)}
+						{(mode == Mode.Chart || mode == Mode.UniquesChart) && isSimulationRunning && (
+							<div id="chartProgressBarsContainer" style="display: flex; flex-direction: column; gap: 4px; margin: 5px 0;">
+								{Array.from({length: workerCount}, (_, i) => {
+									const workerIndex = i + 1;
+									const progress = chartWorkersProgressRef.current.get(workerIndex);
+									const isCompleted = chartWorkersCompletedSetRef.current.has(workerIndex);
+									
+									if (!progress && !isCompleted) return null;
+									
+									// Color per round: 1=blue, 2=teal, 3=orange, 4=soft red
+									const roundColors = {
+										1: 'linear-gradient(90deg, #3b82f6, #2563eb)',
+										2: 'linear-gradient(90deg, #14b8a6, #0d9488)',
+										3: 'linear-gradient(90deg, #f59e0b, #d97706)',
+										4: 'linear-gradient(90deg, #fca5a5, #f87171)'
+									};
+									const color = isCompleted ? 'linear-gradient(90deg, #10b981, #059669)' : (roundColors[progress?.round] || roundColors[1]);
+									
+									return (
+										<div key={workerIndex} id="compareProgressBar" style="position: relative;">
+											<div id="compareProgressBarFill" style={`width: ${isCompleted ? 100 : (progress.completed / progress.totalSkills) * 100}%; background: ${color};`}></div>
+											<span id="compareProgressText">
+												{isCompleted ? 'Completed!' : `Run ${progress.round}: ${progress.completed} / ${progress.totalSkills} Skills`}
+											</span>
+										</div>
+									);
+								})}
 							</div>
 						)}
 						<label for="seed">Seed:</label>

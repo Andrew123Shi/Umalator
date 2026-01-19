@@ -198,12 +198,18 @@ body {
 	padding-bottom: 60px;
 }
 
+/* Remove padding-bottom when in chart mode to eliminate gap before skill table */
 #topPane:has(#globalCompareWrapper) {
 	grid-template-rows: 1fr;
 }
 
 #topPane:has([id="buttonsRow"].trackSelect) {
 	grid-template-rows: auto 1fr;
+	gap: 10px 10px;
+}
+
+#topPane:has([id="buttonsRow"].trackSelect):has(#resultsPane.mode-chart) {
+	gap: 0 10px;
 }
 
 #runPane {
@@ -218,6 +224,17 @@ body {
 	margin-right: 0px;
 	/* no ui bugs here */
 	max-width: 360px;
+	position: relative;
+}
+
+#chartProgressBarsContainer {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	right: 0;
+	z-index: 10;
+	background: white;
+	padding-top: 5px;
 }
 
 #topPane:has(#resultsPane.global-compare-mode) #runPane {
@@ -370,7 +387,7 @@ body {
 	align-items: center;
 	display: flex;
 	gap: 40px;
-	margin-bottom: 10px;
+	margin-bottom: 0;
 	margin-left: 20px;
 	margin-right: 20px;
 	width: 100%;
@@ -433,6 +450,12 @@ body {
 	/* might cause a fatass white space*/
 	clear: both;
 	max-width: 980px;
+	margin-top: 0;
+}
+
+/* Remove gap between topPane and resultsPane in chart mode only (not Compare mode) */
+#topPane:has([id="buttonsRow"]) + #resultsPaneWrapper:has(#resultsPane.mode-chart) {
+	margin-top: -60px;
 }
 
 #resultsPane {
@@ -454,6 +477,9 @@ body {
 
 #resultsPane.mode-chart {
 	width: 980px;
+	margin-top: 0;
+	justify-content: flex-start;
+	align-items: flex-start;
 }
 
 .activationFrequencyChart {
