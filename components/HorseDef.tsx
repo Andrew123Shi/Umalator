@@ -19,6 +19,8 @@ import skillmeta from '../skill_meta.json';
 
 import { getAllSavedProfiles, saveUmaProfile, loadUmaProfile, deleteUmaProfile, renameUmaProfile } from '../umalator/app';
 
+import { calculateRatingBreakdown, calculateSkillScore, getRatingBadge, RATING_BADGES } from './CareerRating';
+
 // Type for saved profiles (matches the one in app.tsx)
 interface SavedUmaProfile {
 	id: string;
@@ -699,11 +701,13 @@ export function HorseDef(props) {
 		}
 	}, [hasRunawaySkill, state.strategy]);
 
+	const u = uniqueSkillForUma(umaId);
+	
 	const skillList = useMemo(function () {
-		const u = uniqueSkillForUma(umaId);
 		const hasRunData = props.runData != null && props.umaIndex != null;
-		return Array.from(state.skills.values()).sort(skillOrder).map(id =>
-			expanded.has(id)
+		return Array.from(state.skills.values()).sort(skillOrder).map(id => {
+			const isUnique = id == u;
+			return expanded.has(id)
 				? <li key={id} class="horseExpandedSkill">
 					  <ExpandedSkillDetails 
 						  id={id} 
@@ -714,18 +718,66 @@ export function HorseDef(props) {
 						  runData={hasRunData ? props.runData : null}
 						  umaIndex={hasRunData ? props.umaIndex : null}
 						  onViewProcData={hasRunData ? () => setProcDataSkillId(id) : null}
+						  uniqueLevel={isUnique ? (state.uniqueLevel || 0) : undefined}
+						  onUniqueLevelChange={isUnique ? ((level: number) => setState(state.set('uniqueLevel', level))) : undefined}
 					  />
 				  </li>
 				: <li key={id} style="">
-					  <Skill id={id} selected={false} dismissable={id != u} />
+					  <div style="display: flex; align-items: center; gap: 8px; position: relative;">
+						  <div style={isUnique ? "position: relative; flex: 1;" : ""}>
+							  <Skill id={id} selected={false} dismissable={id != u} />
+							  {isUnique && (
+								  <select 
+									  class="uniqueSkillLevelSelect"
+									  value={state.uniqueLevel || 0} 
+									  onChange={(e) => setState(state.set('uniqueLevel', parseInt((e.target as HTMLSelectElement).value, 10)))}
+									  onClick={(e) => e.stopPropagation()}
+								  >
+									  <option value={0}>Lv 0</option>
+									  {[1, 2, 3, 4, 5, 6].map(lvl => <option key={lvl} value={lvl}>Lv {lvl}</option>)}
+								  </select>
+							  )}
+						  </div>
 						  {state.forcedSkillPositions.has(id) && (
 							  <span class="forcedPositionLabel inline">
 								  @{state.forcedSkillPositions.get(id)}m
 							  </span>
 						  )}
+					  </div>
 				  </li>
+		});
+	}, [state.skills, umaId, expanded, props.courseDistance, state.forcedSkillPositions, state.uniqueLevel, props.runData, props.umaIndex]);
+
+	// Calculate career rating with async skill score
+	const [skillScore, setSkillScore] = useState(0);
+	
+	useEffect(() => {
+		// Get all skills except unique skill
+		const nonUniqueSkillIds = Array.from(state.skills.values()).filter(id => id != u);
+		calculateSkillScore(nonUniqueSkillIds).then(score => {
+			setSkillScore(score);
+		}).catch(err => {
+			console.warn('Failed to calculate skill score:', err);
+			setSkillScore(0);
+		});
+	}, [state.skills, u]);
+	
+	const ratingBreakdown = useMemo(() => {
+		return calculateRatingBreakdown(
+			{
+				speed: state.speed,
+				stamina: state.stamina,
+				power: state.power,
+				guts: state.guts,
+				wisdom: state.wisdom
+			},
+			skillScore,
+			state.starLevel || 3,
+			state.uniqueLevel || 0
 		);
-	}, [state.skills, umaId, expanded, props.courseDistance, state.forcedSkillPositions, props.runData, props.umaIndex]);
+	}, [state.speed, state.stamina, state.power, state.guts, state.wisdom, skillScore, state.starLevel, state.uniqueLevel]);
+
+	const ratingBadge = useMemo(() => getRatingBadge(ratingBreakdown.total), [ratingBreakdown.total]);
 
 	return (
 		<div class="horseDef">
@@ -763,6 +815,53 @@ export function HorseDef(props) {
 				<div>
 					<span>{CC_GLOBAL ? 'Style aptitude:' : 'Strategy aptitude:'}</span>
 					<AptitudeSelect a={state.strategyAptitude} setA={setter('strategyAptitude')} tabindex={tabnext()} />
+				</div>
+				<div>
+					<span>Star Level:</span>
+					<select 
+						class="horseStrategySelect"
+						value={state.starLevel || 3} 
+						onChange={(e) => setState(state.set('starLevel', parseInt((e.target as HTMLSelectElement).value, 10)))}
+						tabIndex={tabnext()}
+					>
+						{[1, 2, 3, 4, 5].map(lvl => <option key={lvl} value={lvl}>{lvl}★</option>)}
+					</select>
+				</div>
+			</div>
+			<div class="careerRatingDisplay">
+				<div class="careerRatingLeftSpacer"></div>
+				<div class="careerRatingMain">
+					<span class="careerRatingLabel">Career Rating: </span>
+					<div 
+						class="careerRatingBadge" 
+						style={{
+							backgroundImage: `url(/uma-tools/icons/rank_badges.png)`,
+							backgroundSize: '576px 576px',
+							backgroundPosition: `-${ratingBadge.sprite.col * 96}px -${ratingBadge.sprite.row * 96}px`,
+							width: '96px',
+							height: '96px',
+							display: 'inline-block',
+							verticalAlign: 'middle',
+							marginLeft: '8px',
+							marginRight: '8px'
+						}}
+						title={ratingBadge.label}
+					/>
+					<span class="careerRatingNumber">{ratingBreakdown.total.toLocaleString()}</span>
+				</div>
+				<div class="careerRatingBreakdown">
+					<span class="careerRatingBreakdownRow">
+						<span class="careerRatingBreakdownLabel">Stat Rating:</span>
+						<strong class="careerRatingBreakdownValue">{ratingBreakdown.statsScore.toLocaleString()}</strong>
+					</span>
+					<span class="careerRatingBreakdownRow">
+						<span class="careerRatingBreakdownLabel">Skill Contribution:</span>
+						<strong class="careerRatingBreakdownValue">{ratingBreakdown.skillScore.toLocaleString()}</strong>
+					</span>
+					<span class="careerRatingBreakdownRow">
+						<span class="careerRatingBreakdownLabel">Unique Bonus:</span>
+						<strong class="careerRatingBreakdownValue">{ratingBreakdown.uniqueBonus.toLocaleString()}</strong>
+					</span>
 				</div>
 			</div>
 			<div class="horseSkillHeader">Skills</div>

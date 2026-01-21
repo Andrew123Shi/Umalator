@@ -651,5 +651,90 @@
       ],
       "forcedSkillPositions": {}
     }
+  },
+  {
+    "id": "1768802912732",
+    "name": "13945",
+    "timestamp": 1768802912732,
+    "data": {
+      "outfitId": "102801",
+      "speed": 1183,
+      "stamina": 517,
+      "power": 1174,
+      "guts": 520,
+      "wisdom": 433,
+      "strategy": "Senkou",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "200962",
+        "200972",
+        "201312",
+        "201322",
+        "200331",
+        "201002",
+        "210032",
+        "200461",
+        "200582",
+        "200491",
+        "100281",
+        "900101"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768856592447",
+    "name": "13432",
+    "timestamp": 1768856592447,
+    "data": {
+      "outfitId": "102801",
+      "speed": 1121,
+      "stamina": 415,
+      "power": 1011,
+      "guts": 397,
+      "wisdom": 1000,
+      "strategy": "Senkou",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "200331",
+        "201002",
+        "201332",
+        "200461",
+        "200581",
+        "200491",
+        "100281",
+        "900101",
+        "900581"
+      ],
+      "forcedSkillPositions": {}
+    }
+  },
+  {
+    "id": "1768893387797",
+    "name": "CM7 Ace",
+    "timestamp": 1768893387797,
+    "data": {
+      "outfitId": "105601",
+      "speed": 1004,
+      "stamina": 669,
+      "power": 772,
+      "guts": 509,
+      "wisdom": 521,
+      "strategy": "Sasi",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "S",
+      "mood": 2,
+      "skills": [
+        "100561"
+      ],
+      "forcedSkillPositions": {}
+    }
   }
 ]

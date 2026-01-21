@@ -39,5 +39,8 @@ export class HorseState extends Record({
 	mood: 2 as Mood,
 	skills: SkillSet([]),
 	// Map of skillId -> forced position (in meters). If a skill is in this map, it will be forced to activate at that position.
-	forcedSkillPositions: ImmMap()
+	forcedSkillPositions: ImmMap(),
+	// Career rating related fields
+	starLevel: 3 as number,
+	uniqueLevel: 0 as number
 }) {}

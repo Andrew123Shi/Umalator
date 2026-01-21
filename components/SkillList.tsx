@@ -9,6 +9,7 @@ import { SkillRarity } from '../uma-skill-tools/RaceSolver.ts';
 import { useLanguage } from './Language';
 import { Tooltip } from './Tooltip';
 import { isDebuffSkill } from './HorseDefTypes';
+import { getSkillRatingContribution } from './CareerRating';
 
 import './SkillList.css';
 
@@ -379,6 +380,45 @@ const formatEffect = Object.freeze({
 export function ExpandedSkillDetails(props) {
 	const skill = skilldata[props.id];
 	const lang = useLanguage();
+	const isUnique = skill.rarity >= 3 && skill.rarity <= 5;
+	const [scoreContribution, setScoreContribution] = useState<number | null>(null);
+	
+	const meta = skillmeta[props.id];
+	const baseCost = meta?.baseCost;
+	
+	// Calculate total base cost (including lower version for gold/upgraded skills)
+	const totalBaseCost = useMemo(() => {
+		if (baseCost === undefined) return undefined;
+		if (isUnique) return undefined; // Unique skills don't show base cost
+		
+		// For gold skills (rarity 4) or upgraded skills, find lower version
+		if (skill.rarity === 4) {
+			const groupId = meta?.groupId;
+			if (groupId) {
+				// Find the lower version skill in the same group (rarity < 4, typically rarity 2)
+				for (const skillId in skillmeta) {
+					const otherMeta = (skillmeta as any)[skillId];
+					const otherSkill = (skilldata as any)[skillId];
+					if (otherMeta && otherMeta.groupId === groupId && otherSkill && otherSkill.rarity < 3) {
+						const lowerBaseCost = otherMeta.baseCost || 0;
+						return (baseCost || 0) + lowerBaseCost;
+					}
+				}
+			}
+		}
+		
+		return baseCost;
+	}, [baseCost, isUnique, skill.rarity, meta?.groupId, props.id]);
+	
+	useEffect(() => {
+		getSkillRatingContribution(props.id).then(score => {
+			setScoreContribution(score);
+		}).catch(err => {
+			console.warn('Failed to get skill rating contribution:', err);
+			setScoreContribution(0);
+		});
+	}, [props.id]);
+	
 	return (
 		<IntlProvider definition={lang == 'ja' ? STRINGS_ja : STRINGS_en}>
 			<div class={`expandedSkill ${classnames[skill.rarity]}`} data-skillid={props.id}>
@@ -392,7 +432,7 @@ export function ExpandedSkillDetails(props) {
 						<Text id="skilldetails.id" />
 						{props.id}
 					</div>
-					{skill.alternatives.map(alt =>
+					{skill.alternatives.map((alt, altIndex) =>
 						<div class="skillDetailsSection">
 							{alt.precondition.length > 0 && <Fragment>
 								<Text id="skilldetails.preconditions" />
@@ -420,6 +460,26 @@ export function ExpandedSkillDetails(props) {
 									<Text id="skilldetails.seconds" fields={{n: +(alt.baseDuration / 10000 * (props.distanceFactor / 1000)).toFixed(2)}} />
 								</span>
 							}
+							{altIndex === skill.alternatives.length - 1 && (
+								<>
+									{!isUnique && totalBaseCost !== undefined && <span class="skillDuration">Base cost: {totalBaseCost}</span>}
+									<span class="skillDuration">Score contribution: {scoreContribution !== null ? scoreContribution.toLocaleString() : '...'}</span>
+								</>
+							)}
+						</div>
+					)}
+					{props.uniqueLevel !== undefined && props.onUniqueLevelChange && (
+						<div class="skillDetailsSection">
+							<label class="forcedPositionLabel">Unique Level:</label>
+							<select
+								class="forcedPositionInput"
+								value={props.uniqueLevel || 0}
+								onChange={(e) => props.onUniqueLevelChange(parseInt((e.target as HTMLSelectElement).value, 10))}
+								onClick={(e) => e.stopPropagation()}
+							>
+								<option value={0}>0 (None)</option>
+								{[1, 2, 3, 4, 5, 6].map(lvl => <option key={lvl} value={lvl}>{lvl}</option>)}
+							</select>
 						</div>
 					)}
 					<div class="skillDetailsSection">

@@ -805,3 +805,110 @@
 	box-shadow: 0px 3px 0 rgb(180,178,192);
 	transform: translateY(-1px);
 }
+
+.horseAptitudes {
+	margin-bottom: 0;
+}
+
+.horseAptitudes > div:not(:last-child) {
+	margin-bottom: 0;
+}
+
+.careerRatingDisplay {
+	padding: 6px 16px;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
+	background: rgb(248, 248, 248);
+	font-size: 1em;
+	color: rgb(121, 64, 22);
+	border-top: 2px solid rgb(170, 221, 154);
+	border-bottom: 2px solid rgb(170, 221, 154);
+	margin-top: 8px;
+	min-height: 108px;
+	gap: 16px;
+	position: relative;
+}
+
+.careerRatingLeftSpacer {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.careerRatingMain {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	flex: 0 0 auto;
+	position: absolute;
+	left: calc(50% - 165px);
+	transform: translateX(0);
+}
+
+.careerRatingBreakdown {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	font-size: 0.9em;
+	position: absolute;
+	right: 0px;
+	/* Removed align-items: flex-end so rows don't shrink */
+	/* Removed text-align: right to avoid inheritance issues */
+}
+
+.careerRatingBreakdownRow {
+	display: grid; /* Changed from Flex to Grid */
+	grid-template-columns: 150px 60px; /* Two columns: 150px for Label, 60px for Number */
+	align-items: baseline; /* Aligns text by the baseline (bottom of letters) */
+}
+
+.careerRatingBreakdownLabel {
+	text-align: right; /* Pushes text to the right side of the 150px column */
+	padding-right: 8px; /* Adds a clean gap between the colon and the number */
+	font-weight: normal;
+}
+
+.careerRatingBreakdownValue {
+	text-align: left; /* Pushes number to the left side of the 60px column */
+	font-weight: bold;
+}
+
+.careerRatingBreakdown strong {
+	font-weight: bold;
+}
+
+.careerRatingLabel {
+	display: inline-block;
+	vertical-align: middle;
+	font-weight: normal;
+}
+
+.careerRatingNumber {
+	display: inline-block;
+	vertical-align: middle;
+	font-size: 1.5em;
+	font-weight: bold;
+	margin-left: 4px;
+}
+
+.careerRatingBadge {
+	flex-shrink: 0;
+	image-rendering: auto;
+	-webkit-image-rendering: auto;
+}
+
+.uniqueSkillLevelSelect {
+	position: absolute;
+	right: 8px;
+	top: 50%;
+	transform: translateY(-50%);
+	background: rgba(255, 255, 255, 0.9);
+	border: 1px solid rgba(121, 64, 22, 0.3);
+	border-radius: 4px;
+	padding: 2px 4px;
+	font-size: 0.85em;
+	color: rgb(121, 64, 22);
+	cursor: pointer;
+	z-index: 1;
+}
