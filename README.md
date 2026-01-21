@@ -28,7 +28,7 @@ For Skill/Uma Chart modes, the progress bar now shows the progress of individual
 
 ### Minor Bug Fixes
 
-Stamina skills are now correctly simulated in Skill Chart mode. Previously, all stamina skills showed 0.00 change because `withStaminaSyoubu()` counted stamina from both Self and Other skills. In comparison mode, both umas saw each other's stamina skills, so both got the same bonus, canceling the difference. This is fixed by only counting Self-perspective skills when calculating the stamina bonus.
+Stamina skills are now correctly simulated in Skill Chart mode. Previously, all stamina skills showed 0.00 change Skill Chart used to run in NoopHpPolicy and ignores HP/stamina consumption, whereas normal comparison mode uses GameHpPolicy. For those who'd like to ignore HP consumption, the option has been added as a toggle.  
 
 The UI has been refined and polished. 
 
