@@ -30,6 +30,9 @@ import skilldata from '../uma-skill-tools/data/skill_data.json';
 import skillnames from '../uma-skill-tools/data/skillnames.json';
 import skillmeta from '../skill_meta.json';
 
+// Global build flag injected at runtime
+declare const CC_GLOBAL: boolean;
+
 import './app.css';
 
 const DEFAULT_SAMPLES = 500;
@@ -109,6 +112,56 @@ function formatTime(seconds: number): string {
 	const remainingSeconds = seconds % 60;
 	const secondsStr = remainingSeconds.toFixed(3).padStart(6, '0');
 	return `${minutes}:${secondsStr}`;
+}
+
+function rankForStat(x: number) {
+	// Match `components/HorseDef.tsx` exactly for rank icons
+	if (x > 1200) {
+		// over 1200 letter (eg UG) goes up by 100 and minor number (eg UG8) goes up by 10
+		return Math.min(18 + Math.floor((x - 1200) / 100) * 10 + Math.floor(x / 10) % 10, 97);
+	} else if (x >= 1150) {
+		return 17; // SS+
+	} else if (x >= 1100) {
+		return 16; // SS
+	} else if (x >= 400) {
+		// between 400 and 1100 letter goes up by 100 starting with C (8)
+		return 8 + Math.floor((x - 400) / 100);
+	} else {
+		// between 1 and 400 letter goes up by 50 starting with G+ (0)
+		return Math.floor(x / 50);
+	}
+}
+
+function OptimizerStatsBar({stats, onLoadToUma1, careerRating}) {
+	if (!stats) return null;
+	const rounded = {
+		speed: Math.round(stats.speed),
+		stamina: Math.round(stats.stamina),
+		power: Math.round(stats.power),
+		guts: Math.round(stats.guts),
+		wisdom: Math.round(stats.wisdom)
+	};
+	return (
+		<div style="width: 960px; max-width: 960px; margin-top: 80px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
+			<div style="font-weight: 600; font-size: 14px; margin-right: 12px; white-space: nowrap;">Career Rating: {careerRating != null ? Math.round(careerRating) : '—'}</div>
+			<div class="horseParams" style="grid-template-columns: repeat(5, 1fr); margin: 0; width: 100%; flex: 1;">
+				<div class="horseParamHeader"><img src="/uma-tools/icons/status_00.png" /><span>Speed</span></div>
+				<div class="horseParamHeader"><img src="/uma-tools/icons/status_01.png" /><span>Stamina</span></div>
+				<div class="horseParamHeader"><img src="/uma-tools/icons/status_02.png" /><span>Power</span></div>
+				<div class="horseParamHeader"><img src="/uma-tools/icons/status_03.png" /><span>Guts</span></div>
+				<div class="horseParamHeader"><img src="/uma-tools/icons/status_04.png" /><span>{CC_GLOBAL?'Wit':'Wisdom'}</span></div>
+				{(['speed','stamina','power','guts','wisdom'] as const).map((k) => (
+					<div class="horseParam">
+						<img src={`/uma-tools/icons/statusrank/ui_statusrank_${(100 + rankForStat(rounded[k])).toString().slice(1)}.png`} />
+						<input type="number" value={rounded[k]} disabled style={{opacity: 0.9}} />
+					</div>
+				))}
+			</div>
+			<button type="button" class="resetUmaButton" onClick={onLoadToUma1} style="margin-left: 12px; white-space: nowrap;">
+				Apply Stats
+			</button>
+		</div>
+	);
 }
 
 function binSearch(a: number[], x: number) {
@@ -225,6 +278,231 @@ function Histogram(props) {
 			<g>{rects}</g>
 			<g ref={axes}></g>
 		</svg>
+	);
+}
+
+function OptimizerGraphs({iterations, evaluationMethod, width: widthProp}) {
+	if (!iterations || iterations.length === 0) return null;
+	
+	const width = widthProp || 420;
+	const height = 200;
+	const margin = { top: 20, right: 20, bottom: 40, left: 60 };
+	const chartWidth = width - margin.left - margin.right;
+	const chartHeight = height - margin.top - margin.bottom;
+	
+	// Cost function graph (margin of win over iterations)
+	const costAxes = useRef(null);
+	const costLine = useRef(null);
+	
+	useEffect(() => {
+		if (!costAxes.current || !costLine.current) return;
+		
+		const x = d3.scaleLinear()
+			.domain([0, iterations.length - 1])
+			.range([0, chartWidth]);
+		
+		const y = d3.scaleLinear()
+			.domain(d3.extent(iterations, d => d.evaluationValue))
+			.range([chartHeight, 0]);
+		
+		const line = d3.line()
+			.x((d, i) => x(i))
+			.y(d => y(d.evaluationValue))
+			.curve(d3.curveMonotoneX);
+		
+		// Clear previous
+		d3.select(costLine.current).selectAll('*').remove();
+		d3.select(costAxes.current).selectAll('*').remove();
+		
+		// Draw line
+		d3.select(costLine.current)
+			.append('path')
+			.datum(iterations)
+			.attr('fill', 'none')
+			.attr('stroke', '#2a77c5')
+			.attr('stroke-width', 2)
+			.attr('d', line);
+		
+		// Draw axes
+		const xAxis = d3.axisBottom(x).ticks(Math.min(10, iterations.length));
+		const yAxis = d3.axisLeft(y);
+		
+		const costAxesG = d3.select(costAxes.current);
+		costAxesG
+			.append('g')
+			.attr('transform', `translate(0,${chartHeight})`)
+			.call(xAxis);
+		
+		costAxesG
+			.append('g')
+			.call(yAxis);
+
+		costAxesG.selectAll('.tick text').style('font-size', '11px');
+	}, [iterations, chartWidth, chartHeight]);
+	
+	// Convergence graph
+	const convergenceAxes = useRef(null);
+	const convergenceLine = useRef(null);
+	
+	useEffect(() => {
+		if (!convergenceAxes.current || !convergenceLine.current || iterations.length < 2) return;
+		
+		// Calculate convergence: difference between current and previous value
+		const convergence = iterations.map((it, idx) => {
+			if (idx === 0) return 0;
+			return Math.abs(it.evaluationValue - iterations[idx - 1].evaluationValue);
+		});
+		
+		const x = d3.scaleLinear()
+			.domain([0, iterations.length - 1])
+			.range([0, chartWidth]);
+		
+		const y = d3.scaleLinear()
+			.domain([0, d3.max(convergence) || 1])
+			.range([chartHeight, 0]);
+		
+		const line = d3.line()
+			.x((d, i) => x(i))
+			.y(d => y(d))
+			.curve(d3.curveMonotoneX);
+		
+		// Clear previous
+		d3.select(convergenceLine.current).selectAll('*').remove();
+		d3.select(convergenceAxes.current).selectAll('*').remove();
+		
+		// Draw line
+		d3.select(convergenceLine.current)
+			.append('path')
+			.datum(convergence)
+			.attr('fill', 'none')
+			.attr('stroke', '#c52a2a')
+			.attr('stroke-width', 2)
+			.attr('d', line);
+		
+		// Draw axes
+		const xAxis = d3.axisBottom(x).ticks(Math.min(10, iterations.length));
+		const yAxis = d3.axisLeft(y);
+		
+		const convAxesG = d3.select(convergenceAxes.current);
+		convAxesG
+			.append('g')
+			.attr('transform', `translate(0,${chartHeight})`)
+			.call(xAxis);
+		
+		convAxesG
+			.append('g')
+			.call(yAxis);
+
+		convAxesG.selectAll('.tick text').style('font-size', '11px');
+	}, [iterations, chartWidth, chartHeight]);
+	
+	// Stats evolution graph
+	const statsAxes = useRef(null);
+	const statsLines = useRef(null);
+	
+	useEffect(() => {
+		if (!statsAxes.current || !statsLines.current || iterations.length === 0) return;
+		
+		const statKeys = ['speed', 'stamina', 'power', 'guts', 'wisdom'];
+		const colors = ['#2a77c5', '#c52a2a', '#22c55e', '#a855f7', '#f59e0b'];
+		
+		const x = d3.scaleLinear()
+			.domain([0, iterations.length - 1])
+			.range([0, chartWidth]);
+		
+		const allStats = iterations.flatMap(it => [
+			it.stats.speed, it.stats.stamina, it.stats.power, it.stats.guts, it.stats.wisdom
+		]);
+		const y = d3.scaleLinear()
+			.domain(d3.extent(allStats))
+			.range([chartHeight, 0]);
+		
+		const line = d3.line()
+			.x((d, i) => x(i))
+			.y(d => y(d))
+			.curve(d3.curveMonotoneX);
+		
+		// Clear previous
+		d3.select(statsLines.current).selectAll('*').remove();
+		d3.select(statsAxes.current).selectAll('*').remove();
+		
+		// Draw lines for each stat
+		statKeys.forEach((key, idx) => {
+			const data = iterations.map(it => it.stats[key]);
+			d3.select(statsLines.current)
+				.append('path')
+				.datum(data)
+				.attr('fill', 'none')
+				.attr('stroke', colors[idx])
+				.attr('stroke-width', 2)
+				.attr('d', line);
+		});
+		
+		// Draw axes
+		const xAxis = d3.axisBottom(x).ticks(Math.min(10, iterations.length));
+		const yAxis = d3.axisLeft(y);
+		
+		const statsAxesG = d3.select(statsAxes.current);
+		statsAxesG
+			.append('g')
+			.attr('transform', `translate(0,${chartHeight})`)
+			.call(xAxis);
+		
+		statsAxesG
+			.append('g')
+			.call(yAxis);
+
+		statsAxesG.selectAll('.tick text').style('font-size', '11px');
+	}, [iterations, chartWidth, chartHeight]);
+	
+	return (
+		<div class="optimizerGraphs" style="display: flex; flex-direction: column; gap: 12px;">
+			<div>
+				<h3 style="margin: 0 0 6px 0;">Cost Function ({evaluationMethod === 'mean' ? 'Mean' : evaluationMethod === 'median' ? 'Median' : 'Aggregate'} Margin)</h3>
+				<svg width={width} height={height} style="border: 1px solid #ccc;">
+					<g transform={`translate(${margin.left},${margin.top})`}>
+						<g ref={costLine}></g>
+						<g ref={costAxes}></g>
+						<text x={chartWidth / 2 - 30} y={chartHeight+30} textAnchor="middle" dominantBaseline="middle" style="font-size:12px;">Iteration</text>
+						<text x={-chartHeight / 2 - 40} y={-42} textAnchor="middle" dominantBaseline="middle" transform="rotate(-90)" style="font-size:12px;">{CC_GLOBAL ? 'Margin (lengths)' : 'Margin (バ身)'}</text>
+					</g>
+				</svg>
+			</div>
+			
+			<div>
+				<h3 style="margin: 0 0 6px 0;">Convergence</h3>
+				<svg width={width} height={height} style="border: 1px solid #ccc;">
+					<g transform={`translate(${margin.left},${margin.top})`}>
+						<g ref={convergenceLine}></g>
+						<g ref={convergenceAxes}></g>
+						<text x={chartWidth / 2 - 30} y={chartHeight+30} textAnchor="middle" dominantBaseline="middle" style="font-size:12px;">Iteration</text>
+						<text x={-chartHeight / 2 - 25} y={-42} textAnchor="middle" dominantBaseline="middle" transform="rotate(-90)" style="font-size:12px;">Change</text>
+					</g>
+				</svg>
+			</div>
+			
+			<div>
+				<h3 style="margin: 0 0 6px 0;">Stats Evolution</h3>
+				<div style={`display: flex; align-items: flex-start; gap: 10px; width: ${width + 140}px; overflow: visible;`}>
+					<svg width={width} height={height} style="border: 1px solid #ccc;">
+						<g transform={`translate(${margin.left},${margin.top})`}>
+							<g ref={statsLines}></g>
+							<g ref={statsAxes}></g>
+							<text x={chartWidth / 2	- 30} y={chartHeight+30} textAnchor="middle" dominantBaseline="middle" style="font-size:12px;">Iteration</text>
+							<text x={-chartHeight / 2 - 30} y={-42} textAnchor="middle" dominantBaseline="middle" transform="rotate(-90)" style="font-size:12px;">Stat Value</text>
+						</g>
+					</svg>
+					<div style="min-width: 120px; margin-left: 4px;">
+						{['Speed', 'Stamina', 'Power', 'Guts', 'Wisdom'].map((label, idx) => (
+							<div key={label} style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+								<span style={`display:inline-block;width:20px;height:2px;background:${['#2a77c5', '#c52a2a', '#22c55e', '#a855f7', '#f59e0b'][idx]}`}></span>
+								<span style="font-size: 12px;">{label}</span>
+							</div>
+						))}
+					</div>
+				</div>
+			</div>
+		</div>
 	);
 }
 
@@ -895,8 +1173,8 @@ function BasinnChartPopover(props) {
 		});
 		popover.current.focus();
 	}, [popover.current, props.skillid]);
-	return (
-		<div class="basinnChartPopover" tabindex="1000" style="visibility:hidden" ref={popover}>
+		return (
+			<div class="basinnChartPopover" tabindex={1000} style="visibility:hidden" ref={popover}>
 			<ExpandedSkillDetails id={props.skillid} distanceFactor={props.courseDistance} dismissable={false} />
 			<Histogram width={500} height={333} data={props.results} />
 		</div>
@@ -1072,9 +1350,9 @@ async function serialize(courseId: number, nsamples: number, seed: number, posKe
 		seed,
 		posKeepMode,
 		racedef: racedef.toJS(),
-		uma1: uma1.set('skills', Array.from(uma1.skills.values())).toJS(),
-		uma2: uma2.set('skills', Array.from(uma2.skills.values())).toJS(),
-		pacer: pacer.set('skills', Array.from(pacer.skills.values())).toJS(),
+		uma1: uma1.set('skills', Array.from(uma1.skills.values()) as any).toJS(),
+		uma2: uma2.set('skills', Array.from(uma2.skills.values()) as any).toJS(),
+		pacer: pacer.set('skills', Array.from(pacer.skills.values()) as any).toJS(),
 		witVarianceSettings,
 		showVirtualPacemakerOnGraph,
 		pacemakerCount,
@@ -1212,8 +1490,16 @@ async function saveToLocalStorage(courseId: number, nsamples: number, seed: numb
 }
 
 function mergeSkillMaps(map1, map2) {
-	const obj1 = map1 instanceof Map ? Object.fromEntries(map1) : (map1 || {});
-	const obj2 = map2 instanceof Map ? Object.fromEntries(map2) : (map2 || {});
+	const toObj = (m) => {
+		if (m instanceof Map) {
+			const o = {};
+			m.forEach((v,k) => { o[k] = v; });
+			return o;
+		}
+		return m || {};
+	};
+	const obj1 = toObj(map1);
+	const obj2 = toObj(map2);
 	const merged = { ...obj1 };
 	Object.entries(obj2).forEach(([skillId, values]: [string, any]) => {
 		merged[skillId] = [...(merged[skillId] || []), ...(values || [])];
@@ -1295,7 +1581,7 @@ interface SavedUmaProfile {
 }
 
 function serializeHorseState(state: HorseState): any {
-	return state.set('skills', Array.from(state.skills.values())).toJS();
+	return state.set('skills', Array.from(state.skills.values()) as any).toJS();
 }
 
 function deserializeHorseState(data: any): HorseState {
@@ -1593,8 +1879,8 @@ function RacePresets(props) {
 
 const baseSkillsToTest = Object.keys(skilldata).filter(id => isGeneralSkill(id));
 
-const enum Mode { Compare, Chart, UniquesChart, GlobalCompare }
-const enum UiStateMsg { SetModeCompare, SetModeChart, SetModeUniquesChart, SetModeGlobalCompare, SetCurrentIdx0, SetCurrentIdx1, SetCurrentIdx2, ToggleExpand }
+const enum Mode { Compare, Chart, UniquesChart, GlobalCompare, RaceOptimizer }
+const enum UiStateMsg { SetModeCompare, SetModeChart, SetModeUniquesChart, SetModeGlobalCompare, SetModeRaceOptimizer, SetCurrentIdx0, SetCurrentIdx1, SetCurrentIdx2, ToggleExpand }
 
 const DEFAULT_UI_STATE = {mode: Mode.Compare, currentIdx: 0, expanded: false};
 
@@ -1608,6 +1894,8 @@ function nextUiState(state: typeof DEFAULT_UI_STATE, msg: UiStateMsg) {
 			return {...state, mode: Mode.UniquesChart, currentIdx: 0, expanded: false};
 		case UiStateMsg.SetModeGlobalCompare:
 			return {...state, mode: Mode.GlobalCompare, currentIdx: 0, expanded: false};
+		case UiStateMsg.SetModeRaceOptimizer:
+			return {...state, mode: Mode.RaceOptimizer, currentIdx: 0, expanded: false};
 		case UiStateMsg.SetCurrentIdx0:
 			return {...state, currentIdx: 0};
 		case UiStateMsg.SetCurrentIdx1:
@@ -1789,6 +2077,25 @@ function App(props) {
 	const [isPacemakerDropdownOpen, setIsPacemakerDropdownOpen] = useState(false);
 	const [globalCompareDistance, setGlobalCompareDistance] = useState<DistanceType>(DistanceType.Mile);
 	const [globalCompareTerrain, setGlobalCompareTerrain] = useState<Surface>(Surface.Turf);
+	const [maxCareerRating, setMaxCareerRating] = useState(8200);
+	const [optimizerResult, setOptimizerResult] = useState<any>(null);
+	const [optimizerProgress, setOptimizerProgress] = useState<any>(null);
+	const [optimizerIterations, setOptimizerIterations] = useState<any[]>([]);
+	const [optimizerMaxIterations, setOptimizerMaxIterations] = useState(100);
+const [optimizerEvaluationMethod, setOptimizerEvaluationMethod] = useState<'mean' | 'median' | 'aggregate'>('median');
+	const [optimizerMinStat, setOptimizerMinStat] = useState(300);
+	const [optimizerMaxStat, setOptimizerMaxStat] = useState(1200);
+	const [optimizerChartData, setOptimizerChartData] = useState<any>(null);
+	const [optimizerRunData, setOptimizerRunData] = useState<any>(null);
+	const [optimizerDisplaying, setOptimizerDisplaying] = useState<'minrun' | 'maxrun' | 'meanrun' | 'medianrun'>('medianrun');
+	const [optimizerInitCount, setOptimizerInitCount] = useState(100);
+	const [optimizerInitSamples, setOptimizerInitSamples] = useState(10);
+	const [optimizerIterSamples, setOptimizerIterSamples] = useState(20);
+	const [optimizerFinalRunSamples, setOptimizerFinalRunSamples] = useState(500);
+	const [optimizerPhase, setOptimizerPhase] = useState<'init' | 'iter' | 'final' | null>(null);
+	const [optimizerInitProgress, setOptimizerInitProgress] = useState<{completed: number; total: number} | null>(null);
+	const [optimizerFinalProgress, setOptimizerFinalProgress] = useState<{completed: number; total: number} | null>(null);
+const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs: number[]; marginStats: {min: number; max: number; mean: number; median: number}; runData: any; chartData: any} | null>(null);
 	
 	function handlePacemakerCountChange(newCount: number) {
 		setPacemakerCount(newCount);
@@ -1869,7 +2176,7 @@ function App(props) {
 			return merged;
 		}
 		data.forEach((v,k) => merged.set(k,v));
-		newData.forEach((v,k) => merged.set(k,v));
+		(newData as any).forEach((v,k) => merged.set(k,v));
 		return merged;
 	}, new Map());
 	const tableDataRef = useRef(tableData);
@@ -1907,13 +2214,93 @@ function App(props) {
 		return Array.from({length: 16}, (_, i) => i + 1).map((workerIndex) => {
 			const w = new Worker('./simulator.worker.js');
 			w.addEventListener('message', function (e) {
-			const {type, results, round, total, skillId, result, completed, totalSkills} = e.data;
+			const {type, results, round, total, skillId, result, completed, totalSkills, iteration, data} = e.data;
 			switch (type) {
 				case 'compare':
 					setResults(results);
 					break;
 				case 'chart':
 					updateTableData(results);
+					break;
+				case 'optimizer':
+					setOptimizerPhase(null);
+					setOptimizerFinalProgress(null);
+					setOptimizerResult(result);
+					if (result.iterations && result.iterations.length > 0) {
+						const lastIteration = result.iterations[result.iterations.length - 1];
+						if (result.finalChartData) {
+							setOptimizerChartData(result.finalChartData);
+							if (result.finalRunData) {
+								const diffs = result.finalRunData.__diffs || [];
+								const marginStats = result.finalRunData.__marginStats || {min: 0, max: 0, mean: 0, median: 0};
+								setOptimizerFinalCumulative({
+									diffs,
+									marginStats,
+									runData: result.finalRunData,
+									chartData: result.finalChartData
+								});
+							}
+						} else if (lastIteration.chartData) {
+							setOptimizerChartData(lastIteration.chartData);
+						}
+						if (result.finalRunData) {
+							setOptimizerRunData(result.finalRunData);
+						} else if (lastIteration.runData) {
+							setOptimizerRunData(lastIteration.runData);
+						}
+					}
+					break;
+				case 'optimizer-init-progress':
+					setOptimizerPhase('init');
+					setOptimizerInitProgress({completed: data.completed, total: data.total});
+					break;
+				case 'optimizer-final-progress':
+					setOptimizerPhase('final');
+					setOptimizerFinalProgress({completed: data.completed, total: data.total});
+					if (data.cumulativeResults) {
+						const diffs = data.cumulativeResults.results || [];
+						const sorted = [...diffs].sort((a,b) => a - b);
+						const mid = Math.floor(sorted.length / 2);
+						const median = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+						const mean = diffs.length > 0 ? diffs.reduce((a,b) => a + b, 0) / diffs.length : 0;
+						const marginStats = {
+							min: sorted.length ? sorted[0] : 0,
+							max: sorted.length ? sorted[sorted.length - 1] : 0,
+							mean,
+							median
+						};
+						const runData = data.cumulativeResults.runData || null;
+						const chartData = runData?.meanrun || runData?.medianrun || runData?.minrun || null;
+						setOptimizerFinalCumulative({diffs, marginStats, runData, chartData});
+						if (runData) {
+							setOptimizerRunData(runData);
+						}
+						if (chartData) {
+							setOptimizerChartData(chartData);
+						}
+						setOptimizerIterations(prev => {
+							if (!prev.length) return prev;
+							const last = prev[prev.length - 1];
+							const updated = {...last, diffs, marginStats, runData, chartData};
+							return [...prev.slice(0, -1), updated];
+						});
+					}
+					break;
+				case 'optimizer-progress':
+					setOptimizerPhase('iter');
+					setOptimizerProgress(iteration);
+					setOptimizerIterations(prev => [...prev, iteration]);
+					if (iteration.chartData) {
+						setOptimizerChartData(iteration.chartData);
+					}
+					if (iteration.runData) {
+						setOptimizerRunData(iteration.runData);
+					}
+					break;
+				case 'optimizer-complete':
+					activeWorkersRef.current.delete(workerIndex);
+					setIsSimulationRunning(false);
+					setOptimizerProgress(null);
 					break;
 				case 'chart-progress':
 					// Store progress for this specific worker
@@ -2232,6 +2619,69 @@ function App(props) {
 		});
 	}
 
+	function getUniqueSkillId(outfitId: string): string {
+		const i = +outfitId.slice(1, -2), v = +outfitId.slice(-2);
+		return (100000 + 10000 * (v - 1) + i * 10 + 1).toString();
+	}
+
+	function doOptimizer() {
+		postEvent('doOptimizer', {});
+		setIsSimulationRunning(true);
+		setOptimizerProgress(null);
+		setOptimizerResult(null);
+		setOptimizerIterations([]);
+		setOptimizerChartData(null);
+		setOptimizerRunData(null);
+		setOptimizerDisplaying('medianrun');
+		setOptimizerPhase('init');
+		setOptimizerInitProgress({completed: 0, total: optimizerInitCount});
+		setOptimizerFinalProgress(null);
+		setOptimizerFinalCumulative(null);
+		activeWorkersRef.current.clear();
+		activeWorkersRef.current.add(0);
+		workers[0].postMessage({
+			msg: 'optimizer',
+			data: {
+				course,
+				racedef: racedefToParams(racedef),
+				uma: uma1.toJS(),
+				uniqueSkillId: getUniqueSkillId(uma1.outfitId),
+				maxCareerRating,
+				options: {
+					seed,
+					posKeepMode,
+					pacemakerCount: posKeepMode === PosKeepMode.Virtual ? pacemakerCount : 1,
+					syncRng: syncRng,
+					skillWisdomCheck: skillWisdomCheck,
+					rushedKakari: rushedKakari,
+					competeFight: competeFight,
+					leadCompetition: leadCompetition,
+					duelingRates: duelingRates
+				},
+				evaluationMethod: optimizerEvaluationMethod,
+				initCandidates: optimizerInitCount,
+				initSamples: optimizerInitSamples,
+				iterSamples: optimizerIterSamples,
+						finalRunSamples: optimizerFinalRunSamples,
+				maxIterations: optimizerMaxIterations
+			}
+		});
+	}
+
+	function loadOptimizedIntoUma1() {
+		if (!optimizerIterations.length) return;
+		const last = optimizerIterations[optimizerIterations.length - 1];
+		const best = last.bestSoFarStats || (optimizerResult?.bestStats);
+		if (!best) return;
+		setUma1(uma1.merge({
+			speed: Math.round(best.speed),
+			stamina: Math.round(best.stamina),
+			power: Math.round(best.power),
+			guts: Math.round(best.guts),
+			wisdom: Math.round(best.wisdom)
+		}));
+	}
+
 	function getUniqueSkills() {
 		return Object.keys(skilldata).filter(id => {
 			const skill = skilldata[id];
@@ -2265,8 +2715,9 @@ function App(props) {
 			uma = umaWithoutUniques.toJS();
 		} else {
 			skills = getActivateableSkills(baseSkillsToTest.filter(id => {
-				return !(id[0] == '9' && uma1.skills.includes('1' + id.slice(1))  // reject inherited uniques if we already have the regular version
-					|| id == '92111091' && uma1.skills.includes('111091')  // reject rhein kraft pink inherited unique on her (not covered by the above check since the ID is different)
+				const skillsAny: any = uma1.skills as any;
+				return !(id[0] == '9' && skillsAny.includes && skillsAny.includes('1' + id.slice(1))  // reject inherited uniques if we already have the regular version
+					|| id == '92111091' && skillsAny.includes && skillsAny.includes('111091')  // reject rhein kraft pink inherited unique on her (not covered by the above check since the ID is different)
 				);
 			}), uma1, course, params);
 
@@ -2445,19 +2896,33 @@ function App(props) {
 		{stroke: 'rgb(42, 119, 197)', fill: 'rgba(42, 119, 197, 0.7)'},
 		{stroke: 'rgb(197, 42, 42)', fill: 'rgba(197, 42, 42, 0.7)'}
 	];
-	const skillActivations = chartData == null ? [] : chartData.sk.flatMap((a,i) => {
-		return Array.from(a.keys()).flatMap(id => {
-			if (NO_SHOW.indexOf(skillmeta[id].iconId) > -1) return [];
-			else return a.get(id).map(ar => ({
-				type: RegionDisplayType.Textbox,
-				color: colors[i],
-				text: skillnames[id][0],
-				skillId: id,
-				umaIndex: i,
-				regions: [{start: ar[0], end: ar[1] != -1 ? ar[1] : ar[0] + 100}]
-			}));
-		});
-	});
+	const skillActivations = (() => {
+		if (chartData == null) return [];
+		const out: any[] = [];
+		const skArr: any[] = (chartData.sk as any[]) || [];
+		for (let i = 0; i < skArr.length; i++) {
+			const a = skArr[i];
+			if (!a) continue;
+			const keys = Array.from(a.keys());
+			for (let k = 0; k < keys.length; k++) {
+				const id = keys[k] as any;
+				if (NO_SHOW.indexOf((skillmeta as any)[id].iconId) > -1) continue;
+				const ars = a.get(id) || [];
+				for (let j = 0; j < ars.length; j++) {
+					const ar = ars[j];
+					out.push({
+						type: RegionDisplayType.Textbox,
+						color: colors[i],
+						text: skillnames[id][0],
+						skillId: id,
+						umaIndex: i,
+						regions: [{start: ar[0], end: ar[1] != -1 ? ar[1] : ar[0] + 100}]
+					});
+				}
+			}
+		}
+		return out;
+	})();
 	
 	const rushedColors = [
 		{stroke: 'rgb(42, 119, 197)', fill: 'rgba(42, 119, 197, 0.8)'},  // Blue for Uma 1
@@ -2964,7 +3429,7 @@ function App(props) {
 					</div>
 				</div>
 			) : (
-				<div id="resultsPaneWrapper">
+				<div id="resultsPaneWrapper" style={{marginTop: '80px'}}>
 					<div id="resultsPane" class="mode-compare" key="compare-results">
 						<table id="resultsSummary">
 							<tfoot>
@@ -3099,6 +3564,81 @@ function App(props) {
 				</div>
 		)
 		);
+	} else if (mode == Mode.RaceOptimizer && optimizerIterations.length > 0) {
+		// Use latest iteration (includes best-so-far fields)
+		const lastIter = optimizerIterations[optimizerIterations.length - 1];
+		const finalOverride = optimizerFinalCumulative ? optimizerFinalCumulative : null;
+		const diffs = finalOverride?.diffs || lastIter.diffs || [];
+		const marginStats = finalOverride?.marginStats || lastIter.marginStats || {min: 0, max: 0, mean: 0, median: 0};
+		const bestStats = lastIter.bestSoFarStats || lastIter.stats;
+		const displayStats = optimizerPhase === 'iter'
+			? lastIter.stats
+			: !isSimulationRunning && optimizerResult?.finalStats
+			? optimizerResult.finalStats
+			: bestStats;
+		const bestCareerRating = lastIter.bestSoFarCareerRating;
+		const displayCareerRating = optimizerPhase === 'iter'
+			? lastIter.careerRating
+			: !isSimulationRunning && optimizerResult?.finalCareerRating != null
+			? optimizerResult.finalCareerRating
+			: bestCareerRating;
+
+		// Clicking min/max/mean/median switches which representative run is displayed on the track.
+		const setOptimizerChart = (which: 'minrun' | 'maxrun' | 'meanrun' | 'medianrun') => {
+			setOptimizerDisplaying(which);
+			if (optimizerRunData && optimizerRunData[which]) {
+				setOptimizerChartData(optimizerRunData[which]);
+			}
+		};
+
+		resultsPane = (
+			<div id="resultsPaneWrapper" style={{flexDirection: 'column'}}>
+				{/* Stats bar (below track + selectors, above summary bubbles) */}
+				<OptimizerStatsBar stats={displayStats} careerRating={displayCareerRating} onLoadToUma1={loadOptimizedIntoUma1} />
+				<div style={{display: 'flex', width: '980px', maxWidth: '980px', alignItems: 'flex-start', marginBottom: '8px'}}>
+					<div id="resultsPane" class="mode-compare" key="optimizer-results" style={{width: '500px', marginRight: '16px'}}>
+						<table id="resultsSummary">
+							<tfoot>
+								<tr>
+									{Object.entries({
+										minrun: ['Minimum', 'Set chart display to the run with minimum bashin difference'],
+										maxrun: ['Maximum', 'Set chart display to the run with maximum bashin difference'],
+										meanrun: ['Mean', 'Set chart display to a run representative of the mean bashin difference'],
+										medianrun: ['Median', 'Set chart display to a run representative of the median bashin difference']
+									}).map(([k,label]) =>
+										<th scope="col" class={optimizerDisplaying == k ? 'selected' : ''} title={label[1]} onClick={() => setOptimizerChart(k as any)}>{label[0]}</th>
+									)}
+								</tr>
+							</tfoot>
+							<tbody>
+								<tr>
+									<td onClick={() => setOptimizerChart('minrun')}>{marginStats.min.toFixed(2)}<span class="unit-basinn">{CC_GLOBAL?'lengths':'バ身'}</span></td>
+									<td onClick={() => setOptimizerChart('maxrun')}>{marginStats.max.toFixed(2)}<span class="unit-basinn">{CC_GLOBAL?'lengths':'バ身'}</span></td>
+									<td onClick={() => setOptimizerChart('meanrun')}>{marginStats.mean.toFixed(2)}<span class="unit-basinn">{CC_GLOBAL?'lengths':'バ身'}</span></td>
+									<td onClick={() => setOptimizerChart('medianrun')}>{marginStats.median.toFixed(2)}<span class="unit-basinn">{CC_GLOBAL?'lengths':'バ身'}</span></td>
+								</tr>
+							</tbody>
+						</table>
+					<div id="resultsHelp" style="text-align: center;">
+							Negative numbers mean <strong style="color:#2a77c5">Optimized Umamusume</strong> is faster, positive numbers mean the <strong style="color:#c52a2a">Reference Uma (Uma 1 input)</strong> is faster.
+						</div>
+					</div>
+					<div id="infoTables" style={{width: '460px', display: 'flex', flexDirection: 'column', gap: '10px'}}>
+						{/* Same relative spot as Uma 1 table in Race Compare */}
+						<ResultsTable caption="Optimized Umamusume" color="#2a77c5" chartData={optimizerChartData} idx={0} runData={optimizerRunData} />
+					</div>
+				</div>
+				<div style={{display: 'flex', width: '980px', maxWidth: '980px', alignItems: 'flex-start'}}>
+					<div style={{width: '500px', marginRight: '16px'}}>
+						<Histogram width={500} height={333} data={diffs} />
+					</div>
+					<div style={{width: '460px'}}>
+						{/* Graphs occupy the area right of histogram and left of the mode select column */}
+						<OptimizerGraphs iterations={optimizerIterations} evaluationMethod={optimizerEvaluationMethod} width={420} />
+					</div>
+				</div>
+			</div>
+		);
 	} else if ((mode == Mode.Chart || mode == Mode.UniquesChart) && tableData.size > 0) {
 		const dirty = !uma1.equals(lastRunChartUma);
 		resultsPane = (
@@ -3138,10 +3678,28 @@ function App(props) {
 	return (
 		<Language.Provider value={props.lang}>
 			<IntlProvider definition={strings}>
-				<div id="topPane" class={chartData ? 'hasResults' : ''}>
+				<div id="topPane" class={chartData || optimizerChartData ? 'hasResults' : ''}>
 					{mode != Mode.GlobalCompare && (
-						<RaceTrack courseid={courseId} width={960} height={240} xOffset={20} yOffset={15} yExtra={20} mouseMove={rtMouseMove} mouseLeave={rtMouseLeave} onSkillDrag={handleSkillDrag} regions={[...skillActivations, ...rushedIndicators]} posKeepLabels={posKeepLabels} uma1={uma1} uma2={uma2} pacer={pacer}>
-							<VelocityLines data={chartData} courseDistance={course.distance} width={960} height={250} xOffset={20} showHp={showHp} showLanes={mode == Mode.Compare ? showLanes : false} horseLane={course.horseLane} showVirtualPacemaker={showVirtualPacemakerOnGraph && posKeepMode === PosKeepMode.Virtual} selectedPacemakers={getSelectedPacemakers()} />
+						<RaceTrack courseid={courseId} width={960} height={240} xOffset={20} yOffset={15} yExtra={20} mouseMove={rtMouseMove} mouseLeave={rtMouseLeave} onSkillDrag={handleSkillDrag} regions={mode == Mode.RaceOptimizer && optimizerChartData ? (() => {
+							const optimizerSkillActivations = [];
+							if (optimizerChartData.sk && optimizerChartData.sk[0]) {
+								optimizerChartData.sk[0].forEach((ars, id) => {
+									if (NO_SHOW.indexOf(skillmeta[id].iconId) > -1) return;
+									ars.forEach(ar => {
+										optimizerSkillActivations.push({
+											type: RegionDisplayType.Textbox,
+											color: {stroke: 'rgb(42, 119, 197)', fill: 'rgba(42, 119, 197, 0.7)'},
+											text: skillnames[id][0],
+											skillId: id,
+											umaIndex: 0,
+											regions: [{start: ar[0], end: ar[1] != -1 ? ar[1] : ar[0] + 100}]
+										});
+									});
+								});
+							}
+							return optimizerSkillActivations;
+						})() : [...skillActivations, ...rushedIndicators]} posKeepLabels={posKeepLabels} uma1={uma1} uma2={uma2} pacer={pacer}>
+							<VelocityLines data={mode == Mode.RaceOptimizer ? optimizerChartData : chartData} courseDistance={course.distance} width={960} height={250} xOffset={20} showHp={showHp} showLanes={mode == Mode.Compare ? showLanes : false} horseLane={course.horseLane} showVirtualPacemaker={showVirtualPacemakerOnGraph && posKeepMode === PosKeepMode.Virtual} selectedPacemakers={getSelectedPacemakers()} />
 						
 						<g id="rtMouseOverBox" style="display:none">
 							<text id="rtV1" x="25" y="10" fill="#2a77c5" font-size="10px"></text>
@@ -3175,6 +3733,10 @@ function App(props) {
 								<input type="radio" id="mode-uniques-chart" name="mode" value="uniques-chart" checked={mode == Mode.UniquesChart} onClick={() => updateUiState(UiStateMsg.SetModeUniquesChart)} />
 								<label for="mode-uniques-chart">Uma Chart</label>
 							</div>
+							<div>
+								<input type="radio" id="mode-race-optimizer" name="mode" value="race-optimizer" checked={mode == Mode.RaceOptimizer} onClick={() => updateUiState(UiStateMsg.SetModeRaceOptimizer)} />
+								<label for="mode-race-optimizer">Race Optimizer</label>
+							</div>
 						</fieldset>
 						{mode == Mode.GlobalCompare && (
 							<>
@@ -3196,6 +3758,53 @@ function App(props) {
 								</fieldset>
 							</>
 						)}
+						{mode == Mode.RaceOptimizer && (
+							<fieldset id="optimizerFieldset" style="border: 1px solid rgb(148, 150, 189); border-radius: 8px; padding: 8px; margin: 5px 0;">
+								<legend style="padding: 0 5px;">Optimizer Settings:</legend>
+								<div style="display: flex; flex-direction: column; gap: 8px;">
+									<label>
+										Max Career Rating:
+										<input type="number" value={maxCareerRating} onInput={(e) => setMaxCareerRating(+e.currentTarget.value)} style="margin-left: 8px; width: 100px;" />
+									</label>
+									<label>
+										Initializations:
+										<input type="number" value={optimizerInitCount} onInput={(e) => setOptimizerInitCount(+e.currentTarget.value)} style="margin-left: 8px; width: 100px;" min="1" max="500" />
+									</label>
+									<label>
+										Samples per Initialization:
+										<input type="number" value={optimizerInitSamples} onInput={(e) => setOptimizerInitSamples(+e.currentTarget.value)} style="margin-left: 8px; width: 100px;" min="1" max="500" />
+									</label>
+									<label>
+										Number of Iterations:
+										<input type="number" value={optimizerMaxIterations} onInput={(e) => setOptimizerMaxIterations(+e.currentTarget.value)} style="margin-left: 8px; width: 100px;" min="1" max="200" />
+									</label>
+									<label>
+										Samples per Iteration:
+										<input type="number" value={optimizerIterSamples} onInput={(e) => setOptimizerIterSamples(+e.currentTarget.value)} style="margin-left: 8px; width: 100px;" min="1" max="500" />
+									</label>
+									<label>
+										Final Run Samples:
+										<input type="number" value={optimizerFinalRunSamples} onInput={(e) => setOptimizerFinalRunSamples(+e.currentTarget.value)} style="margin-left: 8px; width: 100px;" min="1" max="1000" />
+									</label>
+									<label>
+										Evaluation Method:
+										<select value={optimizerEvaluationMethod} onInput={(e) => setOptimizerEvaluationMethod(e.currentTarget.value as 'mean' | 'median' | 'aggregate')} style="margin-left: 8px;">
+											<option value="median">Median</option>
+											<option value="mean">Mean</option>
+											<option value="aggregate">Aggregate</option>
+										</select>
+									</label>
+									<label>
+										Stat Lower Bound:
+										<input type="number" value={optimizerMinStat} onInput={(e) => setOptimizerMinStat(+e.currentTarget.value)} style="margin-left: 8px; width: 100px;" min="0" max="2000" />
+									</label>
+									<label>
+										Stat Upper Bound:
+										<input type="number" value={optimizerMaxStat} onInput={(e) => setOptimizerMaxStat(+e.currentTarget.value)} style="margin-left: 8px; width: 100px;" min="0" max="2000" />
+									</label>
+								</div>
+							</fieldset>
+						)}
 						{
 							isSimulationRunning
 							? <button id="run" class="abort-button" onClick={abortSimulation} tabindex={1}>ABORT</button>
@@ -3203,6 +3812,8 @@ function App(props) {
 							? <button id="run" onClick={doComparison} tabindex={1} disabled={loadingAdditionalSamples.size > 0}>COMPARE</button>
 							: mode == Mode.GlobalCompare
 							? <button id="run" onClick={doGlobalComparison} tabindex={1} disabled={loadingAdditionalSamples.size > 0}>GLOBAL COMPARE</button>
+							: mode == Mode.RaceOptimizer
+							? <button id="run" onClick={doOptimizer} tabindex={1} disabled={loadingAdditionalSamples.size > 0}>OPTIMIZE</button>
 							: <button id="run" onClick={doBasinnChart} tabindex={1} disabled={loadingAdditionalSamples.size > 0}>
 								RUN
 							</button>
@@ -3212,8 +3823,12 @@ function App(props) {
 							? <button id="runOnce" onClick={doRunOnce} tabindex={1} disabled={loadingAdditionalSamples.size > 0}>Run Once</button>
 							: null
 						}
-						<label for="nsamples">Samples:</label>
-						<input type="number" id="nsamples" min="1" max="10000" value={nsamples} onInput={(e) => setSamples(+e.currentTarget.value)} />
+						{mode != Mode.RaceOptimizer && (
+							<>
+								<label for="nsamples">Samples:</label>
+								<input type="number" id="nsamples" min="1" max="10000" value={nsamples} onInput={(e) => setSamples(+e.currentTarget.value)} />
+							</>
+						)}
 						{(mode == Mode.Chart || mode == Mode.UniquesChart) && (
 							<>
 								<label for="workerCount">Workers:</label>
@@ -3224,6 +3839,31 @@ function App(props) {
 							<div id="compareProgressBar">
 								<div id="compareProgressBarFill" style={`width: ${(simulationProgress.round / simulationProgress.total) * 100}%`}></div>
 								<span id="compareProgressText">{simulationProgress.round} / {simulationProgress.total}</span>
+							</div>
+						)}
+						{mode == Mode.RaceOptimizer && isSimulationRunning && (optimizerProgress || optimizerInitProgress || optimizerFinalProgress) && (
+							<div id="compareProgressBar">
+								<div
+									id="compareProgressBarFill"
+									style={
+										optimizerPhase === 'init' && optimizerInitProgress
+											? `width: ${(optimizerInitProgress.completed / optimizerInitProgress.total) * 100}%`
+											: optimizerPhase === 'final' && optimizerFinalProgress
+											? `width: ${(optimizerFinalProgress.completed / optimizerFinalProgress.total) * 100}%`
+											: optimizerProgress
+											? `width: ${(optimizerProgress.iteration / optimizerMaxIterations) * 100}%`
+											: 'width: 0%'
+									}
+								></div>
+								<span id="compareProgressText" style="white-space: nowrap;">
+									{optimizerPhase === 'init' && optimizerInitProgress
+										? `Initializing ${optimizerInitProgress.completed} / ${optimizerInitProgress.total}`
+										: optimizerPhase === 'final' && optimizerFinalProgress
+										? `Running Final Samples ${optimizerFinalProgress.completed} / ${optimizerFinalProgress.total}`
+										: optimizerProgress
+										? `Iteration ${optimizerProgress.iteration} / ${optimizerMaxIterations}`
+										: ''}
+								</span>
 							</div>
 						)}
 						{(mode == Mode.Chart || mode == Mode.UniquesChart) && isSimulationRunning && (
@@ -3260,7 +3900,7 @@ function App(props) {
 							<input type="number" id="seed" value={seed} onInput={(e) => { setSeed(+e.currentTarget.value); setRunOnceCounter(0); }} />
 							<button title="Randomize seed" onClick={() => { setSeed(Math.floor(Math.random() * (-1 >>> 0)) >>> 0); setRunOnceCounter(0); }}>🎲</button>
 						</div>
-						{(mode == Mode.Compare || mode == Mode.GlobalCompare) && (
+						{(mode == Mode.Compare || mode == Mode.GlobalCompare || mode == Mode.RaceOptimizer) && (
 							<fieldset id="posKeepFieldset">
 								<legend>Position Keep:</legend>
 								<select id="poskeepmode" value={posKeepMode} onInput={(e) => setPosKeepMode(+e.currentTarget.value)}>
@@ -3332,7 +3972,7 @@ function App(props) {
 								<input type="checkbox" id="showlanes" checked={showLanes} onClick={toggleShowLanes} />
 							</div>
 						)} **/}
-						{(mode == Mode.Compare || mode == Mode.GlobalCompare) && (
+						{(mode == Mode.Compare || mode == Mode.GlobalCompare || mode == Mode.RaceOptimizer) && (
 							<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0;">
 								<div style="display: flex; flex-direction: column; gap: 0;">
 									<div>
@@ -3397,11 +4037,12 @@ function App(props) {
 						</div>
 					)}
 				</div>
-				{mode != Mode.GlobalCompare && resultsPane}
+				{mode != Mode.GlobalCompare && mode != Mode.RaceOptimizer && resultsPane}
+				{mode == Mode.RaceOptimizer && optimizerIterations.length > 0 && resultsPane}
 				{expanded && <div id="umaPane" />}
 				<div id={expanded ? 'umaOverlay' : 'umaPane'}>
 					<div class={!expanded && currentIdx == 0 ? 'selected' : ''}>
-						<HorseDef key={uma1.outfitId} state={uma1} setState={setUma1} courseDistance={mode == Mode.GlobalCompare ? 1600 : course.distance} tabstart={() => 4} onResetAll={resetAllUmas} runData={(mode == Mode.Compare || mode == Mode.GlobalCompare) ? runData : null} umaIndex={(mode == Mode.Compare || mode == Mode.GlobalCompare) ? 0 : null}>
+						<HorseDef key={uma1.outfitId} state={uma1} setState={setUma1} courseDistance={mode == Mode.GlobalCompare ? 1600 : course.distance} tabstart={() => 4} onResetAll={resetAllUmas} runData={(mode == Mode.Compare || mode == Mode.GlobalCompare) ? runData : null} umaIndex={(mode == Mode.Compare || mode == Mode.GlobalCompare) ? 0 : null} disableStats={false}>
 							{expanded ? 'Umamusume 1' : umaTabs}
 						</HorseDef>
 					</div>
@@ -3439,7 +4080,7 @@ function App(props) {
 										min="0" 
 										max="100" 
 										value={duelingRates.runaway} 
-										onInput={(e) => setDuelingRates({...duelingRates, runaway: parseInt(e.target.value)})}
+										onInput={(e) => setDuelingRates({...duelingRates, runaway: parseInt((e.currentTarget as HTMLInputElement).value)})}
 										style="width: 100%;"
 									/>
 								</div>
@@ -3450,7 +4091,7 @@ function App(props) {
 										min="0" 
 										max="100" 
 										value={duelingRates.frontRunner} 
-										onInput={(e) => setDuelingRates({...duelingRates, frontRunner: parseInt(e.target.value)})}
+										onInput={(e) => setDuelingRates({...duelingRates, frontRunner: parseInt((e.currentTarget as HTMLInputElement).value)})}
 										style="width: 100%;"
 									/>
 								</div>
@@ -3461,7 +4102,7 @@ function App(props) {
 										min="0" 
 										max="100" 
 										value={duelingRates.paceChaser} 
-										onInput={(e) => setDuelingRates({...duelingRates, paceChaser: parseInt(e.target.value)})}
+										onInput={(e) => setDuelingRates({...duelingRates, paceChaser: parseInt((e.currentTarget as HTMLInputElement).value)})}
 										style="width: 100%;"
 									/>
 								</div>
@@ -3472,7 +4113,7 @@ function App(props) {
 										min="0" 
 										max="100" 
 										value={duelingRates.lateSurger} 
-										onInput={(e) => setDuelingRates({...duelingRates, lateSurger: parseInt(e.target.value)})}
+										onInput={(e) => setDuelingRates({...duelingRates, lateSurger: parseInt((e.currentTarget as HTMLInputElement).value)})}
 										style="width: 100%;"
 									/>
 								</div>
@@ -3483,7 +4124,7 @@ function App(props) {
 										min="0" 
 										max="100" 
 										value={duelingRates.endCloser} 
-										onInput={(e) => setDuelingRates({...duelingRates, endCloser: parseInt(e.target.value)})}
+										onInput={(e) => setDuelingRates({...duelingRates, endCloser: parseInt((e.currentTarget as HTMLInputElement).value)})}
 										style="width: 100%;"
 									/>
 								</div>

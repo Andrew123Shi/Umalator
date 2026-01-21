@@ -466,7 +466,7 @@ export function Stat(props) {
 	return (
 		<div class="horseParam">
 			<img src={`/uma-tools/icons/statusrank/ui_statusrank_${(100 + rankForStat(props.value)).toString().slice(1)}.png`} />
-			<input type="number" min="1" max="2000" value={props.value} tabindex={props.tabindex} onInput={(e) => props.change(+e.currentTarget.value)} />
+			<input type="number" min="1" max="2000" value={props.value} tabindex={props.tabindex} disabled={props.disabled} onInput={(e) => props.change(+e.currentTarget.value)} style={props.disabled ? {opacity: 0.5, cursor: 'not-allowed'} : {}} />
 		</div>
 	);
 }
@@ -789,11 +789,11 @@ export function HorseDef(props) {
 				<div class="horseParamHeader"><img src="/uma-tools/icons/status_02.png" /><span>Power</span></div>
 				<div class="horseParamHeader"><img src="/uma-tools/icons/status_03.png" /><span>Guts</span></div>
 				<div class="horseParamHeader"><img src="/uma-tools/icons/status_04.png" /><span>{CC_GLOBAL?'Wit':'Wisdom'}</span></div>
-				<Stat value={state.speed} change={setter('speed')} tabindex={tabnext()} />
-				<Stat value={state.stamina} change={setter('stamina')} tabindex={tabnext()} />
-				<Stat value={state.power} change={setter('power')} tabindex={tabnext()} />
-				<Stat value={state.guts} change={setter('guts')} tabindex={tabnext()} />
-				<Stat value={state.wisdom} change={setter('wisdom')} tabindex={tabnext()} />
+				<Stat value={state.speed} change={setter('speed')} tabindex={tabnext()} disabled={props.disableStats} />
+				<Stat value={state.stamina} change={setter('stamina')} tabindex={tabnext()} disabled={props.disableStats} />
+				<Stat value={state.power} change={setter('power')} tabindex={tabnext()} disabled={props.disableStats} />
+				<Stat value={state.guts} change={setter('guts')} tabindex={tabnext()} disabled={props.disableStats} />
+				<Stat value={state.wisdom} change={setter('wisdom')} tabindex={tabnext()} disabled={props.disableStats} />
 			</div>
 			<div class="horseAptitudes">
 				<div>

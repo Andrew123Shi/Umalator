@@ -11,6 +11,11 @@ const STAT_MULTIPLIERS = [
 	3.5, 3.9, 4.1, 4.2, 4.3, 5.2, 5.5, 6.6, 6.8, 6.9
 ];
 
+// Multipliers for stats above 1200 (blocks of 10)
+const STAT_MULTIPLIERS_ABOVE_1200 = [
+	7.888, 8, 8.1, 8.3, 8.4, 8.5, 8.6, 8.8, 8.9, 9, 9.2, 9.3, 9.4, 9.6, 9.7, 9.8, 10, 10.1, 10.2, 10.3, 10.5, 10.6, 10.7, 10.9, 11, 11.1, 11.3, 11.4, 11.5, 11.7, 11.8, 11.9, 12.1, 12.2, 12.3, 12.4, 12.6, 12.7, 12.8, 13, 13.1, 13.2, 13.4, 13.5, 13.6, 13.8, 13.9, 14, 14.1, 14.3, 14.4, 14.5, 14.7, 14.8, 14.9, 15.1, 15.2, 15.3, 15.5, 15.6, 15.7, 15.9, 16, 16.1, 16.2, 16.4, 16.5, 16.6, 16.8, 16.9, 17, 17.2, 17.3, 17.4, 17.6, 17.7, 17.8, 17.9, 18.1, 18.2, 18.3
+];
+
 const MAX_STAT_VALUE = 2000;
 
 export interface RatingBreakdown {
@@ -83,19 +88,64 @@ function getMultiplierForBlock(blockIndex: number): number {
 
 /**
  * Calculate rating score contribution from a single stat value.
- * Stats are divided into blocks of 50, each with a different multiplier.
+ * For stats <= 1200: Divided into blocks of 50, each with a different multiplier.
+ * For stats > 1200: Uses different calculation with blocks of 10 and higher multipliers.
  */
 export function calcStatScore(statValue: number): number {
 	const value = clampStatValue(statValue);
-	const blocks = Math.floor(value / STAT_BLOCK_SIZE);
-	let blockSum = 0;
-	for (let i = 0; i < blocks && i < STAT_MULTIPLIERS.length; i++) {
-		blockSum += STAT_MULTIPLIERS[i] * STAT_BLOCK_SIZE;
+	
+	// For stats <= 1200: Use original block-based calculation
+	if (value <= 1200) {
+		let t = value + 1; // Add 1 as per the new logic
+		let total = 0;
+		
+		for (let i = 0; i < STAT_MULTIPLIERS.length; i++) {
+			if (STAT_MULTIPLIERS[i] === 0) {
+				return 0; // "Undefined Pram is Included!!" case
+			}
+			
+			if (t > 50) {
+				total += 50 * STAT_MULTIPLIERS[i];
+				t -= 50;
+			} else {
+				total += t * STAT_MULTIPLIERS[i];
+				break;
+			}
+		}
+		
+		return Math.floor(total);
 	}
-	const remainder = value % STAT_BLOCK_SIZE;
-	const multiplier = getMultiplierForBlock(blocks);
-	const remainderSum = multiplier * (remainder + 1);
-	return Math.floor(blockSum + remainderSum);
+	
+	// For stats 1201-1209: Special formula
+	if (value > 1200 && value <= 1209) {
+		return Math.ceil((value - 1200) * STAT_MULTIPLIERS_ABOVE_1200[0]) + 3841;
+	}
+	
+	// For stats 1210-2000: Blocks of 10 with multipliers from m array (starting at index 1)
+	if (value > 1209 && value <= 2000) {
+		let t = value - 1210 + 1; // Adjust: 1210 becomes 1, 1211 becomes 2, etc.
+		let total = 0;
+		
+		// Start from index 1 (skip m[0] which was used for 1201-1209)
+		for (let i = 1; i < STAT_MULTIPLIERS_ABOVE_1200.length; i++) {
+			if (STAT_MULTIPLIERS_ABOVE_1200[i] === 0) {
+				return 0; // Error case
+			}
+			
+			if (t > 10) {
+				total += Math.ceil(10 * STAT_MULTIPLIERS_ABOVE_1200[i]);
+				t -= 10;
+			} else {
+				total += Math.ceil(t * STAT_MULTIPLIERS_ABOVE_1200[i]);
+				break;
+			}
+		}
+		
+		return total + 3912; // Base value for 1210+
+	}
+	
+	// Fallback (shouldn't reach here due to clamp, but return 0 for safety)
+	return 0;
 }
 
 /**

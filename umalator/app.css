@@ -187,7 +187,7 @@ body {
 
 #topPane {
 	display: grid;
-	grid-template-columns: 2fr 1fr;
+	grid-template-columns: 1fr;
 	grid-template-rows: 3fr 1fr;
 	gap: 10px 10px;
 	width: fit-content;
@@ -196,6 +196,7 @@ body {
 	min-height: 300px;
 	position: relative;
 	padding-bottom: 60px;
+	padding-right: 380px; /* reserve space for runPane */
 }
 
 /* Remove padding-bottom when in chart mode to eliminate gap before skill table */
@@ -203,25 +204,27 @@ body {
 	grid-template-rows: 1fr;
 }
 
-/* Fix width of globalCompareWrapper to match RaceTrack width (960px) to keep runPane in same position */
+/* Fix width of globalCompareWrapper to match RaceTrack width (980px) to keep runPane in same position */
 #globalCompareWrapper {
 	width: 980px;
 	min-width: 980px;
 	max-width: 980px;
 }
 
-#topPane:has([id="buttonsRow"].trackSelect) {
-	grid-template-rows: auto 1fr;
+#topPane:has(.racetrackView) {
+	/* Let the racetrack define row height now that runPane is absolute */
+	grid-template-rows: auto auto;
 	gap: 10px 10px;
+	padding-bottom: 0;
 }
 
-#topPane:has([id="buttonsRow"].trackSelect):has(#resultsPane.mode-chart) {
+#topPane:has(.racetrackView):has(#resultsPane.mode-chart) {
 	gap: 0 10px;
 }
 
 #runPane {
-	grid-column-start: 2;
-	grid-row-start: span 2;
+	grid-column-start: 1;
+	grid-row-start: 1;
 	display: flex;
 	flex-direction: column;
 	font-size: 14px;
@@ -231,7 +234,10 @@ body {
 	margin-right: 0px;
 	/* no ui bugs here */
 	max-width: 360px;
-	position: relative;
+	position: absolute;
+	right: 0;
+	top: 0;
+	width: 360px;
 }
 
 #chartProgressBarsContainer {
@@ -540,6 +546,7 @@ body {
 	stroke: rgba(128, 128, 128, 0.3) !important;
 	stroke-width: 0.5px !important;
 }
+
 
 #resultsHelp {
 	color: rgb(121, 64, 22);

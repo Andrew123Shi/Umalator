@@ -8,6 +8,7 @@ import { HorseState } from '../components/HorseDefTypes';
 import { runComparison, runGlobalComparison } from './compare';
 import { DistanceType, Surface } from '../uma-skill-tools/CourseData';
 import skillmeta from '../skill_meta.json';
+import { runOptimization, OptimizerIteration } from './optimizer';
 
 function mergeSkillMaps(map1, map2) {
 	const obj1 = map1 instanceof Map ? Object.fromEntries(map1) : (map1 || {});
@@ -231,6 +232,41 @@ function runAdditionalSamples({skillId, nsamples, course, racedef, uma, pacer, o
 	postMessage({type: 'additional-samples', skillId, result: newResult});
 }
 
+async function runOptimizer({course, racedef, uma, uniqueSkillId, maxCareerRating, options, initCandidates, initSamples, iterSamples, finalRunSamples, maxIterations, evaluationMethod, minStat, maxStat}) {
+	const uma_ = new HorseState(uma)
+		.set('skills', fromJS(uma.skills))
+		.set('forcedSkillPositions', ImmMap(uma.forcedSkillPositions || {}));
+	
+	const result = await runOptimization(
+		course,
+		racedef,
+		uma_,
+		uniqueSkillId,
+		maxCareerRating,
+		options,
+		initCandidates || 100,
+		initSamples || 10,
+		iterSamples || 50,
+		finalRunSamples || 200,
+		maxIterations || 50,
+		evaluationMethod || 'median',
+		minStat || 300,
+		maxStat || 1200,
+		(completed, total) => {
+			postMessage({type: 'optimizer-init-progress', data: {completed, total}});
+		},
+		(iteration: OptimizerIteration) => {
+			postMessage({type: 'optimizer-progress', iteration});
+		},
+		(completed, total, cumulativeResults) => {
+			postMessage({type: 'optimizer-final-progress', data: {completed, total, cumulativeResults}});
+		}
+	);
+	
+	postMessage({type: 'optimizer', result});
+	postMessage({type: 'optimizer-complete'});
+}
+
 self.addEventListener('message', function (e) {
 	const {msg, data} = e.data;
 	switch (msg) {
@@ -242,6 +278,9 @@ self.addEventListener('message', function (e) {
 			break;
 		case 'global-compare':
 			runGlobalCompare(data);
+			break;
+		case 'optimizer':
+			runOptimizer(data);
 			break;
 		case 'additional-samples':
 			runAdditionalSamples(data);
