@@ -30,6 +30,8 @@ For Skill/Uma Chart modes, the progress bar now shows the progress of individual
 
 Stamina skills are now correctly simulated in Skill Chart mode. Previously, all stamina skills showed 0.00 change because `withStaminaSyoubu()` counted stamina from both Self and Other skills. In comparison mode, both umas saw each other's stamina skills, so both got the same bonus, canceling the difference. This is fixed by only counting Self-perspective skills when calculating the stamina bonus.
 
+The UI has been refined and polished. 
+
 ## Commands for syncing with upstream repo for updates:
 
 To fetch updates from the original repo:
