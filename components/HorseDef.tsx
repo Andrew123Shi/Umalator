@@ -719,7 +719,7 @@ export function HorseDef(props) {
 						  umaIndex={hasRunData ? props.umaIndex : null}
 						  onViewProcData={hasRunData ? () => setProcDataSkillId(id) : null}
 						  uniqueLevel={isUnique ? (state.uniqueLevel || 0) : undefined}
-						  onUniqueLevelChange={isUnique ? ((level: number) => setState(state.set('uniqueLevel', level))) : undefined}
+						  onUniqueLevelChange={isUnique ? ((level: number) => setState(prev => prev.set('uniqueLevel', level))) : undefined}
 					  />
 				  </li>
 				: <li key={id} style="">
@@ -730,7 +730,7 @@ export function HorseDef(props) {
 								  <select 
 									  class="uniqueSkillLevelSelect"
 									  value={state.uniqueLevel || 0} 
-									  onChange={(e) => setState(state.set('uniqueLevel', parseInt((e.target as HTMLSelectElement).value, 10)))}
+								  onChange={(e) => setState(prev => prev.set('uniqueLevel', parseInt((e.target as HTMLSelectElement).value, 10)))}
 									  onClick={(e) => e.stopPropagation()}
 								  >
 									  <option value={0}>Lv 0</option>

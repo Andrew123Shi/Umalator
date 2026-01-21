@@ -2043,6 +2043,7 @@ function App(props) {
 	const activeWorkersRef = useRef<Set<number>>(new Set());
 	const [posKeepMode, setPosKeepModeRaw] = useState(PosKeepMode.Approximate);
 	const [showHp, toggleShowHp] = useReducer((b,_) => !b, false);
+	const [hpConsumption, toggleHpConsumption] = useReducer((b,_) => !b, true);
 	const [showLanes, toggleShowLanes] = useReducer((b,_) => !b, false);
 	
 	useEffect(() => { document.documentElement.classList.toggle('dark', darkMode);}, [darkMode]);
@@ -2743,6 +2744,8 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 			seed, 
 			posKeepMode: PosKeepMode.Approximate, 
 			pacemakerCount: 1,
+			mode: hpConsumption ? 'compare' : undefined,
+			syncRng: hpConsumption ? true : undefined,
 			skillWisdomCheck: false,
 			rushedKakari: false,
 			competeFight: false
@@ -4010,6 +4013,12 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 										</button>
 									</div>
 								</div>
+							</div>
+						)}
+						{(mode == Mode.Chart || mode == Mode.UniquesChart) && (
+							<div>
+								<label for="hpconsumption">HP Consumption</label>
+								<input type="checkbox" id="hpconsumption" checked={hpConsumption} onClick={toggleHpConsumption} />
 							</div>
 						)}
 						{mode != Mode.GlobalCompare && (

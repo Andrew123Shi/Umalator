@@ -678,6 +678,12 @@ export class RaceSolverBuilder {
 			// unfortunately the simulator doesnt (yet) support dynamic modifiers, so we have to account for greens here
 			// even though they are later added normally during execution
 			const stamina = skilldata.reduce((acc,sd) => {
+				// Only count stamina from Self-perspective skills (or undefined, which defaults to Self)
+				// Other-perspective skills are opponent skills and shouldn't affect this horse's stamina bonus
+				// Note: perspective can be undefined (defaults to Self) or explicitly set to Self
+				if (sd.perspective === Perspective.Other) {
+					return acc;
+				}
 				const staminaUp = sd.effects.find(ef => ef.type == SkillType.StaminaUp);
 				if (staminaUp && sd.regions.length > 0 && sd.regions[0].start < 9999) {
 					return acc + staminaUp.modifier;
