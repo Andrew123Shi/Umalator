@@ -232,7 +232,7 @@ function runAdditionalSamples({skillId, nsamples, course, racedef, uma, pacer, o
 	postMessage({type: 'additional-samples', skillId, result: newResult});
 }
 
-async function runOptimizer({course, racedef, uma, uniqueSkillId, maxCareerRating, options, initCandidates, initSamples, iterSamples, finalRunSamples, maxIterations, evaluationMethod, minStat, maxStat}) {
+async function runOptimizer({course, racedef, uma, uniqueSkillId, maxCareerRating, options, useReferenceInit, initCandidates, initSamples, iterSamples, finalRunSamples, maxIterations, evaluationMethod, minStat, maxStat}) {
 	const uma_ = new HorseState(uma)
 		.set('skills', fromJS(uma.skills))
 		.set('forcedSkillPositions', ImmMap(uma.forcedSkillPositions || {}));
@@ -244,6 +244,7 @@ async function runOptimizer({course, racedef, uma, uniqueSkillId, maxCareerRatin
 		uniqueSkillId,
 		maxCareerRating,
 		options,
+		useReferenceInit || false,
 		initCandidates || 100,
 		initSamples || 10,
 		iterSamples || 50,

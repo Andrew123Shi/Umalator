@@ -736,5 +736,53 @@
       ],
       "forcedSkillPositions": {}
     }
+  },
+  {
+    "id": "1769058762736",
+    "name": "8167",
+    "timestamp": 1769058762736,
+    "data": {
+      "outfitId": "104501",
+      "speed": 1079,
+      "stamina": 599,
+      "power": 873,
+      "guts": 501,
+      "wisdom": 296,
+      "strategy": "Senkou",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "100451"
+      ],
+      "forcedSkillPositions": {},
+      "starLevel": 3,
+      "uniqueLevel": 4
+    }
+  },
+  {
+    "id": "1769061085311",
+    "name": "8088",
+    "timestamp": 1769061085311,
+    "data": {
+      "outfitId": "101102",
+      "speed": 1098,
+      "stamina": 603,
+      "power": 857,
+      "guts": 462,
+      "wisdom": 285,
+      "strategy": "Sasi",
+      "distanceAptitude": "S",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "110111"
+      ],
+      "forcedSkillPositions": {},
+      "starLevel": 3,
+      "uniqueLevel": 4
+    }
   }
 ]

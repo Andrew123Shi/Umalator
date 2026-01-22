@@ -211,6 +211,7 @@ export async function runOptimization(
 	uniqueSkillId: string | undefined,
 	maxCareerRating: number,
 	options: any,
+	useReferenceInit: boolean = false,
 	initCandidates: number = 100,
 	initSamples: number = 10,
 	iterSamples: number = 50,
@@ -235,39 +236,55 @@ export async function runOptimization(
 	// Create a fixed reference uma (use initial uma stats but keep it constant)
 	const referenceUma = uma;
 	
-	// Monte Carlo initialization: generate random umas
+	// Monte Carlo initialization: generate random umas, or use reference as IC
 	let bestInitial: OptimizerStats | null = null;
 	let bestInitialValue = Infinity;
 	let bestInitialChartData: any = null;
 	let bestInitialRunData: any = null;
 	
-	const initialCandidates: OptimizerStats[] = [];
-	for (let i = 0; i < initCandidates; i++) {
-		const stats = generateRandomStats(
-			skillScore,
-			uma.starLevel,
-			uma.uniqueLevel,
-			maxCareerRating,
-			minStat,
-			maxStat,
-			random
-		);
-		if (stats) {
-			initialCandidates.push(stats);
-		}
-	}
-	
-	// Evaluate initial candidates
-	let initCompleted = 0;
-	for (const stats of initialCandidates) {
+	if (useReferenceInit) {
+		const stats = {
+			speed: uma.speed,
+			stamina: uma.stamina,
+			power: uma.power,
+			guts: uma.guts,
+			wisdom: uma.wisdom
+		};
 		const evalResult = evaluateStats(stats, course, racedef, uma, referenceUma, options, initSamples, evaluationMethod);
-		initCompleted += 1;
-		onInitProgress?.(initCompleted, initCandidates);
-		if (evalResult.value < bestInitialValue) {
-			bestInitialValue = evalResult.value;
-			bestInitial = stats;
-			bestInitialChartData = evalResult.chartData;
-			bestInitialRunData = evalResult.runData;
+		bestInitialValue = evalResult.value;
+		bestInitial = stats;
+		bestInitialChartData = evalResult.chartData;
+		bestInitialRunData = evalResult.runData;
+		onInitProgress?.(1, 1);
+	} else {
+		const initialCandidates: OptimizerStats[] = [];
+		for (let i = 0; i < initCandidates; i++) {
+			const stats = generateRandomStats(
+				skillScore,
+				uma.starLevel,
+				uma.uniqueLevel,
+				maxCareerRating,
+				minStat,
+				maxStat,
+				random
+			);
+			if (stats) {
+				initialCandidates.push(stats);
+			}
+		}
+		
+		// Evaluate initial candidates
+		let initCompleted = 0;
+		for (const stats of initialCandidates) {
+			const evalResult = evaluateStats(stats, course, racedef, uma, referenceUma, options, initSamples, evaluationMethod);
+			initCompleted += 1;
+			onInitProgress?.(initCompleted, initCandidates);
+			if (evalResult.value < bestInitialValue) {
+				bestInitialValue = evalResult.value;
+				bestInitial = stats;
+				bestInitialChartData = evalResult.chartData;
+				bestInitialRunData = evalResult.runData;
+			}
 		}
 	}
 	
@@ -352,7 +369,7 @@ export async function runOptimization(
 				);
 			
 			if (mutated) {
-				const evalResult = evaluateStats(
+				let evalResult = evaluateStats(
 					mutated,
 					course,
 					racedef,
@@ -362,6 +379,21 @@ export async function runOptimization(
 					iterSamples,
 					evaluationMethod
 				);
+
+				// Confirm improvements with extra samples to reduce variance
+				if (evalResult.value < bestValue) {
+					const confirmSamples = Math.min(iterSamples * 5, finalRunSamples);
+					evalResult = evaluateStats(
+						mutated,
+						course,
+						racedef,
+						uma,
+						referenceUma,
+						options,
+						confirmSamples,
+						evaluationMethod
+					);
+				}
 				
 				if (evalResult.value < candidateValue) {
 					candidateValue = evalResult.value;

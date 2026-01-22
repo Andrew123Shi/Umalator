@@ -293,6 +293,8 @@ function OptimizerGraphs({iterations, evaluationMethod, width: widthProp}) {
 	// Cost function graph (margin of win over iterations)
 	const costAxes = useRef(null);
 	const costLine = useRef(null);
+	const bestCostAxes = useRef(null);
+	const bestCostLine = useRef(null);
 	
 	useEffect(() => {
 		if (!costAxes.current || !costLine.current) return;
@@ -339,6 +341,56 @@ function OptimizerGraphs({iterations, evaluationMethod, width: widthProp}) {
 
 		costAxesG.selectAll('.tick text').style('font-size', '11px');
 	}, [iterations, chartWidth, chartHeight]);
+
+	useEffect(() => {
+		if (!bestCostAxes.current || !bestCostLine.current) return;
+		
+		const x = d3.scaleLinear()
+			.domain([0, iterations.length - 1])
+			.range([0, chartWidth]);
+		
+		const bestSoFar: number[] = [];
+		let runningBest = Infinity;
+		iterations.forEach((it) => {
+			runningBest = Math.min(runningBest, it.evaluationValue);
+			bestSoFar.push(runningBest);
+		});
+		
+		const y = d3.scaleLinear()
+			.domain(d3.extent(bestSoFar))
+			.range([chartHeight, 0]);
+		
+		const line = d3.line()
+			.x((d, i) => x(i))
+			.y(d => y(d))
+			.curve(d3.curveMonotoneX);
+		
+		d3.select(bestCostLine.current).selectAll('*').remove();
+		d3.select(bestCostAxes.current).selectAll('*').remove();
+		
+		d3.select(bestCostLine.current)
+			.append('path')
+			.datum(bestSoFar)
+			.attr('fill', 'none')
+			.attr('stroke', '#2a77c5')
+			.attr('stroke-width', 2)
+			.attr('d', line);
+		
+		const xAxis = d3.axisBottom(x).ticks(Math.min(10, iterations.length));
+		const yAxis = d3.axisLeft(y);
+		
+		const bestAxesG = d3.select(bestCostAxes.current);
+		bestAxesG
+			.append('g')
+			.attr('transform', `translate(0,${chartHeight})`)
+			.call(xAxis);
+		
+		bestAxesG
+			.append('g')
+			.call(yAxis);
+		
+		bestAxesG.selectAll('.tick text').style('font-size', '11px');
+	}, [iterations, chartWidth, chartHeight]);
 	
 	// Convergence graph
 	const convergenceAxes = useRef(null);
@@ -357,8 +409,9 @@ function OptimizerGraphs({iterations, evaluationMethod, width: widthProp}) {
 			.domain([0, iterations.length - 1])
 			.range([0, chartWidth]);
 		
-		const y = d3.scaleLinear()
-			.domain([0, d3.max(convergence) || 1])
+		const y = d3.scaleLog()
+			.clamp(true)
+			.domain([Math.max(1e-6, d3.min(convergence.filter(v => v > 0)) || 1e-6), d3.max(convergence) || 1])
 			.range([chartHeight, 0]);
 		
 		const line = d3.line()
@@ -381,7 +434,7 @@ function OptimizerGraphs({iterations, evaluationMethod, width: widthProp}) {
 		
 		// Draw axes
 		const xAxis = d3.axisBottom(x).ticks(Math.min(10, iterations.length));
-		const yAxis = d3.axisLeft(y);
+		const yAxis = d3.axisLeft(y).ticks(5, '.1g');
 		
 		const convAxesG = d3.select(convergenceAxes.current);
 		convAxesG
@@ -456,49 +509,60 @@ function OptimizerGraphs({iterations, evaluationMethod, width: widthProp}) {
 	}, [iterations, chartWidth, chartHeight]);
 	
 	return (
-		<div class="optimizerGraphs" style="display: flex; flex-direction: column; gap: 12px;">
-			<div>
-				<h3 style="margin: 0 0 6px 0;">Cost Function ({evaluationMethod === 'mean' ? 'Mean' : evaluationMethod === 'median' ? 'Median' : 'Aggregate'} Margin)</h3>
-				<svg width={width} height={height} style="border: 1px solid #ccc;">
-					<g transform={`translate(${margin.left},${margin.top})`}>
-						<g ref={costLine}></g>
-						<g ref={costAxes}></g>
-						<text x={chartWidth / 2 - 30} y={chartHeight+30} textAnchor="middle" dominantBaseline="middle" style="font-size:12px;">Iteration</text>
-						<text x={-chartHeight / 2 - 40} y={-42} textAnchor="middle" dominantBaseline="middle" transform="rotate(-90)" style="font-size:12px;">{CC_GLOBAL ? 'Margin (lengths)' : 'Margin (バ身)'}</text>
-					</g>
-				</svg>
-			</div>
-			
-			<div>
-				<h3 style="margin: 0 0 6px 0;">Convergence</h3>
-				<svg width={width} height={height} style="border: 1px solid #ccc;">
-					<g transform={`translate(${margin.left},${margin.top})`}>
-						<g ref={convergenceLine}></g>
-						<g ref={convergenceAxes}></g>
-						<text x={chartWidth / 2 - 30} y={chartHeight+30} textAnchor="middle" dominantBaseline="middle" style="font-size:12px;">Iteration</text>
-						<text x={-chartHeight / 2 - 25} y={-42} textAnchor="middle" dominantBaseline="middle" transform="rotate(-90)" style="font-size:12px;">Change</text>
-					</g>
-				</svg>
-			</div>
-			
-			<div>
-				<h3 style="margin: 0 0 6px 0;">Stats Evolution</h3>
-				<div style={`display: flex; align-items: flex-start; gap: 10px; width: ${width + 140}px; overflow: visible;`}>
+		<div class="optimizerGraphs" style="display: flex; flex-direction: column; gap: 0px; transform: translate(20px, 20px);">
+			<div style="display: grid; grid-template-columns: 1fr 1fr; column-gap: 30px; row-gap: 12px; align-items: flex-start;">
+				<div>
+					<h3 style="margin: 0 0 6px 0;">Optimal Cost Function ({evaluationMethod === 'mean' ? 'Mean' : evaluationMethod === 'median' ? 'Median' : 'Aggregate'} Margin)</h3>
 					<svg width={width} height={height} style="border: 1px solid #ccc;">
 						<g transform={`translate(${margin.left},${margin.top})`}>
-							<g ref={statsLines}></g>
-							<g ref={statsAxes}></g>
-							<text x={chartWidth / 2	- 30} y={chartHeight+30} textAnchor="middle" dominantBaseline="middle" style="font-size:12px;">Iteration</text>
-							<text x={-chartHeight / 2 - 30} y={-42} textAnchor="middle" dominantBaseline="middle" transform="rotate(-90)" style="font-size:12px;">Stat Value</text>
+							<g ref={bestCostLine}></g>
+							<g ref={bestCostAxes}></g>
+							<text x={chartWidth / 2 - 30} y={chartHeight + 30} textAnchor="middle" dominantBaseline="middle" style="font-size:12px;">Iteration</text>
+							<text x={-chartHeight / 2 - 40} y={-42} textAnchor="middle" dominantBaseline="middle" transform="rotate(-90)" style="font-size:12px;">{CC_GLOBAL ? 'Margin (lengths)' : 'Margin (バ身)'}</text>
 						</g>
 					</svg>
-					<div style="min-width: 120px; margin-left: 4px;">
-						{['Speed', 'Stamina', 'Power', 'Guts', 'Wisdom'].map((label, idx) => (
-							<div key={label} style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
-								<span style={`display:inline-block;width:20px;height:2px;background:${['#2a77c5', '#c52a2a', '#22c55e', '#a855f7', '#f59e0b'][idx]}`}></span>
-								<span style="font-size: 12px;">{label}</span>
-							</div>
-						))}
+				</div>
+				<div>
+					<h3 style="margin: 0 0 6px 0;">Current Cost Function ({evaluationMethod === 'mean' ? 'Mean' : evaluationMethod === 'median' ? 'Median' : 'Aggregate'} Margin)</h3>
+					<svg width={width} height={height} style="border: 1px solid #ccc;">
+						<g transform={`translate(${margin.left},${margin.top})`}>
+							<g ref={costLine}></g>
+							<g ref={costAxes}></g>
+							<text x={chartWidth / 2 - 30} y={chartHeight+30} textAnchor="middle" dominantBaseline="middle" style="font-size:12px;">Iteration</text>
+							<text x={-chartHeight / 2 - 40} y={-42} textAnchor="middle" dominantBaseline="middle" transform="rotate(-90)" style="font-size:12px;">{CC_GLOBAL ? 'Margin (lengths)' : 'Margin (バ身)'}</text>
+						</g>
+					</svg>
+				</div>
+				<div>
+					<h3 style="margin: 0 0 6px 0;">Convergence</h3>
+					<svg width={width} height={height} style="border: 1px solid #ccc;">
+						<g transform={`translate(${margin.left},${margin.top})`}>
+							<g ref={convergenceLine}></g>
+							<g ref={convergenceAxes}></g>
+							<text x={chartWidth / 2 - 30} y={chartHeight+30} textAnchor="middle" dominantBaseline="middle" style="font-size:12px;">Iteration</text>
+							<text x={-chartHeight / 2 - 25} y={-42} textAnchor="middle" dominantBaseline="middle" transform="rotate(-90)" style="font-size:12px;">Change</text>
+						</g>
+					</svg>
+				</div>
+				<div>
+					<h3 style="margin: 0 0 6px 0;">Stats Evolution</h3>
+					<div style={`display: flex; align-items: flex-start; gap: 10px; width: ${width + 140}px; overflow: visible;`}>
+						<svg width={width} height={height} style="border: 1px solid #ccc;">
+							<g transform={`translate(${margin.left},${margin.top})`}>
+								<g ref={statsLines}></g>
+								<g ref={statsAxes}></g>
+								<text x={chartWidth / 2	- 30} y={chartHeight+30} textAnchor="middle" dominantBaseline="middle" style="font-size:12px;">Iteration</text>
+								<text x={-chartHeight / 2 - 30} y={-42} textAnchor="middle" dominantBaseline="middle" transform="rotate(-90)" style="font-size:12px;">Stat Value</text>
+							</g>
+						</svg>
+						<div style="min-width: 120px; margin-left: 4px;">
+							{['Speed', 'Stamina', 'Power', 'Guts', 'Wisdom'].map((label, idx) => (
+								<div key={label} style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+									<span style={`display:inline-block;width:20px;height:2px;background:${['#2a77c5', '#c52a2a', '#22c55e', '#a855f7', '#f59e0b'][idx]}`}></span>
+									<span style="font-size: 12px;">{label}</span>
+								</div>
+							))}
+						</div>
 					</div>
 				</div>
 			</div>
@@ -2089,7 +2153,8 @@ const [optimizerEvaluationMethod, setOptimizerEvaluationMethod] = useState<'mean
 	const [optimizerChartData, setOptimizerChartData] = useState<any>(null);
 	const [optimizerRunData, setOptimizerRunData] = useState<any>(null);
 	const [optimizerDisplaying, setOptimizerDisplaying] = useState<'minrun' | 'maxrun' | 'meanrun' | 'medianrun'>('medianrun');
-	const [optimizerInitCount, setOptimizerInitCount] = useState(100);
+const [optimizerInitCount, setOptimizerInitCount] = useState(100);
+const [optimizerUseReferenceInit, setOptimizerUseReferenceInit] = useState(false);
 	const [optimizerInitSamples, setOptimizerInitSamples] = useState(10);
 	const [optimizerIterSamples, setOptimizerIterSamples] = useState(20);
 	const [optimizerFinalRunSamples, setOptimizerFinalRunSamples] = useState(500);
@@ -2660,6 +2725,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 					duelingRates: duelingRates
 				},
 				evaluationMethod: optimizerEvaluationMethod,
+				useReferenceInit: optimizerUseReferenceInit,
 				initCandidates: optimizerInitCount,
 				initSamples: optimizerInitSamples,
 				iterSamples: optimizerIterSamples,
@@ -3625,20 +3691,18 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 					<div id="resultsHelp" style="text-align: center;">
 							Negative numbers mean <strong style="color:#2a77c5">Optimized Umamusume</strong> is faster, positive numbers mean the <strong style="color:#c52a2a">Reference Uma (Uma 1 input)</strong> is faster.
 						</div>
+						<div style={{marginLeft: '10px'}}>
+							<Histogram width={500} height={333} data={diffs} />
+						</div>
 					</div>
-					<div id="infoTables" style={{width: '460px', display: 'flex', flexDirection: 'column', gap: '10px'}}>
+					<div id="infoTables" style={{width: '460px', display: 'flex', flexDirection: 'column', gap: '10px', alignSelf: 'flex-start', transform: 'translate(20px, -60px)'}}>
 						{/* Same relative spot as Uma 1 table in Race Compare */}
 						<ResultsTable caption="Optimized Umamusume" color="#2a77c5" chartData={optimizerChartData} idx={0} runData={optimizerRunData} />
 					</div>
 				</div>
-				<div style={{display: 'flex', width: '980px', maxWidth: '980px', alignItems: 'flex-start'}}>
-					<div style={{width: '500px', marginRight: '16px'}}>
-						<Histogram width={500} height={333} data={diffs} />
-					</div>
-					<div style={{width: '460px'}}>
-						{/* Graphs occupy the area right of histogram and left of the mode select column */}
-						<OptimizerGraphs iterations={optimizerIterations} evaluationMethod={optimizerEvaluationMethod} width={420} />
-					</div>
+				<div style={{width: '980px', maxWidth: '980px'}}>
+					{/* Graphs */}
+					<OptimizerGraphs iterations={optimizerIterations} evaluationMethod={optimizerEvaluationMethod} width={420} />
 				</div>
 			</div>
 		);
@@ -3770,13 +3834,21 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 										<input type="number" value={maxCareerRating} onInput={(e) => setMaxCareerRating(+e.currentTarget.value)} style="margin-left: 8px; width: 100px;" />
 									</label>
 									<label>
-										Initializations:
-										<input type="number" value={optimizerInitCount} onInput={(e) => setOptimizerInitCount(+e.currentTarget.value)} style="margin-left: 8px; width: 100px;" min="1" max="500" />
+										<span>Use Reference as Initial Condition</span>
+										<input type="checkbox" checked={optimizerUseReferenceInit} onInput={(e) => setOptimizerUseReferenceInit(e.currentTarget.checked)} style="margin-left: 8px;" />
 									</label>
-									<label>
-										Samples per Initialization:
-										<input type="number" value={optimizerInitSamples} onInput={(e) => setOptimizerInitSamples(+e.currentTarget.value)} style="margin-left: 8px; width: 100px;" min="1" max="500" />
-									</label>
+									{!optimizerUseReferenceInit && (
+										<>
+											<label>
+												Initializations:
+												<input type="number" value={optimizerInitCount} onInput={(e) => setOptimizerInitCount(+e.currentTarget.value)} style="margin-left: 8px; width: 100px;" min="1" max="500" />
+											</label>
+											<label>
+												Samples per Initialization:
+												<input type="number" value={optimizerInitSamples} onInput={(e) => setOptimizerInitSamples(+e.currentTarget.value)} style="margin-left: 8px; width: 100px;" min="1" max="500" />
+											</label>
+										</>
+									)}
 									<label>
 										Number of Iterations:
 										<input type="number" value={optimizerMaxIterations} onInput={(e) => setOptimizerMaxIterations(+e.currentTarget.value)} style="margin-left: 8px; width: 100px;" min="1" max="200" />
