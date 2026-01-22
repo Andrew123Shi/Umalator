@@ -191,57 +191,78 @@ function normalizeSkillName(name: string): string {
 }
 
 /**
+ * Parse a CSV line into fields (handles quoted fields).
+ */
+function parseCsvLine(line: string): string[] {
+	const fields: string[] = [];
+	let current = '';
+	let inQuotes = false;
+
+	for (let j = 0; j < line.length; j++) {
+		const char = line[j];
+		if (char === '"') {
+			if (inQuotes && line[j + 1] === '"') {
+				current += '"';
+				j++;
+			} else {
+				inQuotes = !inQuotes;
+			}
+		} else if (char === ',' && !inQuotes) {
+			fields.push(current);
+			current = '';
+		} else {
+			current += char;
+		}
+	}
+	fields.push(current);
+	return fields;
+}
+
+/**
  * Parse CSV content and create a skill name -> rating score mapping.
+ * Uses S_A when present; otherwise falls back to base_value.
  */
 function parseSkillsCSV(csvText: string): Map<string, number> {
 	const map = new Map<string, number>();
 	const lines = csvText.split(/\r?\n/);
-	
+
 	if (lines.length < 2) return map;
-	
+
+	const header = parseCsvLine(lines[0].trim()).map(h => h.trim().toLowerCase());
+	const nameIdx = header.indexOf('name');
+	const baseIdx = header.indexOf('base_value');
+	const saIdx = header.indexOf('s_a');
+
+	if (nameIdx === -1 || baseIdx === -1) return map;
+
 	// Skip header line
 	for (let i = 1; i < lines.length; i++) {
 		const line = lines[i].trim();
 		if (!line) continue;
-		
-		// Parse CSV line (handling quoted fields)
-		const fields: string[] = [];
-		let current = '';
-		let inQuotes = false;
-		
-		for (let j = 0; j < line.length; j++) {
-			const char = line[j];
-			if (char === '"') {
-				if (inQuotes && line[j + 1] === '"') {
-					current += '"';
-					j++;
-				} else {
-					inQuotes = !inQuotes;
-				}
-			} else if (char === ',' && !inQuotes) {
-				fields.push(current);
-				current = '';
-			} else {
-				current += char;
-			}
-		}
-		fields.push(current);
-		
-		if (fields.length < 3) continue;
-		
-		const name = fields[1]?.trim();
-		const baseValue = parseFloat(fields[2]?.trim() || '0');
-		
-		if (name && !isNaN(baseValue)) {
-			const normalizedName = normalizeSkillName(name);
+
+		const fields = parseCsvLine(line);
+		if (fields.length <= Math.max(nameIdx, baseIdx, saIdx)) continue;
+
+		const name = fields[nameIdx]?.trim();
+		const baseRaw = fields[baseIdx]?.trim();
+		const saRaw = saIdx >= 0 ? fields[saIdx]?.trim() : '';
+		const baseValue = baseRaw ? parseFloat(baseRaw) : NaN;
+		const saValue = saRaw ? parseFloat(saRaw) : NaN;
+
+		if (!name) continue;
+
+		const normalizedName = normalizeSkillName(name);
+		const chosenValue = !isNaN(saValue) ? saValue : (!isNaN(baseValue) ? baseValue : NaN);
+
+		if (!isNaN(chosenValue)) {
 			// Use the highest rating if multiple entries exist for the same name
 			const existing = map.get(normalizedName);
-			if (!existing || baseValue > existing) {
-				map.set(normalizedName, baseValue);
+			if (!existing || chosenValue > existing) {
+				map.set(normalizedName, chosenValue);
 			}
 		}
 	}
-	
+
 	return map;
 }
 
