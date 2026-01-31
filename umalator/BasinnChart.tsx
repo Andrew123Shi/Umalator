@@ -135,8 +135,13 @@ export function BasinnChart(props) {
 	const columns = useMemo(() => [{
 		header: () => <span>Skill name</span>,
 		accessorKey: 'id',
-		cell: (info) => <SkillNameCell id={info.getValue()} showUmaIcons={props.showUmaIcons} />,
-		sortingFn: (a,b,_) => skillnames[a] < skillnames[b] ? -1 : 1
+		header: ({ column }) => (
+			<span onClick={column.getToggleSortingHandler()}>Skill Name</span>
+		),
+		id: 'skillName',
+		accessorFn: (row) => skillnames[row.id]?.[0] || row.id,
+		cell: (info) => <SkillNameCell id={info.row.original.id} showUmaIcons={props.showUmaIcons} />,
+		sortingFn: 'alphanumeric'
 	}, {
 		header: headerRenderer(radioGroup, selectedType, 'min', 'Minimum', headerClick),
 		accessorKey: 'min',
@@ -252,7 +257,7 @@ export function BasinnChart(props) {
 				</thead>
 				<tbody onClick={handleClick} onDblClick={handleDblClick}>
 					{table.getRowModel().rows.map(row => {
-						const id = row.getValue('id');
+						const id = row.original.id;
 						const isExpanded = expanded === id;
 						const rowData = props.data.find(d => d.id === id);
 						return (
