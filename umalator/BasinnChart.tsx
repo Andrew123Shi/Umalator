@@ -133,8 +133,6 @@ export function BasinnChart(props) {
 	}
 
 	const columns = useMemo(() => [{
-		header: () => <span>Skill name</span>,
-		accessorKey: 'id',
 		header: ({ column }) => (
 			<span onClick={column.getToggleSortingHandler()}>Skill Name</span>
 		),
