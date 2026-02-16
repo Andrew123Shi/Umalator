@@ -2,11 +2,20 @@
   "name": "uma-tools",
   "version": "0.0.1",
   "description": "",
-  "main": "index.js",
-  "scripts": {},
+  "main": "electron/main.js",
+  "scripts": {
+    "build:umalator-global": "cd umalator-global && node build.mjs",
+    "electron:set-icon": "node electron/set-icon.mjs",
+    "electron:start": "npm run build:umalator-global && electron electron/main.js",
+    "electron:pack": "npm run build:umalator-global && set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win dir --x64 && npm run electron:set-icon",
+    "electron:dist": "npm run build:umalator-global && set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win nsis --x64"
+  },
   "author": "pecan",
   "license": "GPL-3.0-or-later",
   "devDependencies": {
+    "electron": "^37.5.1",
+    "electron-builder": "^26.0.12",
+    "rcedit": "^5.0.2",
     "commander": "^13.1.0",
     "esbuild": "^0.19.5"
   },
@@ -20,5 +29,37 @@
     "preact": "^10.18.1",
     "preact-i18n": "^2.4.0-preactx",
     "unassert-cli": "github:unassert-js/unassert-cli"
+  },
+  "build": {
+    "appId": "com.umatools.umalator",
+    "productName": "Umalator",
+    "directories": {
+      "output": "release-package"
+    },
+    "files": [
+      "electron/**/*",
+      "umalator-global/**/*",
+      "icons/**/*",
+      "fonts/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "icon": "icon.ico",
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
