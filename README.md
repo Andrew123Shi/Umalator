@@ -1,4 +1,4 @@
-### A Umalator fork of https://github.com/kachi-dev/uma-tools.
+### A Umalator fork.
 
 # Improvements
 
@@ -32,13 +32,17 @@ Stamina skills are now correctly simulated in Skill Chart mode. Previously, all 
 
 The UI has been refined and polished. 
 
-## Commands for syncing with upstream repo for updates:
+## Updating game data
 
-To fetch updates from the original repo:
-git fetch upstream  
+To refresh game data from your local game install, run:
 
-To merge updates into your private repo’s main branch:
-git merge upstream/main  
- 
-To push merged changes to your private repo:
-git push origin main  
+```
+npm run update:data
+```
+
+Prerequisites:
+- Perl is required in `PATH` (e.g. Strawberry Perl on Windows).
+- `master.mdb` is expected at `%USERPROFILE%\AppData\LocalLow\Cygames\Umamusume\master\master.mdb`.
+  - You can pass a custom path with `npm run update:data -- "C:\path\to\master.mdb"`.
+
+The build scripts now run this update step automatically before rebuilding app artifacts.
