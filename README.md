@@ -26,6 +26,10 @@ Previously, performing a simulation would update the UI at several steps (usuall
 
 For Skill/Uma Chart modes, the progress bar now shows the progress of individual workers in terms of number of skills.
 
+### Deployable
+
+Now, instead of running the running the app using a `.bat` file in a dev environment, there is a packaged `.zip` file that contains a standalone `Umalator.exe` app that is simply click-to-run. To deploy a new release, simply run the `REBUILD_exe.bat` script, which will create a local deployed folder (`release-package`) along with the `Umalator-Release.zip` file. Locally (if the development environment is the local computer), the app can be run with the `Umalator.exe` shortcut in the root folder. To use on other computers, just share the `.zip` file. To test during development, continue using the `Umalator [DEV]` shortcut `.bat` script.
+
 ### Minor Bug Fixes
 
 Stamina skills are now correctly simulated in Skill Chart mode. Previously, all stamina skills showed 0.00 change Skill Chart used to run in NoopHpPolicy and ignores HP/stamina consumption, whereas normal comparison mode uses GameHpPolicy. For those who'd like to ignore HP consumption, the option has been added as a toggle.  
