@@ -1,4 +1,4 @@
-### A Umalator fork.
+### A Umalator fork of https://github.com/kachi-dev/uma-tools
 
 # Improvements
 
@@ -30,23 +30,12 @@ For Skill/Uma Chart modes, the progress bar now shows the progress of individual
 
 Now, instead of running the running the app using a `.bat` file in a dev environment, there is a packaged `.zip` file that contains a standalone `Umalator.exe` app that is simply click-to-run. To deploy a new release, simply run the `REBUILD_exe.bat` script, which will create a local deployed folder (`release-package`) along with the `Umalator-Release.zip` file. Locally (if the development environment is the local computer), the app can be run with the `Umalator.exe` shortcut in the root folder. To use on other computers, just share the `.zip` file. To test during development, continue using the `Umalator [DEV]` shortcut `.bat` script.
 
+### Updating Game Data
+
+To refresh game data from the local game install (in my case, `%APPDATA%\LocalLow\Cygames\Umamusume\master\master.mdb`, click the `UPDATE_gamedata` shortcut (which leads to `update.bat` in `\umalator-global`). The build script `REBUILD_exe.bat` will also automatically update the game data. Note that Perl is required in `Path` (e.g. Strawberry Perl on Windows).
+
 ### Minor Bug Fixes
 
 Stamina skills are now correctly simulated in Skill Chart mode. Previously, all stamina skills showed 0.00 change Skill Chart used to run in NoopHpPolicy and ignores HP/stamina consumption, whereas normal comparison mode uses GameHpPolicy. For those who'd like to ignore HP consumption, the option has been added as a toggle.  
 
-The UI has been refined and polished. 
-
-## Updating game data
-
-To refresh game data from your local game install, run:
-
-```
-npm run update:data
-```
-
-Prerequisites:
-- Perl is required in `PATH` (e.g. Strawberry Perl on Windows).
-- `master.mdb` is expected at `%USERPROFILE%\AppData\LocalLow\Cygames\Umamusume\master\master.mdb`.
-  - You can pass a custom path with `npm run update:data -- "C:\path\to\master.mdb"`.
-
-The build scripts now run this update step automatically before rebuilding app artifacts.
+The UI has been refined and polished.
