@@ -35,6 +35,10 @@
 
 .umaSelectorIconsBox > img:first-child {
 	cursor: pointer;
+	position: relative;
+	top: 5px;
+	transform: scaleY(1.08);
+	transform-origin: center;
 	width: 120px;
 }
 
@@ -109,6 +113,8 @@
 .umaSuggestion > img {
 	height: 2em;
 	margin-right: 5px;
+	transform: scaleY(1.08);
+	transform-origin: center;
 	vertical-align: middle;
 }
 
@@ -745,6 +751,8 @@
 	width: 60px;
 	height: 60px;
 	border-radius: 4px;
+	transform: scaleY(1.08);
+	transform-origin: center;
 }
 
 .umaProfileManagerItemInfo {
