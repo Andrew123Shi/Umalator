@@ -1408,5 +1408,73 @@
       "starLevel": 3,
       "uniqueLevel": 4
     }
+  },
+  {
+    "id": "1771230714999",
+    "name": "12318",
+    "timestamp": 1771230714999,
+    "data": {
+      "outfitId": "101901",
+      "speed": 1127,
+      "stamina": 631,
+      "power": 1083,
+      "guts": 391,
+      "wisdom": 386,
+      "strategy": "Sasi",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "200702",
+        "200332",
+        "200461",
+        "201672",
+        "201681",
+        "200162",
+        "201592",
+        "200492",
+        "100191",
+        "900011",
+        "910141"
+      ],
+      "forcedSkillPositions": {},
+      "starLevel": 3,
+      "uniqueLevel": 4
+    }
+  },
+  {
+    "id": "1771291862313",
+    "name": "11902",
+    "timestamp": 1771291862313,
+    "data": {
+      "outfitId": "105201",
+      "speed": 1068,
+      "stamina": 624,
+      "power": 1022,
+      "guts": 406,
+      "wisdom": 456,
+      "strategy": "Sasi",
+      "distanceAptitude": "A",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "900081",
+        "100521",
+        "200512",
+        "200331",
+        "210032",
+        "200461",
+        "200362",
+        "201042",
+        "200491",
+        "201392",
+        "900271"
+      ],
+      "forcedSkillPositions": {},
+      "starLevel": 3,
+      "uniqueLevel": 5
+    }
   }
 ]
