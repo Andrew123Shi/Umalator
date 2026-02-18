@@ -768,10 +768,11 @@
 }
 
 .umaProfileManagerUmaIcon {
-	width: 60px;
-	height: 60px;
+	width: 90px;
+	height: 90px;
+	object-fit: cover;
 	border-radius: 4px;
-	transform: scaleY(1.08);
+	transform: translateY(-5px) scaleY(1.08);
 	transform-origin: center;
 }
 
