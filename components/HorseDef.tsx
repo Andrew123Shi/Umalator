@@ -17,7 +17,7 @@ import icons from '../icons.json';
 import skilldata from '../uma-skill-tools/data/skill_data.json';
 import skillmeta from '../skill_meta.json';
 
-import { getAllSavedProfiles, saveUmaProfile, loadUmaProfile, deleteUmaProfile, renameUmaProfile } from '../umalator/app';
+import { getAllSavedProfiles, saveUmaProfile, loadUmaProfile, deleteUmaProfile, renameUmaProfile, selectAnotherProfilesDatabase, createNewProfilesDatabase } from '../umalator/app';
 
 import { calculateRatingBreakdown, calculateSkillScore, getRatingBadge, RATING_BADGES } from './CareerRating';
 
@@ -162,6 +162,35 @@ export function UmaProfileManager(props) {
 		}
 	}
 
+	async function handleSelectAnotherDatabase() {
+		try {
+			const selectedProfiles = await selectAnotherProfilesDatabase();
+			if (selectedProfiles === null) {
+				return;
+			}
+			selectedProfiles.sort((a, b) => b.timestamp - a.timestamp);
+			setProfiles(selectedProfiles);
+			setSaveMessage('Database selected!');
+			setTimeout(() => setSaveMessage(''), 2000);
+		} catch (error) {
+			alert('Failed to select database: ' + error.message);
+		}
+	}
+
+	async function handleCreateNewDatabase() {
+		try {
+			const selectedProfiles = await createNewProfilesDatabase();
+			if (selectedProfiles === null) {
+				return;
+			}
+			setProfiles(selectedProfiles);
+			setSaveMessage('New database created!');
+			setTimeout(() => setSaveMessage(''), 2000);
+		} catch (error) {
+			alert('Failed to create database: ' + error.message);
+		}
+	}
+
 	async function handleLoad(profileId: string) {
 		try {
 			const profile = await loadUmaProfile(profileId);
@@ -229,13 +258,20 @@ export function UmaProfileManager(props) {
 			<div class="umaProfileManagerOverlay" onClick={onClose} />
 			<div class="umaProfileManagerDialog">
 				<div class="umaProfileManagerHeader">
-					<h3>Saved Uma Profiles</h3>
+					<h3>Uma Database</h3>
 					<button class="umaProfileManagerClose" onClick={onClose}>×</button>
 				</div>
 				<div class="umaProfileManagerContent">
 					<div class="umaProfileManagerActions">
-						<button class="umaProfileManagerSaveButton" onClick={handleSave}>Save Current Profile</button>
+						<div class="umaProfileManagerPrimaryActions">
+							<button class="umaProfileManagerSaveButton" onClick={handleSave}>Save Current Profile</button>
+							<div class="umaProfileManagerSavedCount">{profiles.length} Saved Umas</div>
+						</div>
 						{saveMessage && <span class="umaProfileManagerMessage">{saveMessage}</span>}
+						<div class="umaProfileManagerDatabaseButtons">
+							<button class="umaProfileManagerSaveButton" onClick={handleCreateNewDatabase}>Create New Database</button>
+							<button class="umaProfileManagerSaveButton" onClick={handleSelectAnotherDatabase}>Select Another Database</button>
+						</div>
 					</div>
 					{profiles.length > 0 && (
 						<div class="umaProfileManagerSearch">

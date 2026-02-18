@@ -655,9 +655,15 @@
 
 .umaProfileManagerActions {
 	display: flex;
-	align-items: center;
+	align-items: stretch;
 	gap: 12px;
 	margin-bottom: 16px;
+}
+
+.umaProfileManagerPrimaryActions {
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
 }
 
 .umaProfileManagerSaveButton {
@@ -680,10 +686,24 @@
 	transform: translateY(-1px);
 }
 
+.umaProfileManagerDatabaseButtons {
+	margin-left: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	align-items: flex-end;
+}
+
 .umaProfileManagerMessage {
 	color: rgb(97, 174, 22);
 	font-weight: bold;
 	font-size: 0.9em;
+}
+
+.umaProfileManagerSavedCount {
+	color: rgb(121, 64, 22);
+	font-size: 1em;
+	font-weight: normal;
 }
 
 .umaProfileManagerSearch {
@@ -791,7 +811,10 @@
 
 .umaProfileManagerItemActions {
 	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
 	gap: 6px;
+	margin-left: 12px;
 }
 
 .umaProfileManagerActionButton {
@@ -806,6 +829,8 @@
 	font-weight: bold;
 	padding: 4px 12px;
 	transition: all 0.2s;
+	min-width: 82px;
+	text-align: center;
 }
 
 .umaProfileManagerActionButton:hover {

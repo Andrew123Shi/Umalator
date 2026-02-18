@@ -1673,12 +1673,11 @@ async function getProfilesFileHandle(): Promise<FileSystemFileHandle | null> {
 	// On first use, prompt user to select/create the file
 	try {
 		const handle = await (window as any).showSaveFilePicker({
-			suggestedName: 'saved_uma_profiles.json',
+			suggestedName: 'Uma_Database.json',
 			types: [{
 				description: 'JSON files',
 				accept: { 'application/json': ['.json'] }
-			}],
-			startIn: 'documents'
+			}]
 		});
 		profilesFileHandle = handle;
 		return handle;
@@ -1876,6 +1875,70 @@ export async function renameUmaProfile(profileId: string, newName: string): Prom
 	profile.name = newName;
 	await saveProfilesToStorage(profiles);
 	return true;
+}
+
+export async function selectAnotherProfilesDatabase(): Promise<SavedUmaProfile[] | null> {
+	if (!('showOpenFilePicker' in window)) {
+		throw new Error('File picker is not available in this browser.');
+	}
+
+	try {
+		const [fileHandle] = await (window as any).showOpenFilePicker({
+			types: [{
+				description: 'JSON files',
+				accept: { 'application/json': ['.json'] }
+			}],
+			multiple: false
+		});
+		profilesFileHandle = fileHandle;
+		const file = await fileHandle.getFile();
+		const text = await file.text();
+		const profiles = JSON.parse(text) as SavedUmaProfile[];
+		try {
+			localStorage.setItem('umalator-saved-profiles', JSON.stringify(profiles));
+		} catch (e) {
+			// localStorage might be full, ignore
+		}
+		return profiles;
+	} catch (error: any) {
+		if (error.name === 'AbortError') {
+			return null;
+		}
+		throw error;
+	}
+}
+
+export async function createNewProfilesDatabase(): Promise<SavedUmaProfile[] | null> {
+	if (!('showSaveFilePicker' in window)) {
+		throw new Error('File picker is not available in this browser.');
+	}
+
+	try {
+		const fileHandle = await (window as any).showSaveFilePicker({
+			suggestedName: 'Uma_Database.json',
+			types: [{
+				description: 'JSON files',
+				accept: { 'application/json': ['.json'] }
+			}]
+		});
+		profilesFileHandle = fileHandle;
+		const profiles: SavedUmaProfile[] = [];
+		const json = JSON.stringify(profiles, null, 2);
+		const writable = await fileHandle.createWritable();
+		await writable.write(json);
+		await writable.close();
+		try {
+			localStorage.setItem('umalator-saved-profiles', json);
+		} catch (e) {
+			// localStorage might be full, ignore
+		}
+		return profiles;
+	} catch (error: any) {
+		if (error.name === 'AbortError') {
+			return null;
+		}
+		throw error;
+	}
 }
 
 export { getAllSavedProfiles };
