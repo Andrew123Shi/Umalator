@@ -17,7 +17,7 @@ const serve = port != null;
 const debug = !!options.debug;
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
-const root = path.join(dirname, '..', '..');
+const root = path.join(dirname, '..');
 
 const redirectData = {
 	name: 'redirectData',
@@ -170,12 +170,14 @@ function runServer(ctx, port) {
 			}
 			
 			const urlPath = url.startsWith('/') ? url.slice(1) : url;
+			const rootRelative = urlPath.startsWith('uma-tools/');
+			const requestPath = rootRelative ? urlPath.slice('uma-tools/'.length) : urlPath;
 			// Try serving from umalator-global directory first
-			let fp = path.join(dirname, urlPath);
+			let fp = path.join(dirname, requestPath);
 			let exists = await fs.promises.access(fp).then(() => true, () => false);
-			// If not found, try root directory (for shared resources like fonts, icons)
+			// If not found, try repo root directory (for shared resources like fonts, icons)
 			if (!exists) {
-				fp = path.join(root, urlPath);
+				fp = path.join(root, requestPath);
 				exists = await fs.promises.access(fp).then(() => true, () => false);
 			}
 			if (exists) {
@@ -183,7 +185,7 @@ function runServer(ctx, port) {
 				res.writeHead(200, {'Content-type': MIME_TYPES[path.extname(filename)] || 'application/octet-stream'});
 				fs.createReadStream(fp).pipe(res);
 			} else {
-				console.log(`GET ${req.url} 404 Not Found (tried: ${path.join(dirname, urlPath)} and ${path.join(root, urlPath)})`);
+				console.log(`GET ${req.url} 404 Not Found (tried: ${path.join(dirname, requestPath)} and ${path.join(root, requestPath)})`);
 				res.writeHead(404).end();
 			}
 		}

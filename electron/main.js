@@ -44,18 +44,13 @@ function safeResolve(baseDir, requestPath) {
   return resolved;
 }
 
-function serveFile(filePath, res) {
-  fs.stat(filePath, (error, stat) => {
-    if (error || !stat.isFile()) {
-      res.writeHead(404).end();
-      return;
-    }
-
-    const ext = path.extname(filePath).toLowerCase();
-    const contentType = MIME_TYPES[ext] || "application/octet-stream";
-    res.writeHead(200, { "Content-Type": contentType, "Content-Length": stat.size });
-    fs.createReadStream(filePath).pipe(res);
-  });
+function resolveRequestPaths(normalizedPath) {
+  const stripped = normalizedPath.replace(/^\/+/, "");
+  const rootRelative = stripped.startsWith("uma-tools/");
+  const requestPath = rootRelative ? stripped.slice("uma-tools/".length) : stripped;
+  const primary = safeResolve(GLOBAL_DIR, requestPath);
+  const fallback = safeResolve(APP_ROOT, requestPath);
+  return { requestPath, candidates: [primary, fallback].filter(Boolean) };
 }
 
 function serveHtmlWithHeartbeat(filePath, res) {
@@ -77,6 +72,35 @@ function serveHtmlWithHeartbeat(filePath, res) {
   });
 }
 
+function serveWithFallback(candidates, res, method) {
+  const tryAt = index => {
+    if (index >= candidates.length) {
+      res.writeHead(404).end();
+      return;
+    }
+
+    const filePath = candidates[index];
+    fs.stat(filePath, (error, stat) => {
+      if (error || !stat.isFile()) {
+        tryAt(index + 1);
+        return;
+      }
+
+      const ext = path.extname(filePath).toLowerCase();
+      const contentType = MIME_TYPES[ext] || "application/octet-stream";
+      if (method === "HEAD") {
+        res.writeHead(200, { "Content-Type": contentType, "Content-Length": stat.size }).end();
+        return;
+      }
+
+      res.writeHead(200, { "Content-Type": contentType, "Content-Length": stat.size });
+      fs.createReadStream(filePath).pipe(res);
+    });
+  };
+
+  tryAt(0);
+}
+
 function createLocalServer() {
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
@@ -94,37 +118,23 @@ function createLocalServer() {
         return;
       }
       const normalizedPath = pathname === "/" ? "/index.html" : pathname;
-
-      const stripped = normalizedPath.replace(/^\/+/, "");
-      const rootRelative = stripped.startsWith("uma-tools/");
-      const requestPath = rootRelative ? stripped.slice("uma-tools/".length) : stripped;
-      const baseDir = rootRelative ? APP_ROOT : GLOBAL_DIR;
-      const filePath = safeResolve(baseDir, requestPath);
-
-      if (!filePath) {
+      const { requestPath, candidates } = resolveRequestPaths(normalizedPath);
+      if (!candidates.length) {
         res.writeHead(400).end();
         return;
       }
 
       if (method === "HEAD") {
-        fs.stat(filePath, (error, stat) => {
-          if (error || !stat.isFile()) {
-            res.writeHead(404).end();
-            return;
-          }
-          const ext = path.extname(filePath).toLowerCase();
-          const contentType = MIME_TYPES[ext] || "application/octet-stream";
-          res.writeHead(200, { "Content-Type": contentType, "Content-Length": stat.size }).end();
-        });
+        serveWithFallback(candidates, res, "HEAD");
         return;
       }
 
-      if (requestPath === "index.html" && baseDir === GLOBAL_DIR) {
-        serveHtmlWithHeartbeat(filePath, res);
+      if (requestPath === "index.html") {
+        serveHtmlWithHeartbeat(candidates[0], res);
         return;
       }
 
-      serveFile(filePath, res);
+      serveWithFallback(candidates, res, "GET");
     });
 
     server.on("error", reject);
