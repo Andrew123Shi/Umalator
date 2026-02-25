@@ -5,7 +5,7 @@ Original Umalator: https://kachi-dev.github.io/uma-tools/umalator-global/
 
 ### Global Compare
 
-A new Compare simulator that performs a Monte-Carlo simulation of all combinations of racetracks and conditions for a given Distance and Terrain type. Included are additional aggregate data tables showing min/max/mean/median based on Location, Distance, Terrain Condition, Weather, and Season. 
+A new Compare simulator that performs a Monte-Carlo simulation of all combinations of racetracks and conditions for a given Distance and Terrain type. Included are additional aggregate data tables showing min/max/mean/median based on Location, Distance, Terrain Condition, Weather, and Season. NEW: Global Compare mode has been expanded with a Global Skill Chart mode, which performs a similar type of comparison but to specifically see which skills are best for all relevant tracks and conditions, not just one. 
 
 ### Uma Database
 
