@@ -1,4 +1,5 @@
 ### A Umalator fork of https://github.com/kachi-dev/uma-tools
+Original Umalator: https://kachi-dev.github.io/uma-tools/umalator-global/
 
 # Improvements
 
@@ -37,5 +38,7 @@ To refresh game data from the local game install (in my case, `%APPDATA%\LocalLo
 ### Minor Bug Fixes
 
 Stamina skills are now correctly simulated in Skill Chart mode. Previously, all stamina skills showed 0.00 change Skill Chart used to run in NoopHpPolicy and ignores HP/stamina consumption, whereas normal comparison mode uses GameHpPolicy. For those who'd like to ignore HP consumption, the option has been added as a toggle.  
+
+Unique skills have selectable levels that impact performance. Namely, for recovery skills, each level is a 2% improvement, while other skills have an improvement of 1% for the first level and 3% each level after. For example, a 5.5% recovery skill at level 4 would be 5.83%. 
 
 The UI has been refined and polished.
