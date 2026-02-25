@@ -3485,31 +3485,41 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 					{(firstUmaStats || staminaStats) && (
 						<div style={{marginTop: '15px', marginBottom: '10px', textAlign: 'center'}}>
 							{firstUmaStats && (
+								<>
 								<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
-									<div style={{textAlign: 'right', minWidth: '250px'}}>
-										<strong>Uma 1:</strong> Final leg 1st place: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{firstUmaStats.uma1.firstPlaceRate.toFixed(1)}%</span>
+									<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px', fontWeight: 'bold', color: '#2a77c5'}}>
+										Umamusume 1
 									</div>
-									<div style={{textAlign: 'left', minWidth: '250px'}}>
-										<strong>Uma 2:</strong> Final leg 1st place: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{firstUmaStats.uma2.firstPlaceRate.toFixed(1)}%</span>
+									<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px', fontWeight: 'bold', color: '#c52a2a'}}>
+										Umamusume 2
 									</div>
 								</div>
+								<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
+									<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px'}}>
+										Final leg 1st place: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{firstUmaStats.uma1.firstPlaceRate.toFixed(1)}%</span>
+									</div>
+									<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px'}}>
+										Final leg 1st place: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{firstUmaStats.uma2.firstPlaceRate.toFixed(1)}%</span>
+									</div>
+								</div>
+								</>
 							)}
 							{staminaStats && (
 								<>
 									<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
-										<div style={{textAlign: 'right', minWidth: '250px'}}>
-											<strong>Uma 1:</strong> Spurt Rate: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{staminaStats.uma1.fullSpurtRate.toFixed(1)}%</span>
+										<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px'}}>
+											Spurt Rate: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{staminaStats.uma1.fullSpurtRate.toFixed(1)}%</span>
 										</div>
-										<div style={{textAlign: 'left', minWidth: '250px'}}>
-											<strong>Uma 2:</strong> Spurt Rate: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{staminaStats.uma2.fullSpurtRate.toFixed(1)}%</span>
+										<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px'}}>
+											Spurt Rate: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{staminaStats.uma2.fullSpurtRate.toFixed(1)}%</span>
 										</div>
 									</div>
 									<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
-										<div style={{textAlign: 'right', minWidth: '250px'}}>
-											<strong>Uma 1:</strong> Survival Rate: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{staminaStats.uma1.staminaSurvivalRate.toFixed(1)}%</span>
+										<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px'}}>
+											Survival Rate: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{staminaStats.uma1.staminaSurvivalRate.toFixed(1)}%</span>
 										</div>
-										<div style={{textAlign: 'left', minWidth: '250px'}}>
-											<strong>Uma 2:</strong> Survival Rate: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{staminaStats.uma2.staminaSurvivalRate.toFixed(1)}%</span>
+										<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px'}}>
+											Survival Rate: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{staminaStats.uma2.staminaSurvivalRate.toFixed(1)}%</span>
 										</div>
 									</div>
 								</>
@@ -3587,7 +3597,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 						<ResultsTable caption="Umamusume 2" color="#c52a2a" chartData={chartData} idx={1} runData={runData} />
 					</div>
 					</div>
-					<div style={{marginTop: '150px', alignSelf: 'flex-start'}}>
+					<div style={{marginTop: '150px', marginLeft: '-5px', alignSelf: 'flex-start'}}>
 						{mode == Mode.GlobalCompare && raceParams && (() => {
 							// Group results by parameter value and calculate statistics for each value
 							const groupByValue = <T,>(data: Array<{value: T, result: number}>, getLabel: (val: T) => string, sortFn?: (a: T, b: T) => number) => {
@@ -3745,31 +3755,41 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 						{(firstUmaStats || staminaStats) && (
 							<div style={{marginTop: '15px', marginBottom: '10px', textAlign: 'center'}}>
 								{firstUmaStats && (
+									<>
 									<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
-										<div style={{textAlign: 'right', minWidth: '250px'}}>
-											<strong>Uma 1:</strong> Final leg 1st place: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{firstUmaStats.uma1.firstPlaceRate.toFixed(1)}%</span>
+										<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px', fontWeight: 'bold', color: '#2a77c5'}}>
+											Umamusume 1
 										</div>
-										<div style={{textAlign: 'left', minWidth: '250px'}}>
-											<strong>Uma 2:</strong> Final leg 1st place: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{firstUmaStats.uma2.firstPlaceRate.toFixed(1)}%</span>
+										<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px', fontWeight: 'bold', color: '#c52a2a'}}>
+											Umamusume 2
 										</div>
 									</div>
+									<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
+										<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px'}}>
+											In Lead @ Final Leg: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{firstUmaStats.uma1.firstPlaceRate.toFixed(1)}%</span>
+										</div>
+										<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px'}}>
+											In Lead @ Final Leg: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{firstUmaStats.uma2.firstPlaceRate.toFixed(1)}%</span>
+										</div>
+									</div>
+									</>
 								)}
 								{staminaStats && (
 									<>
 										<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
-											<div style={{textAlign: 'right', minWidth: '250px'}}>
-												<strong>Uma 1:</strong> Spurt Rate: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{staminaStats.uma1.fullSpurtRate.toFixed(1)}%</span>
+											<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px'}}>
+												Spurt Rate: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{staminaStats.uma1.fullSpurtRate.toFixed(1)}%</span>
 											</div>
-											<div style={{textAlign: 'left', minWidth: '250px'}}>
-												<strong>Uma 2:</strong> Spurt Rate: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{staminaStats.uma2.fullSpurtRate.toFixed(1)}%</span>
+											<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px'}}>
+												Spurt Rate: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{staminaStats.uma2.fullSpurtRate.toFixed(1)}%</span>
 											</div>
 										</div>
 										<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
-											<div style={{textAlign: 'right', minWidth: '250px'}}>
-												<strong>Uma 1:</strong> Survival Rate: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{staminaStats.uma1.staminaSurvivalRate.toFixed(1)}%</span>
+											<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px'}}>
+												Survival Rate: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{staminaStats.uma1.staminaSurvivalRate.toFixed(1)}%</span>
 											</div>
-											<div style={{textAlign: 'left', minWidth: '250px'}}>
-												<strong>Uma 2:</strong> Survival Rate: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{staminaStats.uma2.staminaSurvivalRate.toFixed(1)}%</span>
+											<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px'}}>
+												Survival Rate: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{staminaStats.uma2.staminaSurvivalRate.toFixed(1)}%</span>
 											</div>
 										</div>
 									</>
