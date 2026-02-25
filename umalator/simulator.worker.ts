@@ -195,38 +195,65 @@ function runGlobalCompare({nsamples, distanceType, surface, uma1, uma2, pacer, o
 }
 
 function runAdditionalSamples({skillId, nsamples, course, racedef, uma, pacer, options}) {
+	const progressOptions = {
+		...options,
+		progressEveryNSamples: 20
+	};
 	const uma_ = new HorseState(uma)
-		.set('skills', SkillSet(uma.skills))
+		.set('skills', fromJS(uma.skills))
 		.set('forcedSkillPositions', ImmMap(uma.forcedSkillPositions || {}));
 	const pacer_ = pacer ? new HorseState(pacer)
-		.set('skills', SkillSet(pacer.skills || []))
+		.set('skills', fromJS(pacer.skills || []))
 		.set('forcedSkillPositions', ImmMap(pacer.forcedSkillPositions || {})) : null;
-	
-	const newSkillGroupId = skillmeta(skillId)?.groupId;
-	let skillsToUse = uma_.skills;
-	
-	if (newSkillGroupId) {
-		skillsToUse = skillsToUse.filter((existingSkillId: string) => {
-			const existingGroupId = skillmeta(existingSkillId)?.groupId;
-			return existingGroupId !== newSkillGroupId;
+
+	try {
+		const newSkillGroupId = skillmeta[skillId]?.groupId;
+		let skillsToUse = uma_.skills;
+		
+		if (newSkillGroupId) {
+			skillsToUse = skillsToUse.filter((existingSkillId: string) => {
+				const existingGroupId = skillmeta[existingSkillId]?.groupId;
+				return existingGroupId !== newSkillGroupId;
+			});
+		}
+		
+		const withSkill = uma_.set('skills', skillsToUse.set(skillmeta[skillId].groupId, skillId));
+		const {results, runData} = runComparison(nsamples, course, racedef, uma_, withSkill, pacer_, progressOptions, (completed, total, cumulativeResults) => {
+			let partialResult = null;
+			if (cumulativeResults?.results && cumulativeResults.results.length > 0) {
+				const partialResults = cumulativeResults.results;
+				const mid = Math.floor(partialResults.length / 2);
+				const median = partialResults.length % 2 == 0 ? (partialResults[mid-1] + partialResults[mid]) / 2 : partialResults[mid];
+				const mean = partialResults.reduce((a,b) => a+b, 0) / partialResults.length;
+				partialResult = {
+					id: skillId,
+					results: partialResults,
+					runData: cumulativeResults.runData,
+					min: partialResults[0],
+					max: partialResults[partialResults.length-1],
+					mean,
+					median
+				};
+			}
+			postMessage({type: 'additional-samples-progress', skillId, completed, total, partialResult});
 		});
+		const mid = Math.floor(results.length / 2);
+		const median = results.length % 2 == 0 ? (results[mid-1] + results[mid]) / 2 : results[mid];
+		const mean = results.reduce((a,b) => a+b, 0) / results.length;
+		const newResult = {
+			id: skillId,
+			results,
+			runData,
+			min: results[0],
+			max: results[results.length-1],
+			mean,
+			median
+		};
+		postMessage({type: 'additional-samples', skillId, result: newResult});
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		postMessage({type: 'additional-samples-error', skillId, error: message});
 	}
-	
-	const withSkill = uma_.set('skills', skillsToUse.add(skillId));
-	const {results, runData} = runComparison(nsamples, course, racedef, uma_, withSkill, pacer_, options);
-	const mid = Math.floor(results.length / 2);
-	const median = results.length % 2 == 0 ? (results[mid-1] + results[mid]) / 2 : results[mid];
-	const mean = results.reduce((a,b) => a+b, 0) / results.length;
-	const newResult = {
-		id: skillId,
-		results,
-		runData,
-		min: results[0],
-		max: results[results.length-1],
-		mean,
-		median
-	};
-	postMessage({type: 'additional-samples', skillId, result: newResult});
 }
 
 async function runOptimizer({course, racedef, uma, uniqueSkillId, maxCareerRating, options, useReferenceInit, initCandidates, initSamples, iterSamples, finalRunSamples, maxIterations, evaluationMethod, minStat, maxStat}) {

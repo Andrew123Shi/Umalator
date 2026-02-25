@@ -2112,7 +2112,15 @@ function nextUiState(state: typeof DEFAULT_UI_STATE, msg: UiStateMsg) {
 	}
 }
 
-function StatsTable({ caption, captionColor, rows, enableSorting = false }) {
+type StatsTableProps = {
+	caption: string,
+	captionColor?: string,
+	rows: any[],
+	enableSorting?: boolean,
+	fixedWidth?: string
+};
+
+function StatsTable({ caption, captionColor, rows, enableSorting = false, fixedWidth }: StatsTableProps) {
 	const [sortColumn, setSortColumn] = useState<string | null>(null);
 	const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 	
@@ -2186,28 +2194,33 @@ function StatsTable({ caption, captionColor, rows, enableSorting = false }) {
 	const headerStyle = enableSorting 
 		? {border: '1px solid #ccc', padding: '8px', textAlign: 'center', cursor: 'pointer', userSelect: 'none'}
 		: {border: '1px solid #ccc', padding: '8px', textAlign: 'center'};
+	const wrapStyle = fixedWidth ? {overflowWrap: 'anywhere', wordBreak: 'break-word'} : {};
+
+	const tableStyle = fixedWidth
+		? {borderCollapse: 'collapse', marginTop: '0', width: fixedWidth, minWidth: fixedWidth, maxWidth: fixedWidth, display: 'table', borderSpacing: 0}
+		: {borderCollapse: 'collapse', marginTop: '0', width: '100%', display: 'table', borderSpacing: 0};
 
 	return (
-		<table style={{borderCollapse: 'collapse', marginTop: '0', width: '100%', display: 'table', borderSpacing: 0}}>
+		<table style={tableStyle}>
 			<caption style={{fontWeight: 'bold', marginBottom: '8px', marginTop: '10px', color: captionColor, captionSide: 'top', display: 'table-caption'}}>{caption}</caption>
 			<thead>
 				<tr>
-					<th style={{border: '1px solid #ccc', padding: '8px', textAlign: 'left', cursor: enableSorting ? 'pointer' : 'default', userSelect: enableSorting ? 'none' : 'auto'}} onClick={() => handleSort('label')}>
+					<th style={{border: '1px solid #ccc', padding: '8px', textAlign: 'left', cursor: enableSorting ? 'pointer' : 'default', userSelect: enableSorting ? 'none' : 'auto', ...wrapStyle}} onClick={() => handleSort('label')}>
 						{getFirstColumnHeader()}{getSortIndicator('label')}
 					</th>
-					<th style={headerStyle} onClick={() => handleSort('count')}>
+					<th style={{...headerStyle, ...wrapStyle}} onClick={() => handleSort('count')}>
 						Count{getSortIndicator('count')}
 					</th>
-					<th style={headerStyle} onClick={() => handleSort('min')}>
+					<th style={{...headerStyle, ...wrapStyle}} onClick={() => handleSort('min')}>
 						Min{getSortIndicator('min')}
 					</th>
-					<th style={headerStyle} onClick={() => handleSort('max')}>
+					<th style={{...headerStyle, ...wrapStyle}} onClick={() => handleSort('max')}>
 						Max{getSortIndicator('max')}
 					</th>
-					<th style={headerStyle} onClick={() => handleSort('mean')}>
+					<th style={{...headerStyle, ...wrapStyle}} onClick={() => handleSort('mean')}>
 						Mean{getSortIndicator('mean')}
 					</th>
-					<th style={headerStyle} onClick={() => handleSort('median')}>
+					<th style={{...headerStyle, ...wrapStyle}} onClick={() => handleSort('median')}>
 						Median{getSortIndicator('median')}
 					</th>
 				</tr>
@@ -2215,12 +2228,12 @@ function StatsTable({ caption, captionColor, rows, enableSorting = false }) {
 			<tbody>
 				{sortedRows.map(({ label, stats }, idx) => (
 					<tr key={`${caption}-${label}-${idx}`}>
-						<th scope="row" style={{border: '1px solid #ccc', padding: '8px', textAlign: 'left', fontWeight: 'normal'}}>{label}</th>
-						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>{stats.count != null ? stats.count : 0}</td>
-						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>{formatValue(stats.min, label)}</td>
-						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>{formatValue(stats.max, label)}</td>
-						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>{formatValue(stats.mean, label)}</td>
-						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center'}}>{formatValue(stats.median, label)}</td>
+						<th scope="row" style={{border: '1px solid #ccc', padding: '8px', textAlign: 'left', fontWeight: 'normal', ...wrapStyle}}>{label}</th>
+						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center', ...wrapStyle}}>{stats.count != null ? stats.count : 0}</td>
+						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center', ...wrapStyle}}>{formatValue(stats.min, label)}</td>
+						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center', ...wrapStyle}}>{formatValue(stats.max, label)}</td>
+						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center', ...wrapStyle}}>{formatValue(stats.mean, label)}</td>
+						<td style={{border: '1px solid #ccc', padding: '8px', textAlign: 'center', ...wrapStyle}}>{formatValue(stats.median, label)}</td>
 					</tr>
 				))}
 			</tbody>
@@ -2418,13 +2431,19 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 
 	const [loadingAdditionalSamples, setLoadingAdditionalSamples] = useState<Set<string>>(new Set());
 	const [additionalSamplesRunCount, setAdditionalSamplesRunCount] = useState<Map<string, number>>(new Map());
+	const [additionalSamplesProgress, setAdditionalSamplesProgress] = useState<{skillId: string; completed: number; total: number} | null>(null);
+	const additionalSamplesBaseResultsRef = useRef<Map<string, any>>(new Map());
 
 	// Create dynamic workers array (max 16 workers)
 	const workers = useMemo(() => {
 		return Array.from({length: 16}, (_, i) => i + 1).map((workerIndex) => {
 			const w = new Worker('./simulator.worker.js');
 			w.addEventListener('message', function (e) {
-			const {type, results, round, total, skillId, result, completed, totalSkills, iteration, data} = e.data;
+			const {type, results, round, total, skillId, result, completed, totalSkills, iteration, data, error, partialResult} = e.data;
+			const rawProgressSkillId = skillId ?? data?.skillId;
+			const progressSkillId = rawProgressSkillId != null ? String(rawProgressSkillId) : undefined;
+			const progressCompleted = completed ?? data?.completed;
+			const progressTotal = total ?? data?.total;
 			switch (type) {
 				case 'compare':
 					setResults(results);
@@ -2553,23 +2572,52 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 					}
 					break;
 				case 'additional-samples':
-					if (skillId && result) {
-						const existingResult = tableDataRef.current.get(skillId);
-						if (existingResult) {
-							const merged = mergeResults(existingResult, result);
-							const updatedMap = new Map(tableDataRef.current);
-							updatedMap.set(skillId, merged);
-							updateTableData(updatedMap);
-							if (selectedSkillIdRef.current === skillId) {
-								setResults(merged);
-							}
+					if (progressSkillId && result) {
+						const baseResult = additionalSamplesBaseResultsRef.current.get(progressSkillId);
+						const merged = baseResult ? mergeResults(baseResult, result) : result;
+						const updatedMap = new Map(tableDataRef.current);
+						updatedMap.set(progressSkillId, merged);
+						updateTableData(updatedMap);
+						if (selectedSkillIdRef.current === progressSkillId) {
+							setResults(merged);
 						}
+						additionalSamplesBaseResultsRef.current.delete(progressSkillId);
 					}
 					setLoadingAdditionalSamples(prev => {
 						const next = new Set(prev);
-						next.delete(skillId);
+						if (progressSkillId) next.delete(progressSkillId);
 						return next;
 					});
+					setAdditionalSamplesProgress(null);
+					break;
+				case 'additional-samples-progress':
+					if (progressSkillId && progressCompleted !== undefined && progressTotal !== undefined) {
+						setAdditionalSamplesProgress({
+							skillId: progressSkillId,
+							completed: progressCompleted,
+							total: progressTotal
+						});
+					}
+					if (progressSkillId && partialResult) {
+						const baseResult = additionalSamplesBaseResultsRef.current.get(progressSkillId);
+						const merged = baseResult ? mergeResults(baseResult, partialResult) : partialResult;
+						const updatedMap = new Map(tableDataRef.current);
+						updatedMap.set(progressSkillId, merged);
+						updateTableData(updatedMap);
+						if (selectedSkillIdRef.current === progressSkillId) {
+							setResults(merged);
+						}
+					}
+					break;
+				case 'additional-samples-error':
+					setLoadingAdditionalSamples(prev => {
+						const next = new Set(prev);
+						if (progressSkillId) next.delete(progressSkillId);
+						return next;
+					});
+					setAdditionalSamplesProgress(null);
+					if (progressSkillId) additionalSamplesBaseResultsRef.current.delete(progressSkillId);
+					console.error('additional-samples-error', error);
 					break;
 			}
 			});
@@ -3000,9 +3048,15 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 	}
 
 	function runAdditionalSamplesForSkill(skillId: string) {
-		if (loadingAdditionalSamples.has(skillId) || isSimulationRunning) return;
+		const normalizedSkillId = String(skillId);
+		if (loadingAdditionalSamples.has(normalizedSkillId) || isSimulationRunning) return;
 		
-		setLoadingAdditionalSamples(prev => new Set(prev).add(skillId));
+		setLoadingAdditionalSamples(prev => new Set(prev).add(normalizedSkillId));
+		setAdditionalSamplesProgress({skillId: normalizedSkillId, completed: 0, total: 500});
+		const existingResult = tableDataRef.current.get(normalizedSkillId);
+		if (existingResult) {
+			additionalSamplesBaseResultsRef.current.set(normalizedSkillId, existingResult);
+		}
 		
 		const currentRunCount = additionalSamplesRunCount.get(skillId) || 0;
 		const effectiveSeed = seed + currentRunCount + 1;
@@ -3024,8 +3078,8 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 		workers[0].postMessage({
 			msg: 'additional-samples',
 			data: {
-				skillId,
-				nsamples: 1000,
+				skillId: normalizedSkillId,
+				nsamples: 500,
 				course,
 				racedef: params,
 				uma,
@@ -3399,7 +3453,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 		resultsPane = (
 			mode == Mode.GlobalCompare ? (
 				<div id="globalCompareWrapper" style="display: flex; align-items: flex-start; gap: 20px; grid-column: 1; grid-row: 1;">
-					<div id="resultsPane" class="mode-compare global-compare-mode">
+					<div id="resultsPane" class="mode-compare global-compare-mode" style={{width: '535px', minWidth: '535px', maxWidth: '535px'}}>
 					<table id="resultsSummary">
 						<tfoot>
 							<tr>
@@ -3525,10 +3579,12 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 							)}
 						</div>
 					)}
-					</div>
-					<div id="infoTables">
+					<div id="infoTables" style={{margin: '20px 0 0 0', alignSelf: 'flex-start'}}>
 						<ResultsTable caption="Umamusume 1" color="#2a77c5" chartData={chartData} idx={0} runData={runData} />
 						<ResultsTable caption="Umamusume 2" color="#c52a2a" chartData={chartData} idx={1} runData={runData} />
+					</div>
+					</div>
+					<div style={{marginTop: '150px', alignSelf: 'flex-start'}}>
 						{mode == Mode.GlobalCompare && raceParams && (() => {
 							// Group results by parameter value and calculate statistics for each value
 							const groupByValue = <T,>(data: Array<{value: T, result: number}>, getLabel: (val: T) => string, sortFn?: (a: T, b: T) => number) => {
@@ -3599,16 +3655,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 							const seasonRows = groupByValue(raceParams.seasons || [], getSeasonLabel);
 
 							return (
-								<div style={{marginTop: '20px', width: '100%'}}>
-									{locationRows.length > 0 && (
-										<StatsTable
-											key="location-table"
-											caption="Racetrack Location"
-											captionColor="#666"
-											rows={locationRows}
-											enableSorting={true}
-										/>
-									)}
+								<div style={{marginTop: '-7px', width: '435px'}}>
 									{lengthRows.length > 0 && (
 										<StatsTable
 											key="length-table"
@@ -3616,6 +3663,17 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 											captionColor="#666"
 											rows={lengthRows}
 											enableSorting={true}
+											fixedWidth="435px"
+										/>
+									)}
+									{locationRows.length > 0 && (
+										<StatsTable
+											key="location-table"
+											caption="Racetrack Location"
+											captionColor="#666"
+											rows={locationRows}
+											enableSorting={true}
+											fixedWidth="435px"
 										/>
 									)}
 									{terrainRows.length > 0 && (
@@ -3625,6 +3683,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 											captionColor="#666"
 											rows={terrainRows}
 											enableSorting={true}
+											fixedWidth="435px"
 										/>
 									)}
 									{weatherRows.length > 0 && (
@@ -3634,6 +3693,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 											captionColor="#666"
 											rows={weatherRows}
 											enableSorting={true}
+											fixedWidth="435px"
 										/>
 									)}
 									{seasonRows.length > 0 && (
@@ -3643,6 +3703,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 											captionColor="#666"
 											rows={seasonRows}
 											enableSorting={true}
+											fixedWidth="435px"
 										/>
 									)}
 								</div>
@@ -4073,6 +4134,12 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 							<div id="compareProgressBar">
 								<div id="compareProgressBarFill" style={`width: ${(simulationProgress.round / simulationProgress.total) * 100}%`}></div>
 								<span id="compareProgressText">{simulationProgress.round} / {simulationProgress.total}</span>
+							</div>
+						)}
+						{additionalSamplesProgress && (
+							<div id="compareProgressBar">
+								<div id="compareProgressBarFill" style={`width: ${(additionalSamplesProgress.completed / additionalSamplesProgress.total) * 100}%`}></div>
+								<span id="compareProgressText" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Additional Samples ({additionalSamplesProgress.skillId}): {additionalSamplesProgress.completed} / {additionalSamplesProgress.total}</span>
 							</div>
 						)}
 						{mode == Mode.RaceOptimizer && isSimulationRunning && (optimizerProgress || optimizerInitProgress || optimizerFinalProgress) && (

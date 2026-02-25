@@ -627,8 +627,9 @@ export function runComparison(nsamples: number, course: CourseData, racedef: Rac
 			}
 		}
 		
-		// Report progress every 20 samples with cumulative results
-		if (onProgress && ((i + 1) % 20 === 0 || i + 1 === nsamples)) {
+		const progressEveryNSamples = Math.max(1, options?.progressEveryNSamples || 20);
+		// Report progress with configurable cadence (default every 20 samples)
+		if (onProgress && ((i + 1) % progressEveryNSamples === 0 || i + 1 === nsamples)) {
 			const cumulativeResults = calculateCumulativeResults(i + 1);
 			onProgress(i + 1, nsamples, cumulativeResults);
 		}
