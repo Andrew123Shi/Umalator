@@ -13,7 +13,7 @@ import { PosKeepMode } from '../uma-skill-tools/RaceSolver';
 import type { GameHpPolicy } from '../uma-skill-tools/HpPolicy';
 
 import { Language, LanguageSelect, useLanguageSelect } from '../components/Language';
-import { ExpandedSkillDetails, STRINGS_en as SKILL_STRINGS_en } from '../components/SkillList';
+import { ExpandedSkillDetails, Skill, SkillList, STRINGS_en as SKILL_STRINGS_en } from '../components/SkillList';
 import { RaceTrack, TrackSelect, RegionDisplayType } from '../components/RaceTrack';
 import { HorseState, SkillSet } from '../components/HorseDefTypes';
 import { HorseDef, horseDefTabs, isGeneralSkill } from '../components/HorseDef';
@@ -2084,8 +2084,8 @@ function RacePresets(props) {
 
 const baseSkillsToTest = Object.keys(skilldata).filter(id => isGeneralSkill(id));
 
-const enum Mode { Compare, Chart, UniquesChart, GlobalCompare, RaceOptimizer }
-const enum UiStateMsg { SetModeCompare, SetModeChart, SetModeUniquesChart, SetModeGlobalCompare, SetModeRaceOptimizer, SetCurrentIdx0, SetCurrentIdx1, SetCurrentIdx2, ToggleExpand }
+const enum Mode { Compare, Chart, UniquesChart, GlobalCompare, GlobalSkillChart, RaceOptimizer }
+const enum UiStateMsg { SetModeCompare, SetModeChart, SetModeUniquesChart, SetModeGlobalCompare, SetModeGlobalSkillChart, SetModeRaceOptimizer, SetCurrentIdx0, SetCurrentIdx1, SetCurrentIdx2, ToggleExpand }
 
 const DEFAULT_UI_STATE = {mode: Mode.Compare, currentIdx: 0, expanded: false};
 
@@ -2099,6 +2099,8 @@ function nextUiState(state: typeof DEFAULT_UI_STATE, msg: UiStateMsg) {
 			return {...state, mode: Mode.UniquesChart, currentIdx: 0, expanded: false};
 		case UiStateMsg.SetModeGlobalCompare:
 			return {...state, mode: Mode.GlobalCompare, currentIdx: 0, expanded: false};
+		case UiStateMsg.SetModeGlobalSkillChart:
+			return {...state, mode: Mode.GlobalSkillChart, currentIdx: 0, expanded: false};
 		case UiStateMsg.SetModeRaceOptimizer:
 			return {...state, mode: Mode.RaceOptimizer, currentIdx: 0, expanded: false};
 		case UiStateMsg.SetCurrentIdx0:
@@ -2245,6 +2247,9 @@ function App(props) {
 	//const [language, setLanguage] = useLanguageSelect(); 
 	const [darkMode, toggleDarkMode] = useReducer(b=>!b, false);
 	const [skillsOpen, setSkillsOpen] = useState(false);
+	const [globalSkillChartSimulateAll, setGlobalSkillChartSimulateAll] = useState(true);
+	const [globalSkillChartSelectedSkills, setGlobalSkillChartSelectedSkills] = useState(() => SkillSet([]));
+	const [hasGlobalSkillChartRun, setHasGlobalSkillChartRun] = useState(false);
 	const [racedef, setRaceDef] = useState(() => DEFAULT_PRESET.racedef);
 	const [nsamples, setSamples] = useState(DEFAULT_SAMPLES);
 	const [workerCount, setWorkerCount] = useState(8);
@@ -2299,6 +2304,12 @@ function App(props) {
 	const [isPacemakerDropdownOpen, setIsPacemakerDropdownOpen] = useState(false);
 	const [globalCompareDistance, setGlobalCompareDistance] = useState<DistanceType>(DistanceType.Mile);
 	const [globalCompareTerrain, setGlobalCompareTerrain] = useState<Surface>(Surface.Turf);
+	const globalSpecificSkillIds = useMemo(() => Array.from(globalSkillChartSelectedSkills.values()), [globalSkillChartSelectedSkills]);
+	useEffect(() => {
+		if (globalSpecificSkillIds.length > 0) {
+			setGlobalSkillChartSimulateAll(false);
+		}
+	}, [globalSpecificSkillIds]);
 	const [maxCareerRating, setMaxCareerRating] = useState(8200);
 	const [optimizerResult, setOptimizerResult] = useState<any>(null);
 	const [optimizerProgress, setOptimizerProgress] = useState<any>(null);
@@ -2543,6 +2554,18 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 						// Trigger re-render by setting a dummy progress (we'll display per-worker progress from the ref)
 						setSimulationProgress({round: 0, total: 0});
 					}
+					break;
+				case 'chart-skill-start':
+					// Debug aid: identifies exactly which skill a worker started before a potential stall.
+					console.info(
+						`[ChartDebug] Worker ${workerIndex} run ${e.data.round ?? '?'} starting skill ${e.data.skillIndex ?? '?'} / ${e.data.totalSkills ?? '?'}: ${e.data.skillId ?? 'unknown'}`
+					);
+					break;
+				case 'chart-skill-error':
+					console.error(
+						`[ChartDebug] Worker ${workerIndex} run ${e.data.round ?? '?'} failed on skill ${e.data.skillIndex ?? '?'} / ${e.data.totalSkills ?? '?'}: ${e.data.skillId ?? 'unknown'}`,
+						e.data.error
+					);
 					break;
 				case 'compare-progress':
 					setSimulationProgress({round: completed, total});
@@ -2848,6 +2871,82 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 				}
 			}
 		});
+	}
+
+	function doGlobalSkillChart() {
+		postEvent('doGlobalSkillChart', {});
+		setHasGlobalSkillChartRun(true);
+		setLastRunChartUma(uma1);
+		chartWorkersCompletedRef.current = 0;
+		chartWorkersProgressRef.current.clear();
+		chartWorkersInitialSkillsRef.current.clear();
+		chartWorkersCompletedSetRef.current.clear();
+		chartWorkerCountRef.current = workerCount;
+		setIsSimulationRunning(true);
+		setSimulationProgress(null);
+
+		let skills = baseSkillsToTest.filter(id => {
+			const skillsAny: any = uma1.skills as any;
+			return !(id[0] == '9' && skillsAny.includes && skillsAny.includes('1' + id.slice(1))
+				|| id == '92111091' && skillsAny.includes && skillsAny.includes('111091')
+			);
+		});
+		if (!globalSkillChartSimulateAll) {
+			const selectedSkills = Array.from(globalSkillChartSelectedSkills.values());
+			if (selectedSkills.length === 0) {
+				setIsSimulationRunning(false);
+				return;
+			}
+			skills = selectedSkills;
+		}
+		
+		const filler = new Map();
+		skills.forEach(id => filler.set(id, getNullRow(id)));
+		const skillsPerWorker = Math.floor(skills.length / workerCount);
+		const skillChunks: string[][] = [];
+		for (let i = 0; i < workerCount; i++) {
+			const start = i * skillsPerWorker;
+			const end = i === workerCount - 1 ? skills.length : (i + 1) * skillsPerWorker;
+			skillChunks.push(skills.slice(start, end));
+		}
+
+		updateTableData('reset');
+		updateTableData(filler);
+		setAdditionalSamplesRunCount(new Map());
+
+		const chartOptions = {
+			seed,
+			posKeepMode: PosKeepMode.Approximate,
+			pacemakerCount: 1,
+			mode: hpConsumption ? 'compare' : undefined,
+			syncRng: hpConsumption ? true : undefined,
+			skillWisdomCheck: false,
+			rushedKakari: false,
+			competeFight: false,
+			globalChartRun1SamplesPerLength: 5,
+			globalChartRun2Samples: 50,
+			globalChartRun3Samples: 100,
+			simulateAllSkills: globalSkillChartSimulateAll,
+			debugSkillLogging: true,
+			time: racedef.time,
+			grade: racedef.grade
+		};
+
+		activeWorkersRef.current.clear();
+		for (let i = 0; i < workerCount; i++) {
+			activeWorkersRef.current.add(i);
+			workers[i].postMessage({
+				msg: 'global-chart',
+				data: {
+					skills: skillChunks[i],
+					distanceType: globalCompareDistance,
+					surface: globalCompareTerrain,
+					uma: uma1.toJS(),
+					pacer: pacer.toJS(),
+					options: chartOptions
+				}
+			});
+		}
 	}
 
 	function doRunOnce() {
@@ -3451,6 +3550,49 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 		);
 	}, [displaying, loadingAdditionalSamples, isSimulationRunning, runAdditionalSamplesForSkill]);
 
+	const createGlobalSkillExpandedContent = useCallback((skillId: string, runData: any) => {
+		let effectivenessRate = 0;
+		const totalCount = runData.allruns?.totalRuns || 0;
+		let skillProcs = 0;
+		if (runData.allruns && runData.allruns.skBasinn && Array.isArray(runData.allruns.skBasinn)) {
+			const allBasinnActivations: Array<[number, number]> = [];
+			runData.allruns.skBasinn.forEach((skBasinnMap: any) => {
+				if (!skBasinnMap) return;
+				let activations = null;
+				if (skBasinnMap instanceof Map || (typeof skBasinnMap.has === 'function' && typeof skBasinnMap.get === 'function')) {
+					if (skBasinnMap.has(skillId)) {
+						activations = skBasinnMap.get(skillId);
+					}
+				} else if (typeof skBasinnMap === 'object' && skillId in skBasinnMap) {
+					activations = skBasinnMap[skillId];
+				}
+				if (activations && Array.isArray(activations)) {
+					activations.forEach((activation: any) => {
+						if (Array.isArray(activation) && activation.length === 2 &&
+							typeof activation[0] === 'number' && typeof activation[1] === 'number') {
+							allBasinnActivations.push([activation[0], activation[1]]);
+						}
+					});
+				}
+			});
+			skillProcs = allBasinnActivations.length;
+			const positiveCount = allBasinnActivations.filter(([_, basinn]) => basinn > 0).length;
+			effectivenessRate = totalCount > 0 ? (positiveCount / totalCount) * 100 : 0;
+		}
+		return (
+			<div style={`margin-bottom: 2px; width: 300px;`}>
+				<div style={`font-size: 9px; margin-bottom: 2px; display: flex; align-items: center; gap: 8px;`}>
+					<span>Total samples: {totalCount} ({skillProcs} skill procs)</span>
+				</div>
+				<div style={`font-size: 9px; margin-bottom: 2px;`}>Effectiveness rate: {effectivenessRate.toFixed(1)}%</div>
+				<div style={`display: flex; width: 100%; height: 8px; border: 1px solid #ccc; overflow: hidden;`}>
+					<div style={`width: ${effectivenessRate}%; background-color: #4caf50; height: 100%;`}></div>
+					<div style={`width: ${100 - effectivenessRate}%; background-color: #f44336; height: 100%;`}></div>
+				</div>
+			</div>
+		);
+	}, []);
+
 	let resultsPane;
 	if ((mode == Mode.Compare || mode == Mode.GlobalCompare) && results.length > 0) {
 		resultsPane = (
@@ -3486,19 +3628,19 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 						<div style={{marginTop: '15px', marginBottom: '10px', textAlign: 'center'}}>
 							{firstUmaStats && (
 								<>
-								<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
-									<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px', fontWeight: 'bold', color: '#2a77c5'}}>
+								<div style={{marginBottom: '2px', display: 'flex', width: '500px', margin: '0 auto'}}>
+									<div style={{textAlign: 'center', width: '250px', fontWeight: 'bold', color: '#2a77c5'}}>
 										Umamusume 1
 									</div>
-									<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px', fontWeight: 'bold', color: '#c52a2a'}}>
+									<div style={{textAlign: 'center', width: '250px', fontWeight: 'bold', color: '#c52a2a'}}>
 										Umamusume 2
 									</div>
 								</div>
-								<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
-									<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px'}}>
+								<div style={{marginBottom: '2px', display: 'flex', width: '500px', margin: '0 auto'}}>
+									<div style={{textAlign: 'left', width: '250px'}}>
 										Final leg 1st place: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{firstUmaStats.uma1.firstPlaceRate.toFixed(1)}%</span>
 									</div>
-									<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px'}}>
+									<div style={{textAlign: 'left', width: '250px'}}>
 										Final leg 1st place: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{firstUmaStats.uma2.firstPlaceRate.toFixed(1)}%</span>
 									</div>
 								</div>
@@ -3506,19 +3648,19 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 							)}
 							{staminaStats && (
 								<>
-									<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
-										<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px'}}>
+									<div style={{marginBottom: '2px', display: 'flex', width: '500px', margin: '0 auto'}}>
+										<div style={{textAlign: 'left', width: '250px'}}>
 											Spurt Rate: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{staminaStats.uma1.fullSpurtRate.toFixed(1)}%</span>
 										</div>
-										<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px'}}>
+										<div style={{textAlign: 'left', width: '250px'}}>
 											Spurt Rate: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{staminaStats.uma2.fullSpurtRate.toFixed(1)}%</span>
 										</div>
 									</div>
-									<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
-										<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px'}}>
+									<div style={{marginBottom: '2px', display: 'flex', width: '500px', margin: '0 auto'}}>
+										<div style={{textAlign: 'left', width: '250px'}}>
 											Survival Rate: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{staminaStats.uma1.staminaSurvivalRate.toFixed(1)}%</span>
 										</div>
-										<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px'}}>
+										<div style={{textAlign: 'left', width: '250px'}}>
 											Survival Rate: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{staminaStats.uma2.staminaSurvivalRate.toFixed(1)}%</span>
 										</div>
 									</div>
@@ -3529,7 +3671,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 					
 					<Histogram width={500} height={333} data={results} />
 					{staminaStats && (
-						<div style={{marginTop: '20px', width: '500px', paddingBottom: '20px'}}>
+						<div style={{marginTop: '20px', width: '500px', paddingBottom: '0px'}}>
 							<div style={{display: 'flex', marginBottom: '0'}}>
 								<div 
 									class={`umaTab staminaTab ${hpDeathPositionTab == 0 ? 'selected' : ''}`} 
@@ -3756,19 +3898,19 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 							<div style={{marginTop: '15px', marginBottom: '10px', textAlign: 'center'}}>
 								{firstUmaStats && (
 									<>
-									<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
-										<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px', fontWeight: 'bold', color: '#2a77c5'}}>
+									<div style={{marginBottom: '2px', display: 'flex', width: '500px', margin: '0 auto'}}>
+										<div style={{textAlign: 'center', width: '250px', fontWeight: 'bold', color: '#2a77c5'}}>
 											Umamusume 1
 										</div>
-										<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px', fontWeight: 'bold', color: '#c52a2a'}}>
+										<div style={{textAlign: 'center', width: '250px', fontWeight: 'bold', color: '#c52a2a'}}>
 											Umamusume 2
 										</div>
 									</div>
-									<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
-										<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px'}}>
+									<div style={{marginBottom: '2px', display: 'flex', width: '500px', margin: '0 auto'}}>
+										<div style={{textAlign: 'left', width: '250px'}}>
 											In Lead @ Final Leg: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{firstUmaStats.uma1.firstPlaceRate.toFixed(1)}%</span>
 										</div>
-										<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px'}}>
+										<div style={{textAlign: 'left', width: '250px'}}>
 											In Lead @ Final Leg: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{firstUmaStats.uma2.firstPlaceRate.toFixed(1)}%</span>
 										</div>
 									</div>
@@ -3776,19 +3918,19 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 								)}
 								{staminaStats && (
 									<>
-										<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
-											<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px'}}>
+										<div style={{marginBottom: '2px', display: 'flex', width: '500px', margin: '0 auto'}}>
+											<div style={{textAlign: 'left', width: '250px'}}>
 												Spurt Rate: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{staminaStats.uma1.fullSpurtRate.toFixed(1)}%</span>
 											</div>
-											<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px'}}>
+											<div style={{textAlign: 'left', width: '250px'}}>
 												Spurt Rate: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{staminaStats.uma2.fullSpurtRate.toFixed(1)}%</span>
 											</div>
 										</div>
-										<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
-											<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px'}}>
+										<div style={{marginBottom: '2px', display: 'flex', width: '500px', margin: '0 auto'}}>
+											<div style={{textAlign: 'left', width: '250px'}}>
 												Survival Rate: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{staminaStats.uma1.staminaSurvivalRate.toFixed(1)}%</span>
 											</div>
-											<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px'}}>
+											<div style={{textAlign: 'left', width: '250px'}}>
 												Survival Rate: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{staminaStats.uma2.staminaSurvivalRate.toFixed(1)}%</span>
 											</div>
 										</div>
@@ -3799,7 +3941,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 						
 						<Histogram width={500} height={333} data={results} />
 						{staminaStats && (
-							<div style={{marginTop: '20px', width: '500px', paddingBottom: '20px'}}>
+							<div style={{marginTop: '20px', width: '500px', paddingBottom: '0px'}}>
 								<div style={{display: 'flex', marginBottom: '0'}}>
 									<div 
 										class={`umaTab staminaTab ${hpDeathPositionTab == 0 ? 'selected' : ''}`} 
@@ -3863,7 +4005,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 							</div>
 						)}
 					</div>
-					<div id="infoTables">
+					<div id="infoTables" style={{margin: '10px auto 0 auto'}}>
 						<ResultsTable caption="Umamusume 1" color="#2a77c5" chartData={chartData} idx={0} runData={runData} />
 						<ResultsTable caption="Umamusume 2" color="#c52a2a" chartData={chartData} idx={1} runData={runData} />
 					</div>
@@ -3943,11 +4085,63 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 				</div>
 			</div>
 		);
-	} else if ((mode == Mode.Chart || mode == Mode.UniquesChart) && tableData.size > 0) {
-		const dirty = !uma1.equals(lastRunChartUma);
+	} else if (
+		mode == Mode.GlobalSkillChart ||
+		((mode == Mode.Chart || mode == Mode.UniquesChart) && tableData.size > 0)
+	) {
+		const dirty = mode == Mode.GlobalSkillChart
+			? (hasGlobalSkillChartRun && !uma1.equals(lastRunChartUma))
+			: !uma1.equals(lastRunChartUma);
 		resultsPane = (
 			<div id="resultsPaneWrapper">
-				<div id="resultsPane" class="mode-chart">
+				<div id="resultsPane" class="mode-chart" style={mode == Mode.GlobalSkillChart ? {marginTop: '0'} : undefined}>
+					{mode == Mode.GlobalSkillChart && (
+						<div style="margin-bottom: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px;">
+							<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+								<div
+									class="skill skill-gold"
+									style={!globalSkillChartSimulateAll ? '' : 'opacity: 0.55; filter: grayscale(0.5); cursor: pointer;'}
+									onClick={() => setGlobalSkillChartSimulateAll(false)}
+									title="Simulate specific selected skills"
+								>
+									<span class="skillName" style="justify-content: center; width: 100%;">Select Specific Skills</span>
+								</div>
+								<span style="font-weight: bold; color: rgb(121, 64, 22);">OR</span>
+								<div
+									class="skill skill-unique"
+									style={globalSkillChartSimulateAll ? '' : 'opacity: 0.45; filter: grayscale(0.65); cursor: pointer;'}
+									onClick={() => setGlobalSkillChartSimulateAll(true)}
+									title="Simulate all available skills"
+								>
+									<span class="skillName" style="justify-content: center; width: 100%;">Simulate All Skills</span>
+								</div>
+							</div>
+							<div style="display: grid; grid-template-columns: repeat(3, minmax(0, max-content)); gap: 8px 10px; align-items: start;">
+								{globalSpecificSkillIds.map(skillId => (
+									<div
+										style={globalSkillChartSimulateAll ? 'opacity: 0.45; filter: grayscale(0.85); cursor: pointer;' : ''}
+										onClick={() => {
+											if (globalSkillChartSimulateAll) {
+												setGlobalSkillChartSimulateAll(false);
+											}
+										}}
+										title={globalSkillChartSimulateAll ? 'Switch to specific skills mode' : ''}
+									>
+										<Skill id={skillId} />
+									</div>
+								))}
+								{!globalSkillChartSimulateAll && (
+									<div
+										class="skill addSkillButton"
+										onClick={() => setSkillsOpen(true)}
+										title="Add specific skill"
+									>
+										<span>+</span>Add Skill
+									</div>
+								)}
+							</div>
+						</div>
+					)}
 					<div class="basinnChartWrapperWrapper">
 						<BasinnChart 
 							data={Array.from(tableData.values())} 
@@ -3959,11 +4153,285 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 							onInfoClick={showPopover}
 							showUmaIcons={mode == Mode.UniquesChart}
 							courseDistance={course.distance}
-							expandedContent={createExpandedContent}
+							expandedContent={mode == Mode.GlobalSkillChart ? createGlobalSkillExpandedContent : createExpandedContent}
 						/>
-						<button class={`basinnChartRefresh${dirty ? '' : ' hidden'}`} onClick={doBasinnChart} disabled={isSimulationRunning || loadingAdditionalSamples.size > 0}>⟲</button>
+						<button class={`basinnChartRefresh${dirty ? '' : ' hidden'}`} onClick={mode == Mode.GlobalSkillChart ? doGlobalSkillChart : doBasinnChart} disabled={isSimulationRunning || loadingAdditionalSamples.size > 0}>⟲</button>
 						<div class={`basinnChartRefreshText${dirty ? '' : ' hidden'}`}>Uma skills have changed, refresh is required</div>
 					</div>
+					{mode == Mode.GlobalSkillChart && skillsOpen && (
+						<>
+							<div class={`horseSkillPickerOverlay open`} onClick={setSkillsOpen.bind(null, false)} />
+							<div class={`horseSkillPickerWrapper open`}>
+								<SkillList
+									ids={baseSkillsToTest}
+									selected={globalSkillChartSelectedSkills}
+									setSelected={(skills) => {
+										setGlobalSkillChartSelectedSkills(skills);
+										setSkillsOpen(false);
+									}}
+									isOpen={skillsOpen}
+								/>
+							</div>
+						</>
+					)}
+					{mode == Mode.GlobalSkillChart && selectedSkillId && results.length > 0 && (
+						<div id="globalCompareWrapper" style="display: flex; align-items: flex-start; gap: 20px; margin-top: 16px;">
+							<div id="resultsPane" class="mode-compare global-compare-mode" style={{width: '535px', minWidth: '535px', maxWidth: '535px'}}>
+								<table id="resultsSummary">
+									<tfoot>
+										<tr>
+											{Object.entries({
+												minrun: ['Minimum', 'Set chart display to the run with minimum bashin difference'],
+												maxrun: ['Maximum', 'Set chart display to the run with maximum bashin difference'],
+												meanrun: ['Mean', 'Set chart display to a run representative of the mean bashin difference'],
+												medianrun: ['Median', 'Set chart display to a run representative of the median bashin difference']
+											}).map(([k,label]) =>
+												<th scope="col" class={displaying == k ? 'selected' : ''} title={label[1]} onClick={() => setChartData(k)}>{label[0]}</th>
+											)}
+										</tr>
+									</tfoot>
+									<tbody>
+										<tr>
+											<td onClick={() => setChartData('minrun')}>{results[0].toFixed(2)}<span class="unit-basinn">{CC_GLOBAL?'lengths':'バ身'}</span></td>
+											<td onClick={() => setChartData('maxrun')}>{results[results.length-1].toFixed(2)}<span class="unit-basinn">{CC_GLOBAL?'lengths':'バ身'}</span></td>
+											<td onClick={() => setChartData('meanrun')}>{mean.toFixed(2)}<span class="unit-basinn">{CC_GLOBAL?'lengths':'バ身'}</span></td>
+											<td onClick={() => setChartData('medianrun')}>{median.toFixed(2)}<span class="unit-basinn">{CC_GLOBAL?'lengths':'バ身'}</span></td>
+										</tr>
+									</tbody>
+								</table>
+								<div id="resultsHelp" style={{textAlign: 'center'}}>Negative numbers mean the <strong style="color:#2a77c5">baseline Uma</strong> is faster, positive numbers mean <strong style="color:#c52a2a">having the skill</strong> is faster.</div>
+								{(firstUmaStats || staminaStats) && (
+									<div style={{marginTop: '15px', marginBottom: '10px', textAlign: 'center'}}>
+										{firstUmaStats && (
+											<>
+											<div style={{marginBottom: '2px', display: 'flex', width: '500px', margin: '0 auto'}}>
+												<div style={{textAlign: 'center', width: '250px', fontWeight: 'bold', color: '#2a77c5'}}>
+													Baseline
+												</div>
+												<div style={{textAlign: 'center', width: '250px', fontWeight: 'bold', color: '#c52a2a'}}>
+													With Selected Skill
+												</div>
+											</div>
+											<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
+												<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px'}}>
+													Final leg 1st place: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{firstUmaStats.uma1.firstPlaceRate.toFixed(1)}%</span>
+												</div>
+												<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px'}}>
+													Final leg 1st place: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{firstUmaStats.uma2.firstPlaceRate.toFixed(1)}%</span>
+												</div>
+											</div>
+											</>
+										)}
+										{staminaStats && (
+											<>
+												<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
+													<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px'}}>
+														Spurt Rate: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{staminaStats.uma1.fullSpurtRate.toFixed(1)}%</span>
+													</div>
+													<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px'}}>
+														Spurt Rate: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{staminaStats.uma2.fullSpurtRate.toFixed(1)}%</span>
+													</div>
+												</div>
+												<div style={{marginBottom: '2px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
+													<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '15px'}}>
+														Survival Rate: <span style={{color: '#2a77c5', fontWeight: 'bold'}}>{staminaStats.uma1.staminaSurvivalRate.toFixed(1)}%</span>
+													</div>
+													<div style={{textAlign: 'left', minWidth: '250px', marginLeft: '-10px'}}>
+														Survival Rate: <span style={{color: '#c52a2a', fontWeight: 'bold'}}>{staminaStats.uma2.staminaSurvivalRate.toFixed(1)}%</span>
+													</div>
+												</div>
+											</>
+										)}
+									</div>
+								)}
+								<Histogram width={500} height={333} data={results} />
+								{staminaStats && (
+									<div style={{marginTop: '20px', width: '500px', paddingBottom: '0px'}}>
+										<div style={{display: 'flex', marginBottom: '0'}}>
+											<div 
+												class={`umaTab staminaTab ${hpDeathPositionTab == 0 ? 'selected' : ''}`} 
+												onClick={() => setHpDeathPositionTab(0)}
+												style={{cursor: 'pointer'}}
+											>
+												Baseline
+											</div>
+											<div 
+												class={`umaTab staminaTab ${hpDeathPositionTab == 1 ? 'selected' : ''}`} 
+												onClick={() => setHpDeathPositionTab(1)}
+												style={{cursor: 'pointer'}}
+											>
+												With Selected Skill
+											</div>
+										</div>
+										{hpDeathPositionTab == 0 && (
+											<>
+												<StatsTable 
+													caption="Stamina Death Stats"
+													captionColor="#2a77c5"
+													rows={[
+														{ label: 'Full Spurt', stats: staminaStats.uma1.hpDiedPositionStatsFullSpurt },
+														{ label: 'Non-Full Spurt', stats: staminaStats.uma1.hpDiedPositionStatsNonFullSpurt }
+													]}
+												/>
+												{staminaStats.uma1.nonFullSpurtVelocityStats && staminaStats.uma1.nonFullSpurtDelayStats && (
+													<StatsTable 
+														caption="Non-Full Spurt Stats"
+														captionColor="#2a77c5"
+														rows={[
+															{ label: 'Velocity', stats: staminaStats.uma1.nonFullSpurtVelocityStats },
+															{ label: 'Delay', stats: staminaStats.uma1.nonFullSpurtDelayStats }
+														]}
+													/>
+												)}
+											</>
+										)}
+										{hpDeathPositionTab == 1 && (
+											<>
+												<StatsTable 
+													caption="Stamina Death Stats"
+													captionColor="#c52a2a"
+													rows={[
+														{ label: 'Full Spurt', stats: staminaStats.uma2.hpDiedPositionStatsFullSpurt },
+														{ label: 'Non-Full Spurt', stats: staminaStats.uma2.hpDiedPositionStatsNonFullSpurt }
+													]}
+												/>
+												{staminaStats.uma2.nonFullSpurtVelocityStats && staminaStats.uma2.nonFullSpurtDelayStats && (
+													<StatsTable 
+														caption="Non-Full Spurt Stats"
+														captionColor="#c52a2a"
+														rows={[
+															{ label: 'Velocity', stats: staminaStats.uma2.nonFullSpurtVelocityStats },
+															{ label: 'Delay', stats: staminaStats.uma2.nonFullSpurtDelayStats }
+														]}
+													/>
+												)}
+											</>
+										)}
+									</div>
+								)}
+								<div id="infoTables" style={{margin: '20px 0 0 0', alignSelf: 'flex-start'}}>
+									<ResultsTable caption="Baseline" color="#2a77c5" chartData={chartData} idx={0} runData={runData} />
+									<ResultsTable caption="With Selected Skill" color="#c52a2a" chartData={chartData} idx={1} runData={runData} />
+								</div>
+							</div>
+							<div style={{marginTop: '130px', marginLeft: '-5px', alignSelf: 'flex-start'}}>
+								{(tableData.get(selectedSkillId)?.raceParams || raceParams) && (() => {
+									const selectedRaceParams = tableData.get(selectedSkillId)?.raceParams || raceParams;
+									const groupByValue = <T,>(data: Array<{value: T, result: number}>, getLabel: (val: T) => string, sortFn?: (a: T, b: T) => number) => {
+										const grouped = new Map<string, number[]>();
+										data.forEach(({value, result}) => {
+											const key = getLabel(value);
+											if (!grouped.has(key)) {
+												grouped.set(key, []);
+											}
+											grouped.get(key)!.push(result);
+										});
+										const stats = Array.from(grouped.entries()).map(([label, results]) => {
+											const sorted = [...results].sort((a, b) => a - b);
+											const count = results.length;
+											const min = sorted[0];
+											const max = sorted[sorted.length - 1];
+											const mean = results.reduce((a, b) => a + b, 0) / count;
+											const mid = Math.floor(sorted.length / 2);
+											const median = sorted.length % 2 === 0
+												? (sorted[mid - 1] + sorted[mid]) / 2
+												: sorted[mid];
+											return { label, stats: { count, min, max, mean, median } };
+										});
+										if (sortFn) {
+											const valueMap = new Map<string, T>();
+											data.forEach(({value}) => {
+												const key = getLabel(value);
+												if (!valueMap.has(key)) {
+													valueMap.set(key, value);
+												}
+											});
+											stats.sort((a, b) => {
+												const valA = valueMap.get(a.label)!;
+												const valB = valueMap.get(b.label)!;
+												return sortFn(valA, valB);
+											});
+										} else {
+											stats.sort((a, b) => a.label.localeCompare(b.label));
+										}
+										return stats;
+									};
+									const getLocationName = (trackIdStr: string) => TRACKNAMES_en[+trackIdStr] || trackIdStr;
+									const getTerrainLabel = (terrain: number) => {
+										const labels = ['', 'Firm', 'Good', 'Soft', 'Heavy'];
+										return labels[terrain] || terrain.toString();
+									};
+									const getWeatherLabel = (weather: number) => {
+										const labels = ['', 'Sunny', 'Cloudy', 'Rainy', 'Snowy'];
+										return labels[weather] || weather.toString();
+									};
+									const getSeasonLabel = (season: number) => {
+										const labels = ['', 'Spring', 'Summer', 'Autumn', 'Winter', 'Sakura'];
+										return labels[season] || season.toString();
+									};
+									const locationRows = groupByValue(selectedRaceParams.locations || [], getLocationName);
+									const lengthRows = groupByValue(selectedRaceParams.lengths || [], (val: number) => val.toString() + ' m', (a, b) => a - b);
+									const terrainRows = groupByValue(selectedRaceParams.terrains || [], getTerrainLabel);
+									const weatherRows = groupByValue(selectedRaceParams.weathers || [], getWeatherLabel);
+									const seasonRows = groupByValue(selectedRaceParams.seasons || [], getSeasonLabel);
+									return (
+										<div style={{marginTop: '-7px', width: '435px'}}>
+											{lengthRows.length > 0 && (
+												<StatsTable
+													key="length-table"
+													caption="Racetrack Length"
+													captionColor="#666"
+													rows={lengthRows}
+													enableSorting={true}
+													fixedWidth="435px"
+												/>
+											)}
+											{locationRows.length > 0 && (
+												<StatsTable
+													key="location-table"
+													caption="Racetrack Location"
+													captionColor="#666"
+													rows={locationRows}
+													enableSorting={true}
+													fixedWidth="435px"
+												/>
+											)}
+											{terrainRows.length > 0 && (
+												<StatsTable
+													key="terrain-table"
+													caption="Terrain"
+													captionColor="#666"
+													rows={terrainRows}
+													enableSorting={true}
+													fixedWidth="435px"
+												/>
+											)}
+											{weatherRows.length > 0 && (
+												<StatsTable
+													key="weather-table"
+													caption="Weather"
+													captionColor="#666"
+													rows={weatherRows}
+													enableSorting={true}
+													fixedWidth="435px"
+												/>
+											)}
+											{seasonRows.length > 0 && (
+												<StatsTable
+													key="season-table"
+													caption="Season"
+													captionColor="#666"
+													rows={seasonRows}
+													enableSorting={true}
+													fixedWidth="435px"
+												/>
+											)}
+										</div>
+									);
+								})()}
+							</div>
+						</div>
+					)}
 				</div>
 			</div>
 		);
@@ -3983,7 +4451,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 		<Language.Provider value={props.lang}>
 			<IntlProvider definition={strings}>
 				<div id="topPane" class={chartData || optimizerChartData ? 'hasResults' : ''}>
-					{mode != Mode.GlobalCompare && (
+					{mode != Mode.GlobalCompare && mode != Mode.GlobalSkillChart && (
 						<RaceTrack courseid={courseId} width={960} height={240} xOffset={20} yOffset={15} yExtra={20} mouseMove={rtMouseMove} mouseLeave={rtMouseLeave} onSkillDrag={handleSkillDrag} regions={mode == Mode.RaceOptimizer && optimizerChartData ? (() => {
 							const optimizerSkillActivations = [];
 							if (optimizerChartData.sk && optimizerChartData.sk[0]) {
@@ -4018,6 +4486,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 					{mode == Mode.GlobalCompare && results.length === 0 ? (
 						<div style={{width: '980px', height: '240px', visibility: 'hidden', pointerEvents: 'none'}}></div>
 					) : null}
+					{mode == Mode.GlobalSkillChart ? resultsPane : null}
 					<div id="runPane">
 						<fieldset>
 							<legend>Mode:</legend>
@@ -4034,6 +4503,10 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 								<label for="mode-chart">Skill Chart</label>
 							</div>
 							<div>
+								<input type="radio" id="mode-global-skill-chart" name="mode" value="global-skill-chart" checked={mode == Mode.GlobalSkillChart} onClick={() => updateUiState(UiStateMsg.SetModeGlobalSkillChart)} />
+								<label for="mode-global-skill-chart">Global Skill Chart</label>
+							</div>
+							<div>
 								<input type="radio" id="mode-uniques-chart" name="mode" value="uniques-chart" checked={mode == Mode.UniquesChart} onClick={() => updateUiState(UiStateMsg.SetModeUniquesChart)} />
 								<label for="mode-uniques-chart">Uma Chart</label>
 							</div>
@@ -4042,7 +4515,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 								<label for="mode-race-optimizer">Race Optimizer</label>
 							</div>
 						</fieldset>
-						{mode == Mode.GlobalCompare && (
+						{(mode == Mode.GlobalCompare || mode == Mode.GlobalSkillChart) && (
 							<>
 								<fieldset id="globalDistanceFieldset" style="border: 1px solid rgb(148, 150, 189); border-radius: 8px; padding: 8px; margin: 5px 0;">
 									<legend style="padding: 0 5px;">Distance:</legend>
@@ -4126,6 +4599,8 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 							? <button id="run" onClick={doGlobalComparison} tabindex={1} disabled={loadingAdditionalSamples.size > 0}>GLOBAL COMPARE</button>
 							: mode == Mode.RaceOptimizer
 							? <button id="run" onClick={doOptimizer} tabindex={1} disabled={loadingAdditionalSamples.size > 0}>OPTIMIZE</button>
+							: mode == Mode.GlobalSkillChart
+							? <button id="run" onClick={doGlobalSkillChart} tabindex={1} disabled={loadingAdditionalSamples.size > 0}>RUN</button>
 							: <button id="run" onClick={doBasinnChart} tabindex={1} disabled={loadingAdditionalSamples.size > 0}>
 								RUN
 							</button>
@@ -4149,6 +4624,12 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 								<input type="number" id="chartRun2Samples" min="1" max="10000" value={chartRun2Samples} onInput={(e) => setChartRun2Samples(Math.max(1, +e.currentTarget.value || 1))} />
 								<label for="chartRun3Samples">Run 3 Samples:</label>
 								<input type="number" id="chartRun3Samples" min="1" max="10000" value={chartRun3Samples} onInput={(e) => setChartRun3Samples(Math.max(1, +e.currentTarget.value || 1))} />
+								<label for="workerCount">Workers:</label>
+								<input type="number" id="workerCount" min="1" max="16" value={workerCount} onInput={(e) => setWorkerCount(Math.max(1, Math.min(16, +e.currentTarget.value)))} />
+							</>
+						)}
+						{mode == Mode.GlobalSkillChart && (
+							<>
 								<label for="workerCount">Workers:</label>
 								<input type="number" id="workerCount" min="1" max="16" value={workerCount} onInput={(e) => setWorkerCount(Math.max(1, Math.min(16, +e.currentTarget.value)))} />
 							</>
@@ -4190,7 +4671,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 								</span>
 							</div>
 						)}
-						{(mode == Mode.Chart || mode == Mode.UniquesChart) && isSimulationRunning && (
+						{(mode == Mode.Chart || mode == Mode.UniquesChart || mode == Mode.GlobalSkillChart) && isSimulationRunning && (
 							<div id="chartProgressBarsContainer" style="display: flex; flex-direction: column; gap: 4px; margin: 5px 0;">
 								{Array.from({length: workerCount}, (_, i) => {
 									const workerIndex = i + 1;
@@ -4335,25 +4816,27 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 								</div>
 							</div>
 						)}
-						{(mode == Mode.Chart || mode == Mode.UniquesChart) && (
+						{(mode == Mode.Chart || mode == Mode.UniquesChart || mode == Mode.GlobalSkillChart) && (
 							<div>
 								<label for="hpconsumption">HP Consumption</label>
 								<input type="checkbox" id="hpconsumption" checked={hpConsumption} onClick={toggleHpConsumption} />
 							</div>
 						)}
-						{mode != Mode.GlobalCompare && (
+						{mode != Mode.GlobalCompare && mode != Mode.GlobalSkillChart && (
 							<div>
 								<label for="showhp">Show HP</label>
 								<input type="checkbox" id="showhp" checked={showHp} onClick={toggleShowHp} />
 							</div>
 						)}
 
-						<a href="#" onClick={generatePresetEntry}>Generate and Copy Preset Entry</a>
-						{mode != Mode.GlobalCompare && (
+						{mode != Mode.GlobalCompare && mode != Mode.GlobalSkillChart && (
+							<a href="#" onClick={generatePresetEntry}>Generate and Copy Preset Entry</a>
+						)}
+						{mode != Mode.GlobalCompare && mode != Mode.GlobalSkillChart && (
 							<RacePresets courseId={courseId} racedef={racedef} set={(courseId, racedef) => { setCourseId(courseId); setRaceDef(racedef); }} />
 						)}
 					</div>
-					{mode != Mode.GlobalCompare && (
+					{mode != Mode.GlobalCompare && mode != Mode.GlobalSkillChart && (
 						<div id="buttonsRow">
 							<TrackSelect key={courseId} courseid={courseId} setCourseid={setCourseId} tabindex={2} />
 							<div id="buttonsRowSpace" />
@@ -4366,7 +4849,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 						</div>
 					)}
 				</div>
-				{mode != Mode.GlobalCompare && mode != Mode.RaceOptimizer && resultsPane}
+				{mode != Mode.GlobalCompare && mode != Mode.GlobalSkillChart && mode != Mode.RaceOptimizer && resultsPane}
 				{mode == Mode.RaceOptimizer && optimizerIterations.length > 0 && resultsPane}
 				{expanded && <div id="umaPane" />}
 				<div id={expanded ? 'umaOverlay' : 'umaPane'}>

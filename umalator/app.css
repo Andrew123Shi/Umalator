@@ -204,6 +204,10 @@ body {
 	grid-template-rows: 1fr;
 }
 
+#topPane:has(#resultsPane.mode-chart) {
+	grid-template-rows: auto;
+}
+
 /* Fix width of globalCompareWrapper to match RaceTrack width (980px) to keep runPane in same position */
 #globalCompareWrapper {
 	width: 980px;
@@ -648,6 +652,34 @@ body {
 #infoTables > table > tbody > tr > td {
 	font-family: monospace;
 	width: 160px;
+}
+
+/* Match Global Compare result tables to stamina stats width */
+#resultsPane.global-compare-mode #infoTables > table > tbody {
+	width: 500px;
+}
+
+#resultsPane.global-compare-mode #infoTables > table > tbody > tr {
+	width: 500px;
+}
+
+#resultsPane.global-compare-mode #infoTables > table > tbody > tr > th,
+#resultsPane.global-compare-mode #infoTables > table > tbody > tr > td {
+	width: 250px;
+}
+
+#resultsPane.global-compare-mode #infoTables > table > caption {
+	padding-right: 0;
+	padding-bottom: 0;
+	text-align: center;
+}
+
+#resultsPane.global-compare-mode #infoTables > table:first-child > caption {
+	margin-top: 0px;
+}
+
+#resultsPane.global-compare-mode #infoTables > table:nth-child(2) > caption {
+	margin-top: 20px;
 }
 
 #umaPane {

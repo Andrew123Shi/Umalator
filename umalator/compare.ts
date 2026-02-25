@@ -2,7 +2,9 @@ import { CourseData, DistanceType, Surface, CourseHelpers } from '../uma-skill-t
 import { RaceParameters, GroundCondition, Weather, Season, Mood } from '../uma-skill-tools/RaceParameters';
 import courses from '../uma-skill-tools/data/course_data.json';
 import { RaceSolver, PosKeepMode } from '../uma-skill-tools/RaceSolver';
-import { RaceSolverBuilder, Perspective, parseStrategy, parseAptitude, buildBaseStats, buildAdjustedStats } from '../uma-skill-tools/RaceSolverBuilder';
+import { RaceSolverBuilder, Perspective, parseStrategy, parseAptitude, buildBaseStats, buildAdjustedStats, buildSkillData } from '../uma-skill-tools/RaceSolverBuilder';
+import { getParser } from '../uma-skill-tools/ConditionParser';
+import { Region, RegionList } from '../uma-skill-tools/Region';
 import { EnhancedHpPolicy } from '../uma-skill-tools/EnhancedHpPolicy';
 import { GameHpPolicy } from '../uma-skill-tools/HpPolicy';
 import { HorseParameters } from '../uma-skill-tools/HorseTypes';
@@ -778,11 +780,16 @@ export function runGlobalComparison(
 ) {
 	// Filter courses by distance type and surface
 	const filteredCourses: CourseData[] = [];
+	const coursesByDistance = new Map<number, CourseData[]>();
 	Object.keys(courses).forEach(courseIdStr => {
 		const courseId = +courseIdStr;
 		const courseData = courses[courseId];
 		if (courseData.distanceType === distanceType && courseData.surface === surface) {
-			filteredCourses.push(CourseHelpers.getCourse(courseId));
+			const normalizedCourse = CourseHelpers.getCourse(courseId);
+			filteredCourses.push(normalizedCourse);
+			const distanceCourses = coursesByDistance.get(normalizedCourse.distance) || [];
+			distanceCourses.push(normalizedCourse);
+			coursesByDistance.set(normalizedCourse.distance, distanceCourses);
 		}
 	});
 
@@ -793,8 +800,9 @@ export function runGlobalComparison(
 	// Generate all valid condition permutations
 	const conditionPermutations: RaceParameters[] = [];
 	
+	const moodsToSample: Mood[] = options?.fixedMood != null ? [options.fixedMood as Mood] : MOODS;
 	for (const season of SEASONS) {
-		for (const mood of MOODS) {
+		for (const mood of moodsToSample) {
 			for (const weatherGround of WEATHER_GROUND_COMBINATIONS) {
 				// Skip snowy weather if not winter
 				if (weatherGround.weather === Weather.Snowy && season !== Season.Winter) {
@@ -913,13 +921,141 @@ export function runGlobalComparison(
 		seasons: [] as Array<{value: Season, result: number}>
 	};
 
+	// Optional conservative skip: only skip a sample when we can prove the tested skill
+	// has no valid static trigger region for this specific course/condition.
+	const shouldSafeSkipByActivatability = options?.safeSkipUnactivatableSkill === true && typeof options?.safeSkipSkillId === 'string';
+	const safeSkipSkillId = shouldSafeSkipByActivatability ? String(options.safeSkipSkillId) : '';
+	const activatableParser = shouldSafeSkipByActivatability ? getParser() : null;
+	const activatableWholeCourse = new RegionList();
+	const activatableCache = new Map<string, boolean>();
+	const uma2HorseForCheck = shouldSafeSkipByActivatability ? uma2.toJS() : null;
+	const uma2BaseStats = shouldSafeSkipByActivatability && uma2HorseForCheck
+		? buildBaseStats(uma2HorseForCheck, uma2HorseForCheck.mood)
+		: null;
+
+	const isSkillActivatableForSample = (course: CourseData, racedef: RaceParameters): boolean => {
+		if (!shouldSafeSkipByActivatability || !activatableParser || !uma2BaseStats) {
+			return true;
+		}
+		const key = [
+			course.raceTrackId,
+			course.distance,
+			racedef.mood,
+			racedef.groundCondition,
+			racedef.weather,
+			racedef.season,
+			racedef.time,
+			racedef.grade
+		].join('|');
+		const cached = activatableCache.get(key);
+		if (cached != null) {
+			return cached;
+		}
+		activatableWholeCourse.length = 0;
+		activatableWholeCourse.push(new Region(0, course.distance));
+		try {
+			const triggers = buildSkillData(
+				uma2BaseStats,
+				racedef,
+				course,
+				activatableWholeCourse,
+				activatableParser,
+				safeSkipSkillId,
+				Perspective.Any
+			);
+			const activatable = triggers.some(trigger => trigger.regions.length > 0 && trigger.regions[0].start < 9999);
+			activatableCache.set(key, activatable);
+			return activatable;
+		} catch (_) {
+			// Not safe to skip if parser/build errors; keep simulation behavior unchanged.
+			activatableCache.set(key, true);
+			return true;
+		}
+	};
+
 	// Run simulations
+	const distanceSamplingPlan: number[] = Array.isArray(options?.distanceSamplingPlan) ? options.distanceSamplingPlan : [];
 	for (let i = 0; i < nsamples; ++i) {
 		// Randomly select a course and condition
-		const courseIndex = rng.uniform(filteredCourses.length);
+		let selectedCoursePool = filteredCourses;
+		if (distanceSamplingPlan.length > 0) {
+			const plannedDistance = distanceSamplingPlan[i % distanceSamplingPlan.length];
+			const plannedCourses = coursesByDistance.get(plannedDistance);
+			if (plannedCourses && plannedCourses.length > 0) {
+				selectedCoursePool = plannedCourses;
+			}
+		}
+		const courseIndex = rng.uniform(selectedCoursePool.length);
 		const conditionIndex = rng.uniform(conditionPermutations.length);
-		const course = filteredCourses[courseIndex];
+		const course = selectedCoursePool[courseIndex];
 		const racedef = conditionPermutations[conditionIndex];
+
+		if (!isSkillActivatableForSample(course, racedef)) {
+			const basinn = 0;
+			allDiffs.push(basinn);
+			raceParams.locations.push({value: course.raceTrackId.toString(), result: basinn});
+			raceParams.lengths.push({value: course.distance, result: basinn});
+			raceParams.terrains.push({value: racedef.groundCondition, result: basinn});
+			raceParams.weathers.push({value: racedef.weather, result: basinn});
+			raceParams.seasons.push({value: racedef.season, result: basinn});
+			if (i === 0 || basinn < minBasinn) {
+				minBasinn = basinn;
+			}
+			if (i === 0 || basinn > maxBasinn) {
+				maxBasinn = basinn;
+			}
+			if (onProgress && ((i + 1) % 20 === 0 || i + 1 === nsamples)) {
+				const sortedDiffs = [...allDiffs].sort((a, b) => a - b);
+				const currentMean = sortedDiffs.reduce((a, b) => a + b, 0) / sortedDiffs.length;
+				const mid = Math.floor(sortedDiffs.length / 2);
+				const currentMedian = sortedDiffs.length % 2 == 0
+					? (sortedDiffs[mid - 1] + sortedDiffs[mid]) / 2
+					: sortedDiffs[mid];
+				onProgress(i + 1, nsamples, {
+					results: sortedDiffs,
+					runData: {
+						minrun: null,
+						maxrun: null,
+						meanrun: null,
+						medianrun: null,
+						allruns: {
+							...aggregatedResults.runData.allruns,
+							totalRuns: i + 1
+						}
+					},
+					staminaStats: {
+						uma1: {
+							staminaSurvivalRate: 0,
+							fullSpurtRate: 0,
+							hpDiedPositionStatsFullSpurt: { count: 0, min: null, max: null, mean: null, median: null },
+							hpDiedPositionStatsNonFullSpurt: { count: 0, min: null, max: null, mean: null, median: null },
+							nonFullSpurtVelocityStats: { count: 0, min: null, max: null, mean: null, median: null },
+							nonFullSpurtDelayStats: { count: 0, min: null, max: null, mean: null, median: null }
+						},
+						uma2: {
+							staminaSurvivalRate: 0,
+							fullSpurtRate: 0,
+							hpDiedPositionStatsFullSpurt: { count: 0, min: null, max: null, mean: null, median: null },
+							hpDiedPositionStatsNonFullSpurt: { count: 0, min: null, max: null, mean: null, median: null },
+							nonFullSpurtVelocityStats: { count: 0, min: null, max: null, mean: null, median: null },
+							nonFullSpurtDelayStats: { count: 0, min: null, max: null, mean: null, median: null }
+						}
+					},
+					firstUmaStats: {
+						uma1: { firstPlaceRate: 0 },
+						uma2: { firstPlaceRate: 0 }
+					},
+					raceParams: {
+						locations: raceParams.locations,
+						lengths: raceParams.lengths,
+						terrains: raceParams.terrains,
+						weathers: raceParams.weathers,
+						seasons: raceParams.seasons
+					}
+				} as any);
+			}
+			continue;
+		}
 
 		// Run comparison for this specific course and condition
 		const result = runComparison(1, course, racedef, uma1, uma2, pacer, {

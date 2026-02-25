@@ -431,6 +431,8 @@
 .addSkillButton > span {
 	font-size: 2em;
 	margin: 0 6px;
+	position: relative;
+	top: -3px;
 }
 
 /* Forced position input styles */

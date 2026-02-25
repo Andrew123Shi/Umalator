@@ -995,6 +995,21 @@ export const Conditions: {[cond: string]: Condition} = Object.freeze({
 		filterGt: notSupported,
 		filterGte: notSupported
 	},
+	// Temporary compatibility alias: treat last_straight_random exactly like is_last_straight.
+	last_straight_random: {
+		samplePolicy: ImmediatePolicy,
+		filterEq(regions: RegionList, one: number, course: CourseData, _: HorseParameters, extra: RaceParameters) {
+			assert(one == 1, 'must be last_straight_random==1');
+			assert(CourseHelpers.isSortedByStart(course.straights), 'course straights must be sorted by start');
+			const lastStraight = course.straights[course.straights.length - 1];
+			return regions.rmap(r => r.intersect(lastStraight));
+		},
+		filterNeq: notSupported,
+		filterLt: notSupported,
+		filterLte: notSupported,
+		filterGt: notSupported,
+		filterGte: notSupported
+	},
 	temptation_count: noopImmediate,
 	temptation_count_behind: noopSectionRandom(2,9),
 	temptation_count_infront: noopSectionRandom(2,9),

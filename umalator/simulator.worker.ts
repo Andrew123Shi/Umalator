@@ -9,6 +9,7 @@ import { runComparison, runGlobalComparison } from './compare';
 import { DistanceType, Surface } from '../uma-skill-tools/CourseData';
 import skillmeta from '../skill_meta.json';
 import { runOptimization, OptimizerIteration } from './optimizer';
+import courses from '../uma-skill-tools/data/course_data.json';
 
 function mergeSkillMaps(map1, map2) {
 	const obj1 = map1 instanceof Map ? Object.fromEntries(map1) : (map1 || {});
@@ -38,6 +39,16 @@ function mergeResults(results1, results2) {
 		...rest2,
 		totalRuns: (totalRuns1 || 0) + (totalRuns2 || 0)
 	};
+
+	const raceParams1 = (results1 as any).raceParams || null;
+	const raceParams2 = (results2 as any).raceParams || null;
+	const mergedRaceParams = raceParams1 || raceParams2 ? {
+		locations: [...(raceParams1?.locations || []), ...(raceParams2?.locations || [])],
+		lengths: [...(raceParams1?.lengths || []), ...(raceParams2?.lengths || [])],
+		terrains: [...(raceParams1?.terrains || []), ...(raceParams2?.terrains || [])],
+		weathers: [...(raceParams1?.weathers || []), ...(raceParams2?.weathers || [])],
+		seasons: [...(raceParams1?.seasons || []), ...(raceParams2?.seasons || [])]
+	} : null;
 	
 	if (skBasinn1 && skBasinn2) {
 		mergedAllRuns.skBasinn = [
@@ -64,6 +75,7 @@ function mergeResults(results1, results2) {
 		max: Math.max(results1.max, results2.max),
 		mean: combinedMean,
 		median: newMedian,
+		raceParams: mergedRaceParams,
 		runData: {
 			...(n2 > n1 ? results2.runData : results1.runData),
 			allruns: mergedAllRuns,
@@ -114,6 +126,90 @@ function run1Round(nsamples: number, skills: string[], course: CourseData, raced
 	return data;
 }
 
+function getDistanceSamplingPlan(distanceType: DistanceType, surface: Surface, samplesPerLength: number): number[] {
+	const distances = new Set<number>();
+	Object.values(courses).forEach((courseData: any) => {
+		if (courseData.distanceType === distanceType && courseData.surface === surface) {
+			distances.add(courseData.distance);
+		}
+	});
+	const sortedDistances = Array.from(distances).sort((a, b) => a - b);
+	const plan: number[] = [];
+	sortedDistances.forEach(distance => {
+		for (let i = 0; i < samplesPerLength; i++) {
+			plan.push(distance);
+		}
+	});
+	return plan;
+}
+
+function run1RoundGlobal(nsamples: number, skills: string[], distanceType: DistanceType, surface: Surface, uma: HorseState, pacer, options, onProgress?: (completed: number, total: number) => void) {
+	const data = new Map();
+	const totalSkills = skills.length;
+	skills.forEach((id, index) => {
+		if (options?.debugSkillLogging) {
+			postMessage({
+				type: 'chart-skill-start',
+				skillId: id,
+				skillIndex: index + 1,
+				totalSkills,
+				round: options?.debugRound,
+				mode: 'global-chart'
+			});
+		}
+
+		const newSkillGroupId = skillmeta[id]?.groupId;
+		let skillsToUse = uma.skills;
+		
+		if (newSkillGroupId) {
+			skillsToUse = skillsToUse.filter((existingSkillId: string) => {
+				const existingGroupId = skillmeta[existingSkillId]?.groupId;
+				return existingGroupId !== newSkillGroupId;
+			});
+		}
+		
+		const withSkill = uma.set('skills', skillsToUse.set(skillmeta[id].groupId, id));
+		const globalOptions = {
+			...options,
+			seed: (options.seed || 0) + index * 9973 + nsamples * 131,
+			fixedMood: uma.mood,
+			safeSkipUnactivatableSkill: true,
+			safeSkipSkillId: id
+		};
+		let result;
+		try {
+			result = runGlobalComparison(nsamples, distanceType, surface, uma, withSkill, pacer, globalOptions);
+		} catch (err) {
+			postMessage({
+				type: 'chart-skill-error',
+				skillId: id,
+				skillIndex: index + 1,
+				totalSkills,
+				round: options?.debugRound,
+				mode: 'global-chart',
+				error: err instanceof Error ? (err.stack || err.message) : String(err)
+			});
+			throw err;
+		}
+		const { results, runData, staminaStats, firstUmaStats, raceParams } = result;
+		const mid = Math.floor(results.length / 2);
+		const median = results.length % 2 == 0 ? (results[mid-1] + results[mid]) / 2 : results[mid];
+		const mean = results.reduce((a,b) => a+b, 0) / results.length;
+		data.set(id, {
+			id, results, runData, staminaStats, firstUmaStats, raceParams,
+			min: results[0],
+			max: results[results.length-1],
+			mean,
+			median
+		});
+		
+		if (onProgress) {
+			onProgress(index + 1, totalSkills);
+		}
+	});
+	return data;
+}
+
 function runChart({skills, course, racedef, uma, pacer, options}) {
 	const uma_ = new HorseState(uma)
 		.set('skills', fromJS(uma.skills))
@@ -151,6 +247,66 @@ function runChart({skills, course, racedef, uma, pacer, options}) {
 	mergeResultSets(results, update);
 	postMessage({type: 'chart', results});
 
+	postMessage({type: 'chart-complete'});
+}
+
+function runGlobalChart({skills, distanceType, surface, uma, pacer, options}) {
+	const uma_ = new HorseState(uma)
+		.set('skills', fromJS(uma.skills))
+		.set('forcedSkillPositions', ImmMap(uma.forcedSkillPositions || {}));
+	const pacer_ = pacer ? new HorseState(pacer)
+		.set('skills', fromJS(pacer.skills || []))
+		.set('forcedSkillPositions', ImmMap(pacer.forcedSkillPositions || {})) : null;
+	
+	const simulateAllSkills = options?.simulateAllSkills !== false;
+	const run2Samples = Math.max(1, Math.floor(options?.globalChartRun2Samples || 50));
+	const run3Samples = Math.max(1, Math.floor(options?.globalChartRun3Samples || 100));
+	const run1SamplesPerLength = Math.max(1, Math.floor(options?.globalChartRun1SamplesPerLength || 5));
+	const run1DistancePlan = getDistanceSamplingPlan(distanceType, surface, run1SamplesPerLength);
+	const run1Samples = run1DistancePlan.length;
+	const totalRounds = 3;
+	
+	let results = new Map();
+	
+	if (simulateAllSkills) {
+		postMessage({type: 'chart-progress', round: 1, total: totalRounds, completed: 0, totalSkills: skills.length});
+		results = run1RoundGlobal(run1Samples, skills, distanceType, surface, uma_, pacer_, {
+			...options,
+			debugRound: 1,
+			distanceSamplingPlan: run1DistancePlan
+		}, (completed, total) => {
+			postMessage({type: 'chart-progress', round: 1, total: totalRounds, completed, totalSkills: total});
+		});
+		postMessage({type: 'chart', results});
+		skills = skills.filter(id => results.get(id).max > 0.1);
+	}
+	
+	const run2RoundIndex = 2;
+	postMessage({type: 'chart-progress', round: run2RoundIndex, total: totalRounds, completed: 0, totalSkills: skills.length});
+	const run2Update = run1RoundGlobal(run2Samples, skills, distanceType, surface, uma_, pacer_, {
+		...options,
+		debugRound: run2RoundIndex
+	}, (completed, total) => {
+		postMessage({type: 'chart-progress', round: run2RoundIndex, total: totalRounds, completed, totalSkills: total});
+	});
+	if (simulateAllSkills) {
+		mergeResultSets(results, run2Update);
+	} else {
+		results = run2Update;
+	}
+	postMessage({type: 'chart', results});
+	skills = skills.filter(id => Math.abs(results.get(id).max - results.get(id).min) > 0.1);
+	
+	const run3RoundIndex = 3;
+	postMessage({type: 'chart-progress', round: run3RoundIndex, total: totalRounds, completed: 0, totalSkills: skills.length});
+	const run3Update = run1RoundGlobal(run3Samples, skills, distanceType, surface, uma_, pacer_, {
+		...options,
+		debugRound: run3RoundIndex
+	}, (completed, total) => {
+		postMessage({type: 'chart-progress', round: run3RoundIndex, total: totalRounds, completed, totalSkills: total});
+	});
+	mergeResultSets(results, run3Update);
+	postMessage({type: 'chart', results});
 	postMessage({type: 'chart-complete'});
 }
 
@@ -297,6 +453,9 @@ self.addEventListener('message', function (e) {
 	switch (msg) {
 		case 'chart':
 			runChart(data);
+			break;
+		case 'global-chart':
+			runGlobalChart(data);
 			break;
 		case 'compare':
 			runCompare(data);
