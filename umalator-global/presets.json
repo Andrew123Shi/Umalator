@@ -1,0 +1,119 @@
+[
+  {
+    "id": 9,
+    "type": "CM",
+    "name": "Aquarius Cup",
+    "date": "2026-03",
+    "courseId": 10611,
+    "season": "Winter",
+    "ground": "Good",
+    "weather": "Sunny",
+    "time": "Midday"
+  },
+  {
+    "id": 8,
+    "type": "CM",
+    "name": "Capricorn Cup",
+    "date": "2026-02",
+    "courseId": 10701,
+    "season": "Winter",
+    "ground": "Soft",
+    "weather": "Rainy",
+    "time": "Midday"
+  },
+  {
+    "id": 7,
+    "type": "CM",
+    "name": "Scorpio Cup",
+    "date": "2026-01",
+    "courseId": 10604,
+    "season": "Autumn",
+    "ground": "Soft",
+    "weather": "Rainy",
+    "time": "Midday"
+  },
+  {
+    "id": 6,
+    "type": "CM",
+    "name": "Libra Cup",
+    "date": "2025-12",
+    "courseId": 10810,
+    "season": "Autumn",
+    "ground": "Good",
+    "weather": "Sunny",
+    "time": "Midday"
+  },
+  {
+    "id": 5,
+    "type": "CM",
+    "name": "Virgo Cup",
+    "date": "2025-11-20",
+    "courseId": 10903,
+    "season": "Autumn",
+    "ground": "Good",
+    "weather": "Sunny",
+    "time": "Midday"
+  },
+  {
+    "id": 4,
+    "type": "CM",
+    "name": "Leo Cup",
+    "date": "2025-10-30",
+    "courseId": 10906,
+    "season": "Summer",
+    "ground": "Good",
+    "weather": "Sunny",
+    "time": "Midday"
+  },
+  {
+    "id": 3,
+    "type": "CM",
+    "name": "Cancer Cup",
+    "date": "2025-10-07",
+    "courseId": 10602,
+    "season": "Summer",
+    "ground": "Yielding",
+    "weather": "Sunny",
+    "time": "Midday"
+  },
+  {
+    "id": 2,
+    "type": "CM",
+    "name": "Gemini Cup",
+    "date": "2025-09",
+    "courseId": 10811,
+    "season": "Spring",
+    "ground": "Good",
+    "weather": "Sunny",
+    "time": "Midday"
+  },
+  {
+    "id": 1,
+    "type": "CM",
+    "name": "Taurus Cup",
+    "date": "2025-08",
+    "courseId": 10606,
+    "season": "Spring",
+    "ground": "Good",
+    "weather": "Sunny",
+    "time": "Midday"
+  },
+  {
+    "name": "Moonlight Sho (Daily Race, Monies)",
+    "date": "2025-06",
+    "courseId": 10805,
+    "season": "Spring",
+    "ground": "Good",
+    "weather": "Sunny",
+    "time": "Midday"
+  },
+  {
+    "name": "Jupiter Cup (Daily Race, SP)",
+    "date": "2025-06",
+    "courseId": 10504,
+    "season": "Spring",
+    "ground": "Good",
+    "weather": "Sunny",
+    "time": "Midday"
+  }
+]

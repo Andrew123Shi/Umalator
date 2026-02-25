@@ -29,6 +29,8 @@ import { IntroText } from './IntroText';
 import skilldata from '../uma-skill-tools/data/skill_data.json';
 import skillnames from '../uma-skill-tools/data/skillnames.json';
 import skillmeta from '../skill_meta.json';
+import nonGlobalPresetDefs from './presets.json';
+import globalPresetDefs from '../umalator-global/presets.json';
 
 // Global build flag injected at runtime
 declare const CC_GLOBAL: boolean;
@@ -51,40 +53,97 @@ class RaceParams extends Record({
 
 const enum EventType { CM, LOH }
 
-const presets = (CC_GLOBAL ? [
-	{id: 7, type: EventType.CM, name: 'Scorpio Cup', date: '2026-01', courseId: 10604, season: Season.Autumn, ground: GroundCondition.Soft, weather: Weather.Rainy, time: Time.Midday},
-	{id: 6, type: EventType.CM, name: 'Libra Cup', date: '2025-12', courseId: 10810, season: Season.Autumn, ground: GroundCondition.Good, weather: Weather.Sunny, time: Time.Midday},
-	{id: 5, type: EventType.CM, name: 'Virgo Cup', date: '2025-11-20', courseId: 10903, season: Season.Autumn, ground: GroundCondition.Good, weather: Weather.Sunny, time: Time.Midday},
-	{id: 4, type: EventType.CM, name: 'Leo Cup', date: '2025-10-30', courseId: 10906, season: Season.Summer, ground: GroundCondition.Good, weather: Weather.Sunny, time: Time.Midday},
-	{id: 3, type: EventType.CM, name: 'Cancer Cup', date: '2025-10-07', courseId: 10602, season: Season.Summer, ground: GroundCondition.Yielding, weather: Weather.Sunny, time: Time.Midday},
-	{id: 2, type: EventType.CM, name: 'Gemini Cup', date: '2025-09', courseId: 10811, season: Season.Spring, ground: GroundCondition.Good, weather: Weather.Sunny, time: Time.Midday},
-	{id: 1, type: EventType.CM, name: 'Taurus Cup', date: '2025-08', courseId: 10606, season: Season.Spring, ground: GroundCondition.Good, weather: Weather.Sunny, time: Time.Midday}
-] : [
-	{type: EventType.LOH, date: '2026-02', courseId: 10602, season: Season.Winter, time: Time.Midday},
-	{type: EventType.CM, date: '2026-01', courseId: 10506, season: Season.Winter, ground: GroundCondition.Good, weather: Weather.Sunny, time: Time.Midday},
-	{type: EventType.CM, date: '2025-12-21', courseId: 10903, season: Season.Winter, ground: GroundCondition.Good, weather: Weather.Sunny, time: Time.Midday},
-	{type: EventType.LOH, date: '2025-11', courseId: 11502, season: Season.Autumn, time: Time.Midday},
-	{type: EventType.CM, date: '2025-10', courseId: 10302, season: Season.Autumn, ground: GroundCondition.Good, weather: Weather.Cloudy, time: Time.Midday},
-	{type: EventType.CM, date: '2025-09-22', courseId: 10807, season: Season.Autumn, ground: GroundCondition.Good, weather: Weather.Sunny, time: Time.Midday},
-	{type: EventType.LOH, date: '2025-08', courseId: 10105, season: Season.Summer, Time: Time.Midday},
-	{type: EventType.CM, date: '2025-07-25', courseId: 10906, ground: GroundCondition.Yielding, weather: Weather.Cloudy, season: Season.Summer, time: Time.Midday},
-	{type: EventType.CM, date: '2025-06-21', courseId: 10606, ground: GroundCondition.Good, weather: Weather.Sunny, season: Season.Spring, time: Time.Midday}
-])
-	.map(def => ({
-		id: def.id,
-		name: def.name,
-		type: def.type,
-		date: new Date(def.date),
-		courseId: def.courseId,
-		racedef: new RaceParams({
-			mood: 2 as Mood,
-			ground: def.type == EventType.CM ? def.ground : GroundCondition.Good,
-			weather: def.type == EventType.CM ? def.weather : Weather.Sunny,
-			season: def.season,
-			time: def.time,
-			grade: Grade.G1
-		})
-	}))
+const PRESET_EVENT_TYPE = Object.freeze({
+	CM: EventType.CM,
+	LOH: EventType.LOH
+});
+const PRESET_SEASON = Object.freeze({
+	Spring: Season.Spring,
+	Summer: Season.Summer,
+	Autumn: Season.Autumn,
+	Winter: Season.Winter,
+	Sakura: Season.Sakura
+});
+const PRESET_GROUND = Object.freeze({
+	Good: GroundCondition.Good,
+	Yielding: GroundCondition.Yielding,
+	Soft: GroundCondition.Soft,
+	Heavy: GroundCondition.Heavy
+});
+const PRESET_WEATHER = Object.freeze({
+	Sunny: Weather.Sunny,
+	Cloudy: Weather.Cloudy,
+	Rainy: Weather.Rainy,
+	Snowy: Weather.Snowy
+});
+const PRESET_TIME = Object.freeze({
+	NoTime: Time.NoTime,
+	Morning: Time.Morning,
+	Midday: Time.Midday,
+	Evening: Time.Evening,
+	Night: Time.Night
+});
+const PRESET_SEASON_LABEL = Object.freeze({
+	[Season.Spring]: 'Spring',
+	[Season.Summer]: 'Summer',
+	[Season.Autumn]: 'Autumn',
+	[Season.Winter]: 'Winter',
+	[Season.Sakura]: 'Sakura'
+});
+const PRESET_GROUND_LABEL = Object.freeze({
+	[GroundCondition.Good]: 'Good',
+	[GroundCondition.Yielding]: 'Yielding',
+	[GroundCondition.Soft]: 'Soft',
+	[GroundCondition.Heavy]: 'Heavy'
+});
+const PRESET_WEATHER_LABEL = Object.freeze({
+	[Weather.Sunny]: 'Sunny',
+	[Weather.Cloudy]: 'Cloudy',
+	[Weather.Rainy]: 'Rainy',
+	[Weather.Snowy]: 'Snowy'
+});
+const PRESET_TIME_LABEL = Object.freeze({
+	[Time.NoTime]: 'NoTime',
+	[Time.Morning]: 'Morning',
+	[Time.Midday]: 'Midday',
+	[Time.Evening]: 'Evening',
+	[Time.Night]: 'Night'
+});
+const presetDefs = CC_GLOBAL ? globalPresetDefs : nonGlobalPresetDefs;
+
+type PresetDef = {
+	id?: number
+	name?: string
+	type?: string
+	date: string
+	courseId: number
+	season: keyof typeof PRESET_SEASON
+	time: keyof typeof PRESET_TIME
+	ground?: keyof typeof PRESET_GROUND
+	weather?: keyof typeof PRESET_WEATHER
+}
+
+const presets = (presetDefs as PresetDef[])
+	.map(def => {
+		const typeKey = typeof def.type == 'string' ? def.type.trim() : '';
+		const eventType = typeKey.length > 0 ? PRESET_EVENT_TYPE[typeKey as keyof typeof PRESET_EVENT_TYPE] : undefined;
+		return {
+			id: def.id,
+			name: def.name,
+			type: eventType,
+			rawType: typeKey,
+			date: new Date(def.date),
+			courseId: def.courseId,
+			racedef: new RaceParams({
+				mood: 2 as Mood,
+				ground: eventType == EventType.CM ? PRESET_GROUND[def.ground ?? 'Good'] : GroundCondition.Good,
+				weather: eventType == EventType.CM ? PRESET_WEATHER[def.weather ?? 'Sunny'] : Weather.Sunny,
+				season: PRESET_SEASON[def.season],
+				time: PRESET_TIME[def.time],
+				grade: Grade.G1
+			})
+		};
+	})
 	.sort((a,b) => +b.date - +a.date);
 
 const DEFAULT_PRESET = presets[Math.max(presets.findIndex((now => p => new Date(p.date.getFullYear(), p.date.getUTCMonth() + 1, 0) < now)(new Date())) - 1, 0)];
@@ -1993,12 +2052,31 @@ function updateResultsState(state: typeof EMPTY_RESULTS_STATE, o: number | strin
 function RacePresets(props) {
 	const id = useId();
 	const selectedIdx = presets.findIndex(p => p.courseId == props.courseId && p.racedef.equals(props.racedef));
+	const presetLabel = p => {
+		const hasName = typeof p.name == 'string' && p.name.trim().length > 0;
+		const hasId = typeof p.id == 'number';
+		if (p.rawType == 'CM' || p.rawType == 'LOH') {
+			if (hasId && hasName) return `${p.rawType} ${p.id} - ${p.name}`;
+			if (hasName) return `${p.rawType} - ${p.name}`;
+			if (hasId) return `${p.rawType} ${p.id}`;
+		}
+		const course = courses[p.courseId];
+		if (course == null) {
+			return (p.name ?? 'Preset') + ' - Unknown course';
+		}
+		const raceTrack = TRACKNAMES_en[course.raceTrackId] ?? String(course.raceTrackId);
+		const trackType = course.surface == Surface.Turf ? 'Turf' : 'Dirt';
+		const direction = course.turn == 1 ? 'Right' : course.turn == 2 ? 'Left' : 'Straight';
+		const distance = typeof course.distance == 'number' ? `${course.distance}m` : '';
+		const laneType = course.course == 2 ? ' / Outer' : course.course == 3 ? ' / Inner' : '';
+		return `${p.name ?? 'Preset'} - ${raceTrack} ${trackType} ${distance} ${direction}${laneType}`;
+	};
 	return (
 		<Fragment>
 			<label for={id}>Preset:</label>
 			<select id={id} onChange={e => { const i = +e.currentTarget.value; i > -1 && props.set(presets[i].courseId, presets[i].racedef); }}>
 				<option value="-1"></option>
-				{presets.map((p,i) => <option value={i} selected={i == selectedIdx}>{'CM ' + p.id + ' - ' + p.name}</option>)}
+				{presets.map((p,i) => <option value={i} selected={i == selectedIdx}>{presetLabel(p)}</option>)}
 			</select>
 		</Fragment>
 	);
@@ -2603,16 +2681,20 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 		}
 	}, [posKeepMode, selectedPacemakerIndices.length]);
 
-	function copyStateUrl(e) {
+	function generatePresetEntry(e) {
 		e.preventDefault();
-		serialize(courseId, nsamples, seed, posKeepMode, racedef, uma1, uma2, pacer, showVirtualPacemakerOnGraph, pacemakerCount, getSelectedPacemakers(), showLanes, {
-			syncRng,
-			skillWisdomCheck,
-			rushedKakari
-		}, competeFight, leadCompetition, duelingRates).then(hash => {
-			const url = window.location.protocol + '//' + window.location.host + window.location.pathname;
-			window.navigator.clipboard.writeText(url + '#' + hash);
-		});
+		const today = new Date();
+		const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+		const preset = {
+			name: 'UNTITLED',
+			date,
+			courseId,
+			season: PRESET_SEASON_LABEL[racedef.season],
+			ground: PRESET_GROUND_LABEL[racedef.ground],
+			weather: PRESET_WEATHER_LABEL[racedef.weather],
+			time: PRESET_TIME_LABEL[racedef.time]
+		};
+		window.navigator.clipboard.writeText(JSON.stringify(preset, null, 2));
 	}
 
 	function copyUmaToRight() {
@@ -4163,7 +4245,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 							</div>
 						)}
 
-						<a href="#" onClick={copyStateUrl}>Copy link</a>
+						<a href="#" onClick={generatePresetEntry}>Generate and Copy Preset Entry</a>
 						{mode != Mode.GlobalCompare && (
 							<RacePresets courseId={courseId} racedef={racedef} set={(courseId, racedef) => { setCourseId(courseId); setRaceDef(racedef); }} />
 						)}

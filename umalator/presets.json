@@ -1,0 +1,77 @@
+[
+  {
+    "type": "LOH",
+    "date": "2026-02",
+    "courseId": 10602,
+    "season": "Winter",
+    "time": "Midday"
+  },
+  {
+    "type": "CM",
+    "date": "2026-01",
+    "courseId": 10506,
+    "season": "Winter",
+    "ground": "Good",
+    "weather": "Sunny",
+    "time": "Midday"
+  },
+  {
+    "type": "CM",
+    "date": "2025-12-21",
+    "courseId": 10903,
+    "season": "Winter",
+    "ground": "Good",
+    "weather": "Sunny",
+    "time": "Midday"
+  },
+  {
+    "type": "LOH",
+    "date": "2025-11",
+    "courseId": 11502,
+    "season": "Autumn",
+    "time": "Midday"
+  },
+  {
+    "type": "CM",
+    "date": "2025-10",
+    "courseId": 10302,
+    "season": "Autumn",
+    "ground": "Good",
+    "weather": "Cloudy",
+    "time": "Midday"
+  },
+  {
+    "type": "CM",
+    "date": "2025-09-22",
+    "courseId": 10807,
+    "season": "Autumn",
+    "ground": "Good",
+    "weather": "Sunny",
+    "time": "Midday"
+  },
+  {
+    "type": "LOH",
+    "date": "2025-08",
+    "courseId": 10105,
+    "season": "Summer",
+    "time": "Midday"
+  },
+  {
+    "type": "CM",
+    "date": "2025-07-25",
+    "courseId": 10906,
+    "ground": "Yielding",
+    "weather": "Cloudy",
+    "season": "Summer",
+    "time": "Midday"
+  },
+  {
+    "type": "CM",
+    "date": "2025-06-21",
+    "courseId": 10606,
+    "ground": "Good",
+    "weather": "Sunny",
+    "season": "Spring",
+    "time": "Midday"
+  }
+]

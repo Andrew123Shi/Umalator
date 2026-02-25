@@ -22,6 +22,9 @@ const root = path.join(dirname, '..');
 const redirectData = {
 	name: 'redirectData',
 	setup(build) {
+		build.onResolve({filter: /^\.\/presets\.json$/}, () => ({
+			path: path.join(dirname, 'presets.json')
+		}));
 		build.onResolve({filter: /^\.\.?(?:\/uma-skill-tools)?\/data\//}, args => ({
 			path: path.join(dirname, args.path.split('/data/')[1])
 		}));
