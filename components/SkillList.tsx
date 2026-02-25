@@ -9,7 +9,7 @@ import { SkillRarity } from '../uma-skill-tools/RaceSolver.ts';
 import { useLanguage } from './Language';
 import { Tooltip } from './Tooltip';
 import { isDebuffSkill } from './HorseDefTypes';
-import { getSkillRatingContribution } from './CareerRating';
+import { getSkillRatingContribution, calcUniqueBonus } from './CareerRating';
 
 import './SkillList.css';
 
@@ -363,6 +363,47 @@ function formatSpeed(n: number) {
 	return <Text id="skilldetails.speed" plural={n} fields={{n: forceSign(n)}} />;
 }
 
+function formatSigFigs(n: number, digits: number = 3) {
+	if (n === 0) return '0';
+	return Number(n.toPrecision(digits)).toString();
+}
+
+function uniqueLevelMultiplier(effectType: number, uniqueLevel: number) {
+	const level = Math.min(6, Math.max(1, uniqueLevel));
+	if (effectType === 9) {
+		// Recovery unique effects: +2% per level above Lv1.
+		return 1 + 0.02 * (level - 1);
+	}
+	// Other unique effects: +1% at Lv2, then +3% per level after.
+	if (level === 1) return 1;
+	if (level === 2) return 1.01;
+	return 1.01 + 0.03 * (level - 2);
+}
+
+function formatEffectiveEffectValue(effectType: number, value: number) {
+	const n = formatSigFigs(value);
+	switch (effectType) {
+	case 21:
+	case 22:
+	case 27:
+		return `${forceSign(+n)}m/s`;
+	case 31:
+		return `${forceSign(+n)}m/s²`;
+	case 9:
+		return `${formatSigFigs(value * 100)}%`;
+	case 42:
+		return `${n}×`;
+	case 1:
+	case 2:
+	case 3:
+	case 4:
+	case 5:
+		return forceSign(+n);
+	default:
+		return forceSign(+n);
+	}
+}
+
 const formatEffect = Object.freeze({
 	1: formatStat,
 	2: formatStat,
@@ -381,6 +422,8 @@ export function ExpandedSkillDetails(props) {
 	const skill = skilldata[props.id];
 	const lang = useLanguage();
 	const isUnique = skill.rarity >= 3 && skill.rarity <= 5;
+	const uniqueLevel = props.uniqueLevel || 0;
+	const starLevel = props.starLevel || 3;
 	const [scoreContribution, setScoreContribution] = useState<number | null>(null);
 	
 	const meta = skillmeta[props.id];
@@ -418,6 +461,13 @@ export function ExpandedSkillDetails(props) {
 			setScoreContribution(0);
 		});
 	}, [props.id]);
+
+	const displayedScoreContribution = useMemo(() => {
+		if (isUnique) {
+			return calcUniqueBonus(starLevel, uniqueLevel);
+		}
+		return scoreContribution;
+	}, [isUnique, starLevel, uniqueLevel, scoreContribution]);
 	
 	return (
 		<IntlProvider definition={lang == 'ja' ? STRINGS_ja : STRINGS_en}>
@@ -446,12 +496,25 @@ export function ExpandedSkillDetails(props) {
 							</div>
 							<Text id="skilldetails.effects" />
 							<div class="skillEffects">
-								{alt.effects.map(ef =>
-									<div class="skillEffect">
-										<span class="skillEffectType"><Text id={`skilleffecttypes.${ef.type}`}>{ef.type}</Text></span>
-										<span class="skillEffectValue">{ef.type in formatEffect ? formatEffect[ef.type](ef.modifier / 10000) : ef.modifier / 10000}</span>
-									</div>
-								)}
+								{alt.effects.map((ef, efIndex) => {
+									const rawValue = ef.modifier / 10000;
+									const showEffective = isUnique && uniqueLevel > 0;
+									const effectiveValue = showEffective ? rawValue * uniqueLevelMultiplier(ef.type, uniqueLevel) : rawValue;
+									return (
+										<Fragment key={`${altIndex}-${efIndex}-${ef.type}`}>
+											<div class="skillEffect">
+												<span class="skillEffectType"><Text id={`skilleffecttypes.${ef.type}`}>{ef.type}</Text></span>
+												<span class="skillEffectValue">{ef.type in formatEffect ? formatEffect[ef.type](rawValue) : rawValue}</span>
+											</div>
+											{showEffective && (
+												<div class="skillEffect">
+													<span class="skillEffectType">Eff. <Text id={`skilleffecttypes.${ef.type}`}>{ef.type}</Text> (Lv{uniqueLevel})</span>
+													<span class="skillEffectValue">{formatEffectiveEffectValue(ef.type, effectiveValue)}</span>
+												</div>
+											)}
+										</Fragment>
+									);
+								})}
 							</div>
 							{alt.baseDuration > 0 && <span class="skillDuration"><Text id="skilldetails.baseduration" />{' '}<Text id="skilldetails.seconds" fields={{n: alt.baseDuration / 10000}} /></span>}
 							{props.distanceFactor && alt.baseDuration > 0 &&
@@ -463,7 +526,7 @@ export function ExpandedSkillDetails(props) {
 							{altIndex === skill.alternatives.length - 1 && (
 								<>
 									{!isUnique && totalBaseCost !== undefined && <span class="skillDuration">Base cost: {totalBaseCost}</span>}
-									<span class="skillDuration">Score contribution: {scoreContribution !== null ? scoreContribution.toLocaleString() : '...'}</span>
+									<span class="skillDuration">Score contribution: {displayedScoreContribution !== null ? displayedScoreContribution.toLocaleString() : '...'}</span>
 								</>
 							)}
 						</div>

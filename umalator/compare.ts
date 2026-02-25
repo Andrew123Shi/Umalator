@@ -85,33 +85,33 @@ export function runComparison(nsamples: number, course: CourseData, racedef: Rac
 	uma1_.skills.sort(sort).forEach(id => {
 		const forcedPos = uma1.forcedSkillPositions.get(id);
 		if (forcedPos != null) {
-			standard.addSkillAtPosition(id, forcedPos, Perspective.Self);
+			standard.addSkillAtPosition(id, forcedPos, Perspective.Self, undefined, uma1.uniqueLevel);
 		} else {
-			standard.addSkill(id, Perspective.Self);
+			standard.addSkill(id, Perspective.Self, undefined, undefined, uma1.uniqueLevel);
 		}
 	});
 	uma2_.skills.sort(sort).forEach(id => {
 		const forcedPos = uma2.forcedSkillPositions.get(id);
 		if (forcedPos != null) {
-			compare.addSkillAtPosition(id, forcedPos, Perspective.Self);
+			compare.addSkillAtPosition(id, forcedPos, Perspective.Self, undefined, uma2.uniqueLevel);
 		} else {
-			compare.addSkill(id, Perspective.Self);
+			compare.addSkill(id, Perspective.Self, undefined, undefined, uma2.uniqueLevel);
 		}
 	});
 	uma1_.skills.forEach(id => {
 		const forcedPos = uma1.forcedSkillPositions.get(id);
 		if (forcedPos != null) {
-			compare.addSkillAtPosition(id, forcedPos, Perspective.Other, uma1Wisdom);
+			compare.addSkillAtPosition(id, forcedPos, Perspective.Other, uma1Wisdom, uma1.uniqueLevel);
 		} else {
-			compare.addSkill(id, Perspective.Other, undefined, uma1Wisdom); 
+			compare.addSkill(id, Perspective.Other, undefined, uma1Wisdom, uma1.uniqueLevel); 
 		}
 	});
 	uma2_.skills.forEach(id => {
 		const forcedPos = uma2.forcedSkillPositions.get(id);
 		if (forcedPos != null) {
-			standard.addSkillAtPosition(id, forcedPos, Perspective.Other, uma2Wisdom);
+			standard.addSkillAtPosition(id, forcedPos, Perspective.Other, uma2Wisdom, uma2.uniqueLevel);
 		} else {
-			standard.addSkill(id, Perspective.Other, undefined, uma2Wisdom);
+			standard.addSkill(id, Perspective.Other, undefined, uma2Wisdom, uma2.uniqueLevel);
 		} 
 	});
 	if (!CC_GLOBAL) {

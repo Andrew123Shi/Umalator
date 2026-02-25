@@ -749,6 +749,7 @@ export function HorseDef(props) {
 						  id={id} 
 						  distanceFactor={props.courseDistance} 
 						  dismissable={id != u}
+						  starLevel={state.starLevel || 3}
 						  forcedPosition={state.forcedSkillPositions.get(id) || ''}
 						  onPositionChange={(value: string) => handlePositionChange(id, value)}
 						  runData={hasRunData ? props.runData : null}

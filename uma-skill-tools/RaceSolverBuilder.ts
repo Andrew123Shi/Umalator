@@ -25,6 +25,7 @@ export interface HorseDesc {
 	surfaceAptitude: string | Aptitude
 	strategyAptitude: string | Aptitude
 	mood: Mood
+	uniqueLevel?: number
 }
 
 const GroundSpeedModifier = Object.freeze([
@@ -253,7 +254,30 @@ function buildSkillEffects(skill, perspective: Perspective) {
 	}));
 }
 
-export function buildSkillData(horse: HorseParameters, raceParams: PartialRaceParameters, course: CourseData, wholeCourse: RegionList, parser: {parse: any, tokenize: any}, skillId: string, perspective: Perspective, ignoreNullEffects: boolean = false) {
+function uniqueLevelMultiplier(effectType: SkillType, uniqueLevel?: number): number {
+	// In game, uniques are effectively Lv1 by default.
+	const level = Math.min(6, Math.max(1, uniqueLevel ?? 1));
+	if (effectType === SkillType.Recovery) {
+		// Recovery uniques: +2% per level above Lv1.
+		return 1 + 0.02 * (level - 1);
+	}
+	// Other unique effects: +1% at Lv2, then +3% per level after.
+	if (level === 1) return 1;
+	if (level === 2) return 1.01;
+	return 1.01 + 0.03 * (level - 2);
+}
+
+function applyUniqueLevelScaling(effects: SkillEffect[], rarity: number, uniqueLevel?: number): SkillEffect[] {
+	if (rarity < SkillRarity.Unique || rarity >= SkillRarity.Evolution || uniqueLevel == null || uniqueLevel <= 0) {
+		return effects;
+	}
+	return effects.map(ef => ({
+		...ef,
+		modifier: ef.modifier * uniqueLevelMultiplier(ef.type, uniqueLevel)
+	}));
+}
+
+export function buildSkillData(horse: HorseParameters, raceParams: PartialRaceParameters, course: CourseData, wholeCourse: RegionList, parser: {parse: any, tokenize: any}, skillId: string, perspective: Perspective, ignoreNullEffects: boolean = false, uniqueLevel?: number) {
 	if (!(skillId in skills)) {
 		throw new Error('bad skill ID ' + skillId);
 	}
@@ -291,9 +315,9 @@ export function buildSkillData(horse: HorseParameters, raceParams: PartialRacePa
 			// !!! FIXME this is actually bugged for NY Ace unique since she'll get both effects if she uses oonige.
 			continue;
 		}
-		const effects = buildSkillEffects(skill, perspective);
+		const rarity = skills[skillId].rarity;
+		const effects = applyUniqueLevelScaling(buildSkillEffects(skill, perspective), rarity, uniqueLevel);
 		if (effects.length > 0 || ignoreNullEffects) {
-			const rarity = skills[skillId].rarity;
 			triggers.push({
 				skillId: skillId,
 				perspective: perspective,
@@ -311,11 +335,11 @@ export function buildSkillData(horse: HorseParameters, raceParams: PartialRacePa
 	// however, for purposes of summer goldship unique (Adventure of 564), we still have to add something, since
 	// that could still cause them to activate. so just add the first alternative at a location after the course
 	// is over with a constantly false dynamic condition so that it never activates normally.
-	const effects = buildSkillEffects(alternatives[0], perspective);
+	const rarity = skills[skillId].rarity;
+	const effects = applyUniqueLevelScaling(buildSkillEffects(alternatives[0], perspective), rarity, uniqueLevel);
 	if (effects.length == 0 && !ignoreNullEffects) {
 		return [];
 	} else {
-		const rarity = skills[skillId].rarity;
 		const afterEnd = new RegionList();
 		afterEnd.push(new Region(9999,9999));
 		return [{
@@ -398,7 +422,7 @@ export class RaceSolverBuilder {
 	_rng: SeededRng
 	_seed: number
 	_parser: {parse: any, tokenize: any}
-	_skills: {id: string, p: Perspective, originWisdom?: number}[]
+	_skills: {id: string, p: Perspective, originWisdom?: number, uniqueLevel?: number}[]
 	_samplePolicyOverride: Map<string, ActivationSamplePolicy>
 	_extraSkillHooks: ((skilldata: SkillData[], horse: HorseParameters, course: CourseData) => void)[]
 	_onSkillActivate: (state: RaceSolver, skillId: string) => void
@@ -547,7 +571,7 @@ export class RaceSolverBuilder {
 		if (pacerBaseHorse) {
 			this._pacerSkillIds = horse.skills;
 			const makePacerSkill = buildSkillData.bind(null, pacerBaseHorse, this._raceParams, this._course, wholeCourse, this._parser);
-			pacerSkillData = this._pacerSkillIds.flatMap(id => makePacerSkill(id, Perspective.Self));
+			pacerSkillData = this._pacerSkillIds.flatMap(id => makePacerSkill(id, Perspective.Self, false, horse.uniqueLevel));
 			this._pacerSkillData = pacerSkillData;
 		}
 
@@ -714,8 +738,8 @@ export class RaceSolverBuilder {
 		return this;
 	}
 
-	addSkill(skillId: string, perspective: Perspective = Perspective.Self, samplePolicy?: ActivationSamplePolicy, originWisdom?: number) {
-		this._skills.push({id: skillId, p: perspective, originWisdom});
+	addSkill(skillId: string, perspective: Perspective = Perspective.Self, samplePolicy?: ActivationSamplePolicy, originWisdom?: number, uniqueLevel?: number) {
+		this._skills.push({id: skillId, p: perspective, originWisdom, uniqueLevel});
 		if (samplePolicy != null) {
 			this._samplePolicyOverride.set(this.getSamplePolicyKey(skillId, perspective), samplePolicy);
 		}
@@ -730,9 +754,9 @@ export class RaceSolverBuilder {
 	 * @param perspective Whether this skill is for Self or Other (default: Self)
 	 * @returns this builder for chaining
 	 */
-	addSkillAtPosition(skillId: string, position: number, perspective: Perspective = Perspective.Self, originWisdom?: number) {
+	addSkillAtPosition(skillId: string, position: number, perspective: Perspective = Perspective.Self, originWisdom?: number, uniqueLevel?: number) {
 		const { createFixedPositionPolicy } = require('./ActivationSamplePolicy');
-		return this.addSkill(skillId, perspective, createFixedPositionPolicy(position), originWisdom);
+		return this.addSkill(skillId, perspective, createFixedPositionPolicy(position), originWisdom, uniqueLevel);
 	}
 	
 	posKeepMode(mode: PosKeepMode) {
@@ -830,7 +854,7 @@ export class RaceSolverBuilder {
 		Object.freeze(wholeCourse);
 
 		const makeSkill = buildSkillData.bind(null, horse, this._raceParams, this._course, wholeCourse, this._parser);
-		const skilldata = this._skills.flatMap(({id,p}) => makeSkill(id, p));
+		const skilldata = this._skills.flatMap(({id,p,uniqueLevel}) => makeSkill(id, p, false, uniqueLevel));
 		this._extraSkillHooks.forEach(h => h(skilldata, horse, this._course));
 		const triggers = skilldata.map(sd => {
 			const key = sd.perspective != null ? this.getSamplePolicyKey(sd.skillId, sd.perspective) : sd.skillId;
