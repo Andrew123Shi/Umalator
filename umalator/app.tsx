@@ -2247,7 +2247,7 @@ function App(props) {
 	const chartWorkerCountRef = useRef(8);
 	const activeWorkersRef = useRef<Set<number>>(new Set());
 	const [posKeepMode, setPosKeepModeRaw] = useState(PosKeepMode.Approximate);
-	const [showHp, toggleShowHp] = useReducer((b,_) => !b, false);
+	const [showHp, toggleShowHp] = useReducer((b,_) => !b, true);
 	const [hpConsumption, toggleHpConsumption] = useReducer((b,_) => !b, true);
 	const [showLanes, toggleShowLanes] = useReducer((b,_) => !b, false);
 	
