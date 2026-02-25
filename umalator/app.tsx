@@ -2235,6 +2235,9 @@ function App(props) {
 	const [racedef, setRaceDef] = useState(() => DEFAULT_PRESET.racedef);
 	const [nsamples, setSamples] = useState(DEFAULT_SAMPLES);
 	const [workerCount, setWorkerCount] = useState(8);
+	const [chartRun1Samples, setChartRun1Samples] = useState(5);
+	const [chartRun2Samples, setChartRun2Samples] = useState(25);
+	const [chartRun3Samples, setChartRun3Samples] = useState(100);
 	const [seed, setSeed] = useState(DEFAULT_SEED);
 	const [runOnceCounter, setRunOnceCounter] = useState(0);
 	const [isSimulationRunning, setIsSimulationRunning] = useState(false);
@@ -2955,6 +2958,11 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 			seed, 
 			posKeepMode: PosKeepMode.Approximate, 
 			pacemakerCount: 1,
+			chartRunSamples: [
+				Math.max(1, Math.floor(chartRun1Samples || 1)),
+				Math.max(1, Math.floor(chartRun2Samples || 1)),
+				Math.max(1, Math.floor(chartRun3Samples || 1))
+			],
 			mode: hpConsumption ? 'compare' : undefined,
 			syncRng: hpConsumption ? true : undefined,
 			skillWisdomCheck: false,
@@ -4043,7 +4051,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 							? <button id="runOnce" onClick={doRunOnce} tabindex={1} disabled={loadingAdditionalSamples.size > 0}>Run Once</button>
 							: null
 						}
-						{mode != Mode.RaceOptimizer && (
+						{(mode == Mode.Compare || mode == Mode.GlobalCompare) && (
 							<>
 								<label for="nsamples">Samples:</label>
 								<input type="number" id="nsamples" min="1" max="10000" value={nsamples} onInput={(e) => setSamples(+e.currentTarget.value)} />
@@ -4051,6 +4059,12 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 						)}
 						{(mode == Mode.Chart || mode == Mode.UniquesChart) && (
 							<>
+								<label for="chartRun1Samples">Run 1 Samples:</label>
+								<input type="number" id="chartRun1Samples" min="1" max="10000" value={chartRun1Samples} onInput={(e) => setChartRun1Samples(Math.max(1, +e.currentTarget.value || 1))} />
+								<label for="chartRun2Samples">Run 2 Samples:</label>
+								<input type="number" id="chartRun2Samples" min="1" max="10000" value={chartRun2Samples} onInput={(e) => setChartRun2Samples(Math.max(1, +e.currentTarget.value || 1))} />
+								<label for="chartRun3Samples">Run 3 Samples:</label>
+								<input type="number" id="chartRun3Samples" min="1" max="10000" value={chartRun3Samples} onInput={(e) => setChartRun3Samples(Math.max(1, +e.currentTarget.value || 1))} />
 								<label for="workerCount">Workers:</label>
 								<input type="number" id="workerCount" min="1" max="16" value={workerCount} onInput={(e) => setWorkerCount(Math.max(1, Math.min(16, +e.currentTarget.value)))} />
 							</>
@@ -4095,12 +4109,11 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 									
 									if (!progress && !isCompleted) return null;
 									
-									// Color per round: 1=blue, 2=teal, 3=orange, 4=soft red
+									// Color per round: 1=blue, 2=teal, 3=orange
 									const roundColors = {
 										1: 'linear-gradient(90deg, #3b82f6, #2563eb)',
 										2: 'linear-gradient(90deg, #14b8a6, #0d9488)',
-										3: 'linear-gradient(90deg, #f59e0b, #d97706)',
-										4: 'linear-gradient(90deg, #fca5a5, #f87171)'
+										3: 'linear-gradient(90deg, #f59e0b, #d97706)'
 									};
 									const color = isCompleted ? 'linear-gradient(90deg, #10b981, #059669)' : (roundColors[progress?.round] || roundColors[1]);
 									
