@@ -3088,8 +3088,11 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 					seed: effectiveSeed,
 					posKeepMode: PosKeepMode.Approximate,
 					pacemakerCount: 1,
+					mode: hpConsumption ? 'compare' : undefined,
+					syncRng: hpConsumption ? true : undefined,
 					skillWisdomCheck: false,
-					rushedKakari: false
+					rushedKakari: false,
+					competeFight: false
 				}
 			}
 		});
