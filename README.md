@@ -1,4 +1,5 @@
 ### A Umalator fork of https://github.com/kachi-dev/uma-tools
+Original Umalator: https://kachi-dev.github.io/uma-tools/umalator-global/
 
 # Improvements
 
