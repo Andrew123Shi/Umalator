@@ -6,6 +6,8 @@
   "scripts": {
     "update:data": "node scripts/update-data.mjs",
     "build:umalator-global": "npm run update:data && cd umalator-global && node build.mjs",
+    "build:pages": "node scripts/build-pages.mjs",
+    "build:pages:data": "npm run update:data && npm run build:pages",
     "electron:set-icon": "node electron/set-icon.mjs",
     "electron:start": "npm run build:umalator-global && electron electron/main.js",
     "electron:pack": "npm run build:umalator-global && set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win dir --x64 && npm run electron:set-icon",
