@@ -1628,37 +1628,39 @@
     }
   },
   {
-    "id": "1772777574742",
-    "name": "12550",
-    "timestamp": 1772777574742,
+    "id": "1772926549610",
+    "name": "12998",
+    "timestamp": 1772926549610,
     "data": {
       "outfitId": "105201",
-      "speed": 1173,
-      "stamina": 520,
-      "power": 1073,
-      "guts": 424,
-      "wisdom": 451,
+      "speed": 1194,
+      "stamina": 511,
+      "power": 1117,
+      "guts": 413,
+      "wisdom": 484,
       "strategy": "Sasi",
       "distanceAptitude": "A",
       "surfaceAptitude": "A",
       "strategyAptitude": "A",
       "mood": 2,
       "skills": [
+        "900081",
         "200702",
         "200602",
         "100521",
-        "200331",
+        "200512",
         "900611",
+        "200461",
         "201032",
+        "200152",
         "200591",
         "201591",
         "200491",
-        "900271",
-        "900061"
+        "900271"
       ],
       "forcedSkillPositions": {},
       "starLevel": 3,
-      "uniqueLevel": 4
+      "uniqueLevel": 2
     }
   }
 ]

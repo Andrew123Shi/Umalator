@@ -257,14 +257,26 @@ function buildSkillEffects(skill, perspective: Perspective) {
 function uniqueLevelMultiplier(effectType: SkillType, uniqueLevel?: number): number {
 	// In game, uniques are effectively Lv1 by default.
 	const level = Math.min(6, Math.max(1, uniqueLevel ?? 1));
-	if (effectType === SkillType.Recovery) {
-		// Recovery uniques: +2% per level above Lv1.
-		return 1 + 0.02 * (level - 1);
+	const TARGET_SPEED_MULT = [0, 1.0, 1.01, 1.04, 1.07, 1.10, 1.13];
+	const ACCEL_MULT = [0, 1.0, 1.02, 1.04, 1.06, 1.08, 1.10];
+	const STAT_MULT = [0, 1.0, 1.01, 1.02, 1.03, 1.04, 1.05];
+	const OTHER_MULT = [0, 1.0, 1.02, 1.04, 1.06, 1.08, 1.10];
+
+	switch (effectType) {
+		case SkillType.TargetSpeed:
+			return TARGET_SPEED_MULT[level];
+		case SkillType.Accel:
+			return ACCEL_MULT[level];
+		case SkillType.SpeedUp:
+		case SkillType.StaminaUp:
+		case SkillType.PowerUp:
+		case SkillType.GutsUp:
+		case SkillType.WisdomUp:
+			return STAT_MULT[level];
+		default:
+			// Recovery, lane movement, current speed, and all other effects use this curve.
+			return OTHER_MULT[level];
 	}
-	// Other unique effects: +1% at Lv2, then +3% per level after.
-	if (level === 1) return 1;
-	if (level === 2) return 1.01;
-	return 1.01 + 0.03 * (level - 2);
 }
 
 function applyUniqueLevelScaling(effects: SkillEffect[], rarity: number, uniqueLevel?: number): SkillEffect[] {

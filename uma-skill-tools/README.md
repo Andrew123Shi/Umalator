@@ -34,25 +34,61 @@ The sample policy associated with a condition is more of just a default and tech
 
 # Caveats
 
-## Does not fully simulate a race, only simulates one uma
+## Scope of simulation (single uma vs multi-uma)
 
-This is by design. The intention is to determine the distance gain of skills which requires as controlled of an environment as possible. Trying to simulate a full race with other umas makes it too difficult to isolate the effects of a single skill.
+Originally this library was written to simulate a **single uma** in isolation in order to estimate distance gain from individual skills under tightly controlled conditions. In that original setting, other umas are not explicitly present; many multi-uma-related conditions are instead modeled via probability distributions.
 
-This has a lot of secondary effects. Many skill conditions involve other umas in some way. Those conditions are instead modeled by probability distributions based mainly on guessing where they tend to activate.
+In the Umalator application, the same engine is also used for **Race Compare** and related features, which simulate:
+
+- two main runners (Uma 1 and Uma 2), plus
+- one or more pacers (depending on `pacemakerCount` / `PosKeepMode`).
+
+These runners share a common RNG fork and interact through pacing, position keep, and some contested states (e.g. dueling, lead competition). The original “only one uma” caveat still applies if you use the library as a pure one-uma skill tester, but Umalator’s compare/optimizer flows do run multiple umas at once.
+
+This hybrid design has some secondary effects:
+
+- Many conditions that conceptually depend on a full 9–18 horse field (e.g. `order_rate`) are still approximated using parameters like `numUmas` and strategy-based bands rather than tracking a full race card.
+- Some multi-uma phenomena (blocked lanes, full lane geometry, etc.) remain simplified or probabilistic.
 
 ### Position keep
 
-Due to obviously involving other umas, position keep is mostly not simulated except for pace down for non-runners at the beginning of a race. In this case the pace down is fairly predictable and has effects on the efficiency of certain skills, so it is simulated.
+The original README stated that position keep was “mostly not simulated except for pace down.” That is **no longer accurate** for Umalator’s usage:
 
-Runner speed up mode/overtake mode is probably relatively predictable early in the race and may be implemented in the future.
+- `RaceSolver` implements a full position-keep state machine with states **PaceUp**, **PaceDown**, **SpeedUp**, and **Overtake**, driven by:
+  - gaps to a pacer,
+  - current strategy (`Nige`, `Senkou`, `Sasi`, `Oikomi`, `Oonige`),
+  - and wisdom-based random checks.
+- These states affect target speed via a `posKeepSpeedCoef` and are tracked for UI as activation segments.
+
+What is still relevant:
+
+- Position keep behavior is still an approximation of the in-game system and depends on a small field (2 mains + pacer(s)), not a full 18-horse race.
+- Some interactions that strongly depend on large fields or complex crowding patterns are not modeled in detail.
 
 ### Order conditions
 
-Obviously since no other umas exist conditions like order, order_rate, etc are meaningless. By default these are assumed to always be fulfilled, which I think is the expected behavior in most cases since you only really care about things like angling, anabolic, etc activating immediately. It's possible to use one of the random sample policies with these anyway, which may be useful for modeling anabolic+gear combo or something.
+The original note said that order conditions like `order` / `order_rate` are “meaningless” and “assumed to always be fulfilled” because no other umas exist. That is **partially out of date**:
+
+- The engine now supports order-related conditions using:
+  - `numUmas` (usually 9 for app charts), and
+  - an `orderRange` derived from running style (e.g. `Nige: [1,1]`, `Sasi: [5,9]`).
+- In modes where the caller provides an `orderRange`, `order` / `order_rate` conditions are enforced **statically** against that band during condition preprocessing (trigger-region generation).
+
+However, two important caveats remain:
+
+- These checks are **not live per-frame rank checks**; they are applied when building trigger regions, using a coarse proxy for “typical” positions for that strategy.
+- In modes where `orderRange` is `null` (e.g. some compare flows), `order` / `order_rate` conditions effectively do **not** restrict activation (their filters become no-ops).
+
+So order conditions are supported but approximated; they are not a perfect reflection of in-race placing.
 
 ## Does not take inner/outer lane differences into account
 
-It's kind of pointless to try to simulate lane changing because it's both too random and too dependent on other umas. The difference in distance traveled between inner and outer lanes can be quite significant, but probably doesn't affect the efficiency of skills that much.
+This caveat is **still accurate** with respect to distance traveled:
+
+- The simulator tracks `currentLane` and `targetLane` and applies lane movement rules (side blocking, overtake moves, lane-change speed, etc.), so some aspects of lateral positioning are modeled.
+- However, **distance cost from being in outer lanes is not applied to `pos`**. Lane primarily affects lane movement and some skill effects, not total path length.
+
+In practice this means inner vs outer lane choice does not directly change the simulated distance traveled, even though lane changes themselves and lane-based conditions still exist.
 
 ## Skills that combine accumulatetime with a condition modeled by a probability distribution activate too early a lot of the time
 
@@ -70,25 +106,92 @@ List of skills affected:
 
 ## Not yet implemented
 
-All of these things should be doable with the current architecture and are planned for the near future.
+All of these were originally listed as “planned soon.” Some have since been implemented or partially implemented; others remain open tasks. See the “Historical caveats” section below for the original wording.
 
-### Does not simulate downhill speedup mode
+### Downhill speedup mode
 
-The architecture now allows it to be doable in a way to usefully allow comparisons even though the effects are random.
+**Now implemented.**
 
-### Does not simulate kakari
+- Downhill-mode logic exists in `RaceSolver`:
+  - `isDownhillMode`, `downhillTimer`, `downhillRng`, `downhillActivations`.
+  - `downhillCheck()` and `updateHills()` decide when downhill mode starts/stops.
+  - `updateTargetSpeed()` adds a speed bonus while in downhill mode.
 
-Easily doable but no real point without tracking hp consumption since both simulations would always kakari at the same point during a comparison.
+Downhill remains stochastic and simplified but is present and affects both speed and logged activations.
 
-If it is implemented would probably have the effect of increasing int decreasing average バ身 gain due to less kakari, since position keep effects aren't simulated which would otherwise counteract it.
+### Kakari (rushed state)
 
-### Scaling effects are not implemented yet
+**Now implemented.**
 
-Some of these are going to be a real pain.
+- A “rushed/kakari” state is modeled via:
+  - `isRushed`, `hasBeenRushed`, `rushedSection`, `rushedEnterPosition`,
+  - a wisdom-based chance (`initRushedState()`), Self-Control skill mitigation, and
+  - `updateRushedState()` controlling entry, random recovery, and maximum duration.
+- Activations are tracked for UI as `rushedActivations`.
+
+This uses HP via `GameHpPolicy` in compare mode and interacts with last spurt timing and stamina.
+
+### Scaling effects
+
+**Partially implemented.**
+
+- Unique-level scaling for unique skills is implemented in `RaceSolverBuilder`:
+  - `uniqueLevelMultiplier()` and `applyUniqueLevelScaling()` adjust effect modifiers based on unique level.
+- Other kinds of complex scaling (e.g. certain stack-based or contextually-scaling buffs) may still be missing or simplified.
+
+So the blanket statement “scaling effects are not implemented” is no longer true; at least unique level scaling is supported.
 
 ### Skill cooldowns
 
 At the moment skills can only activate once and skills with a cooldown (like 弧線のプロフェッサー or ハヤテ一文字) only activate once. This is hard to implement without some relatively major organizational changes (currently pending).
+
+This remains accurate in the current implementation: skills are tracked in `usedSkills` and do not re-trigger with cooldowns.
+
+# Historical caveats (original text, now outdated or partially addressed)
+
+The following sections preserve the original README wording for reference. They describe the design and limitations of earlier versions of the library; see the main “Caveats” section above for how they map onto the current implementation.
+
+## Original: single-uma-only simulation
+
+> Does not fully simulate a race, only simulates one uma  
+>  
+> This is by design. The intention is to determine the distance gain of skills which requires as controlled of an environment as possible. Trying to simulate a full race with other umas makes it too difficult to isolate the effects of a single skill.  
+>  
+> This has a lot of secondary effects. Many skill conditions involve other umas in some way. Those conditions are instead modeled by probability distributions based mainly on guessing where they tend to activate.
+
+## Original: position keep caveat
+
+> Position keep  
+>  
+> Due to obviously involving other umas, position keep is mostly not simulated except for pace down for non-runners at the beginning of a race. In this case the pace down is fairly predictable and has effects on the efficiency of certain skills, so it is simulated.  
+>  
+> Runner speed up mode/overtake mode is probably relatively predictable early in the race and may be implemented in the future.
+
+## Original: order conditions caveat
+
+> Order conditions  
+>  
+> Obviously since no other umas exist conditions like order, order_rate, etc are meaningless. By default these are assumed to always be fulfilled, which I think is the expected behavior in most cases since you only really care about things like angling, anabolic, etc activating immediately. It's possible to use one of the random sample policies with these anyway, which may be useful for modeling anabolic+gear combo or something.
+
+## Original: downhill speedup mode not implemented
+
+> Does not simulate downhill speedup mode  
+>  
+> The architecture now allows it to be doable in a way to usefully allow comparisons even though the effects are random.
+
+## Original: kakari not implemented
+
+> Does not simulate kakari  
+>  
+> Easily doable but no real point without tracking hp consumption since both simulations would always kakari at the same point during a comparison.  
+>  
+> If it is implemented would probably have the effect of increasing int decreasing average バ身 gain due to less kakari, since position keep effects aren't simulated which would otherwise counteract it.
+
+## Original: scaling effects not implemented
+
+> Scaling effects are not implemented yet  
+>  
+> Some of these are going to be a real pain.
 
 # Credit
 

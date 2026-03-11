@@ -370,14 +370,25 @@ function formatSigFigs(n: number, digits: number = 3) {
 
 function uniqueLevelMultiplier(effectType: number, uniqueLevel: number) {
 	const level = Math.min(6, Math.max(1, uniqueLevel));
-	if (effectType === 9) {
-		// Recovery unique effects: +2% per level above Lv1.
-		return 1 + 0.02 * (level - 1);
+	const TARGET_SPEED_MULT = [0, 1.0, 1.01, 1.04, 1.07, 1.10, 1.13];
+	const ACCEL_MULT = [0, 1.0, 1.02, 1.04, 1.06, 1.08, 1.10];
+	const STAT_MULT = [0, 1.0, 1.01, 1.02, 1.03, 1.04, 1.05];
+	const OTHER_MULT = [0, 1.0, 1.02, 1.04, 1.06, 1.08, 1.10];
+
+	switch (effectType) {
+	case 27:
+		return TARGET_SPEED_MULT[level];
+	case 31:
+		return ACCEL_MULT[level];
+	case 1:
+	case 2:
+	case 3:
+	case 4:
+	case 5:
+		return STAT_MULT[level];
+	default:
+		return OTHER_MULT[level];
 	}
-	// Other unique effects: +1% at Lv2, then +3% per level after.
-	if (level === 1) return 1;
-	if (level === 2) return 1.01;
-	return 1.01 + 0.03 * (level - 2);
 }
 
 function formatEffectiveEffectValue(effectType: number, value: number) {
