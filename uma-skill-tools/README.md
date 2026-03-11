@@ -2,6 +2,8 @@
 
 Tools and libraries for simulating races in ウマ娘 プリティーダービー and analyzing skill effects. See the readme in the tools/ folder for usage of the command-line tools.
 
+Last updated 3/10/2026 by Andrew Shi
+
 Setup:
 
 ```
@@ -201,7 +203,7 @@ KuromiAK#4505 on Discord let me hassle him about various minutiae of game mechan
 
 # License
 
-Copyright (C) 2022  pecan
+Copyright (C) 2026 Andrew Shi
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
