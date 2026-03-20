@@ -3,3 +3,4 @@ dist-electron*/
 release-package/
 dist-pages/
 *.zip
+/umalatorTEST
