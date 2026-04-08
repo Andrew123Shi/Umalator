@@ -1,9 +1,20 @@
 [
   {
-    "id": 9,
+	"id": 11,
+    "type": "CM",
+    "name": "Pisces Cup",
+    "date": "2026-03-26",
+    "courseId": 10914,
+    "season": "Spring",
+    "ground": "Heavy",
+    "weather": "Rainy",
+    "time": "Midday"
+  },
+  {
+    "id": 10,
     "type": "CM",
     "name": "Aquarius Cup",
-    "date": "2026-03",
+    "date": "2026-03-02",
     "courseId": 10611,
     "season": "Winter",
     "ground": "Good",
@@ -11,7 +22,7 @@
     "time": "Midday"
   },
   {
-    "id": 8,
+    "id": 9,
     "type": "CM",
     "name": "Capricorn Cup",
     "date": "2026-02",
@@ -22,10 +33,21 @@
     "time": "Midday"
   },
   {
+    "id": 8,
+    "type": "CM",
+	"name": "Sagittarius Cup",
+    "date": "2026-01",
+    "courseId": 10506,
+    "season": "Winter",
+    "ground": "Good",
+    "weather": "Sunny",
+    "time": "Midday"
+  },
+  {
     "id": 7,
     "type": "CM",
     "name": "Scorpio Cup",
-    "date": "2026-01",
+    "date": "2025-12-28",
     "courseId": 10604,
     "season": "Autumn",
     "ground": "Soft",
@@ -36,7 +58,7 @@
     "id": 6,
     "type": "CM",
     "name": "Libra Cup",
-    "date": "2025-12",
+    "date": "2025-12-08",
     "courseId": 10810,
     "season": "Autumn",
     "ground": "Good",
