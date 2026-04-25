@@ -1,6 +1,17 @@
 [
   {
-	"id": 11,
+    "id": 12,
+    "type": "CM",
+    "name": "Aries Cup",
+    "date": "2026-04-23",
+    "courseId": 10504,
+    "season": "Spring",
+    "ground": "Good",
+    "weather": "Sunny",
+    "time": "Midday"
+  },  
+  {
+    "id": 11,
     "type": "CM",
     "name": "Pisces Cup",
     "date": "2026-03-26",
