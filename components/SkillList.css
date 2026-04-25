@@ -222,6 +222,6 @@
 }
 
 .skillDuration {
-	display: inline-block;
+	display: block;
 	margin-top: 0.5em;
 }

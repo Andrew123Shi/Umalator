@@ -3543,9 +3543,6 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 						displaying={currentDisplaying}
 					/>
 				</div>
-				<div style="position: absolute; bottom: 0; right: 0; font-size: 9px; font-style: italic; padding: 4px;">
-					(yes these graphs are copied from utools &gt;-&lt;)
-				</div>
 			</div>
 		);
 	}, [displaying, loadingAdditionalSamples, isSimulationRunning, runAdditionalSamplesForSkill]);
