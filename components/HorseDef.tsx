@@ -18,6 +18,7 @@ import umas from '../umalator/umas.json';
 import icons from '../icons.json';
 import skilldata from '../uma-skill-tools/data/skill_data.json';
 import skillmeta from '../umalator/skill_meta.json';
+import { umaToolsAsset, withBasePath } from './assetPaths';
 
 import { getAllSavedProfiles, saveUmaProfile, loadUmaProfile, deleteUmaProfile, renameUmaProfile, selectAnotherProfilesDatabase, createNewProfilesDatabase } from '../umalator/app';
 
@@ -329,7 +330,7 @@ export function UmaProfileManager(props) {
 									<li key={profile.id} class="umaProfileManagerItem">
 										<div class="umaProfileManagerItemMain">
 											{umaId && u && (
-												<img src={icons[umaId]} class="umaProfileManagerUmaIcon" />
+												<img src={withBasePath(icons[umaId])} class="umaProfileManagerUmaIcon" />
 											)}
 											<div class="umaProfileManagerItemInfo">
 												{renamingId === profile.id ? (
@@ -379,7 +380,7 @@ export function UmaProfileManager(props) {
 }
 
 export function UmaSelector(props) {
-	const randomMob = useMemo(() => `/uma-tools/icons/mob/trained_mob_chr_icon_${8000 + Math.floor(Math.random() * 624)}_000001_01.png`, []);
+	const randomMob = useMemo(() => umaToolsAsset(`icons/mob/trained_mob_chr_icon_${8000 + Math.floor(Math.random() * 624)}_000001_01.png`), []);
 	const u = props.value && umas[props.value.slice(0,4)];
 	const [profileManagerOpen, setProfileManagerOpen] = useState(false);
 	const [profileImportOpen, setProfileImportOpen] = useState(false);
@@ -498,8 +499,8 @@ export function UmaSelector(props) {
 		<>
 			<div class="umaSelector">
 				<div class="umaSelectorIconsBox" onClick={focus}>
-					<img src={props.value ? icons[props.value] : randomMob} />
-					<img src="/uma-tools/icons/utx_ico_umamusume_00.png" />
+					<img src={props.value ? withBasePath(icons[props.value]) : randomMob} />
+					<img src={umaToolsAsset('icons/utx_ico_umamusume_00.png')} />
 				</div>
 				<div class="umaEpithet"><span>{props.value && getOutfitEpithet(props.value.slice(0,4), props.value)}</span></div>
 				<div class="profileButtons">
@@ -520,7 +521,7 @@ export function UmaSelector(props) {
 							const uid = oid.slice(0,4);
 							return (
 								<li key={oid} data-uma-id={oid} class={`umaSuggestion ${i == activeIdx ? 'selected' : ''}`}>
-									<img src={icons[oid]} loading="lazy" /><span>{getOutfitEpithet(uid, oid)} {umas[uid].name[1]}</span>
+									<img src={withBasePath(icons[oid])} loading="lazy" /><span>{getOutfitEpithet(uid, oid)} {umas[uid].name[1]}</span>
 								</li>
 							);
 						})}
@@ -568,7 +569,7 @@ function rankForStat(x: number) {
 export function Stat(props) {
 	return (
 		<div class="horseParam">
-			<img src={`/uma-tools/icons/statusrank/ui_statusrank_${(100 + rankForStat(props.value)).toString().slice(1)}.png`} />
+			<img src={umaToolsAsset(`icons/statusrank/ui_statusrank_${(100 + rankForStat(props.value)).toString().slice(1)}.png`)} />
 			<input type="number" min="1" max="2000" value={props.value} tabindex={props.tabindex} disabled={props.disabled} onInput={(e) => props.change(+e.currentTarget.value)} style={props.disabled ? {opacity: 0.5, cursor: 'not-allowed'} : {}} />
 		</div>
 	);
@@ -577,7 +578,7 @@ export function Stat(props) {
 const APTITUDES = Object.freeze(['S','A','B','C','D','E','F','G']);
 export function AptitudeIcon(props) {
 	const idx = 7 - APTITUDES.indexOf(props.a);
-	return <img src={`/uma-tools/icons/utx_ico_statusrank_${(100 + idx).toString().slice(1)}.png`} loading="lazy" />;
+	return <img src={umaToolsAsset(`icons/utx_ico_statusrank_${(100 + idx).toString().slice(1)}.png`)} loading="lazy" />;
 }
 
 export function AptitudeSelect(props){
@@ -622,12 +623,12 @@ export function MoodSelect(props){
 	return (
 		<div class="horseMoodSelect" tabindex={props.tabindex} onClick={() => setOpen(!open)} onBlur={setOpen.bind(null, false)}>
 			<span>
-				<img src={`/uma-tools/icons/global/${moodValues.find(m => m.value === props.m)?.icon}.png`} />
+				<img src={umaToolsAsset(`icons/global/${moodValues.find(m => m.value === props.m)?.icon}.png`)} />
 			</span>
 			<ul style={open ? "display:block" : "display:none"}>
 				{moodValues.map(mood => 
 					<li key={mood.value} data-mood={mood.value} onClick={setMood}>
-						<img src={`/uma-tools/icons/global/${mood.icon}.png`} title={mood.label} />
+						<img src={umaToolsAsset(`icons/global/${mood.icon}.png`)} title={mood.label} />
 					</li>
 				)}
 			</ul>
@@ -903,11 +904,11 @@ export function HorseDef(props) {
 			<div class="horseDefHeader">{props.children}</div>
 			<UmaSelector value={umaId} select={setUma} tabindex={tabnext()} onReset={resetThisHorse} onResetAll={props.onResetAll} currentState={state} onLoadProfile={setState} />
 			<div class="horseParams">
-				<div class="horseParamHeader"><img src="/uma-tools/icons/status_00.png" /><span>Speed</span></div>
-				<div class="horseParamHeader"><img src="/uma-tools/icons/status_01.png" /><span>Stamina</span></div>
-				<div class="horseParamHeader"><img src="/uma-tools/icons/status_02.png" /><span>Power</span></div>
-				<div class="horseParamHeader"><img src="/uma-tools/icons/status_03.png" /><span>Guts</span></div>
-				<div class="horseParamHeader"><img src="/uma-tools/icons/status_04.png" /><span>{CC_GLOBAL?'Wit':'Wisdom'}</span></div>
+				<div class="horseParamHeader"><img src={umaToolsAsset('icons/status_00.png')} /><span>Speed</span></div>
+				<div class="horseParamHeader"><img src={umaToolsAsset('icons/status_01.png')} /><span>Stamina</span></div>
+				<div class="horseParamHeader"><img src={umaToolsAsset('icons/status_02.png')} /><span>Power</span></div>
+				<div class="horseParamHeader"><img src={umaToolsAsset('icons/status_03.png')} /><span>Guts</span></div>
+				<div class="horseParamHeader"><img src={umaToolsAsset('icons/status_04.png')} /><span>{CC_GLOBAL?'Wit':'Wisdom'}</span></div>
 				<Stat value={state.speed} change={setter('speed')} tabindex={tabnext()} disabled={props.disableStats} />
 				<Stat value={state.stamina} change={setter('stamina')} tabindex={tabnext()} disabled={props.disableStats} />
 				<Stat value={state.power} change={setter('power')} tabindex={tabnext()} disabled={props.disableStats} />
@@ -954,7 +955,7 @@ export function HorseDef(props) {
 					<div 
 						class="careerRatingBadge" 
 						style={{
-							backgroundImage: `url(/uma-tools/icons/rank_badges.png)`,
+							backgroundImage: `url(${umaToolsAsset('icons/rank_badges.png')})`,
 							backgroundSize: '576px 576px',
 							backgroundPosition: `-${ratingBadge.sprite.col * 96}px -${ratingBadge.sprite.row * 96}px`,
 							width: '96px',

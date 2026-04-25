@@ -8,6 +8,7 @@ import skilldata from '../uma-skill-tools/data/skill_data.json';
 import skillmeta from '../umalator/skill_meta.json';
 import skillnames from '../umalator-global/skillnames.json';
 import umas from '../umalator/umas.json';
+import { umaToolsAsset } from './assetPaths';
 
 interface ScreenshotItem {
 	id: string;
@@ -22,7 +23,7 @@ interface ProfileScreenshotImportDialogProps {
 }
 
 const OTHER_SELECTION = '__OTHER__';
-const EXAMPLE_SCREENSHOT_PATH = '/uma-tools/components/ExampleProfile.png';
+const EXAMPLE_SCREENSHOT_PATH = umaToolsAsset('components/ExampleProfile.png');
 
 function fileToDataUrl(file: File): Promise<string> {
 	return new Promise((resolve, reject) => {
@@ -443,7 +444,7 @@ export function ProfileScreenshotImportDialog(props: ProfileScreenshotImportDial
 											<span key={skillId} class="profileImportSkillPreviewBubble">
 												{skillId}
 												<span class="profileImportSkillHoverCard">
-													<img src={`/uma-tools/icons/${(skillmeta as any)[skillId]?.iconId}.png`} alt="" />
+													<img src={umaToolsAsset(`icons/${(skillmeta as any)[skillId]?.iconId}.png`)} alt="" />
 													<span>{((skillnames as any)[skillId] || [skillId])[0]}</span>
 												</span>
 											</span>

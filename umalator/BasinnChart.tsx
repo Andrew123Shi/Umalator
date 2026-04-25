@@ -23,6 +23,7 @@ import skillnames from '../uma-skill-tools/data/skillnames.json';
 import skillmeta from './skill_meta.json';
 import umas from './umas.json';
 import icons from '../icons.json';
+import { umaToolsAsset, withBasePath } from '../components/assetPaths';
 
 export function isPurpleSkill(id) {
 	const iconId = skillmeta[id].iconId;
@@ -82,7 +83,7 @@ function SkillNameCell(props) {
 		if (umaId && icons[umaId]) {
 			return (
 				<div class="chartSkillName">
-					<img src={icons[umaId]} />
+					<img src={withBasePath(icons[umaId])} />
 					<span><Text id={`skillnames.${id}`} /></span>
 				</div>
 			);
@@ -91,7 +92,7 @@ function SkillNameCell(props) {
 	
 	return (
 		<div class="chartSkillName">
-			<img src={`/uma-tools/icons/${skillmeta[id].iconId}.png`} />
+			<img src={umaToolsAsset(`icons/${skillmeta[id].iconId}.png`)} />
 			<span><Text id={`skillnames.${id}`} /></span>
 		</div>
 	);

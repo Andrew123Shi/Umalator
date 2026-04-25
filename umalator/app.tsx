@@ -17,6 +17,7 @@ import { ExpandedSkillDetails, Skill, SkillList, STRINGS_en as SKILL_STRINGS_en 
 import { RaceTrack, TrackSelect, RegionDisplayType } from '../components/RaceTrack';
 import { HorseState, SkillSet } from '../components/HorseDefTypes';
 import { HorseDef, horseDefTabs, isGeneralSkill } from '../components/HorseDef';
+import { umaToolsAsset } from '../components/assetPaths';
 import { TRACKNAMES_ja, TRACKNAMES_en } from '../strings/common';
 import { RaceState } from '../uma-skill-tools/RaceSolver';
 
@@ -204,14 +205,14 @@ function OptimizerStatsBar({stats, onLoadToUma1, careerRating}) {
 		<div style="width: 960px; max-width: 960px; margin-top: 80px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
 			<div style="font-weight: 600; font-size: 14px; margin-right: 12px; white-space: nowrap;">Career Rating: {careerRating != null ? Math.round(careerRating) : '—'}</div>
 			<div class="horseParams" style="grid-template-columns: repeat(5, 1fr); margin: 0; width: 100%; flex: 1;">
-				<div class="horseParamHeader"><img src="/uma-tools/icons/status_00.png" /><span>Speed</span></div>
-				<div class="horseParamHeader"><img src="/uma-tools/icons/status_01.png" /><span>Stamina</span></div>
-				<div class="horseParamHeader"><img src="/uma-tools/icons/status_02.png" /><span>Power</span></div>
-				<div class="horseParamHeader"><img src="/uma-tools/icons/status_03.png" /><span>Guts</span></div>
-				<div class="horseParamHeader"><img src="/uma-tools/icons/status_04.png" /><span>{CC_GLOBAL?'Wit':'Wisdom'}</span></div>
+				<div class="horseParamHeader"><img src={umaToolsAsset('icons/status_00.png')} /><span>Speed</span></div>
+				<div class="horseParamHeader"><img src={umaToolsAsset('icons/status_01.png')} /><span>Stamina</span></div>
+				<div class="horseParamHeader"><img src={umaToolsAsset('icons/status_02.png')} /><span>Power</span></div>
+				<div class="horseParamHeader"><img src={umaToolsAsset('icons/status_03.png')} /><span>Guts</span></div>
+				<div class="horseParamHeader"><img src={umaToolsAsset('icons/status_04.png')} /><span>{CC_GLOBAL?'Wit':'Wisdom'}</span></div>
 				{(['speed','stamina','power','guts','wisdom'] as const).map((k) => (
 					<div class="horseParam">
-						<img src={`/uma-tools/icons/statusrank/ui_statusrank_${(100 + rankForStat(rounded[k])).toString().slice(1)}.png`} />
+						<img src={umaToolsAsset(`icons/statusrank/ui_statusrank_${(100 + rankForStat(rounded[k])).toString().slice(1)}.png`)} />
 						<input type="number" value={rounded[k]} disabled style={{opacity: 0.9}} />
 					</div>
 				))}
@@ -250,7 +251,7 @@ function TimeOfDaySelect(props) {
 	return (
 		<div class="timeofdaySelect" onClick={click}>
 			{Array(3).fill(0).map((_,i) =>
-				<img src={`/uma-tools/icons/utx_ico_timezone_0${i}.png`} title={SKILL_STRINGS_en.skilldetails.time[i+2]}
+				<img src={umaToolsAsset(`icons/utx_ico_timezone_0${i}.png`)} title={SKILL_STRINGS_en.skilldetails.time[i+2]}
 					class={i+2 == props.value ? 'selected' : ''} data-timeofday={i+2} />)}
 		</div>
 	);
@@ -286,7 +287,7 @@ function WeatherSelect(props) {
 	return (
 		<div class="weatherSelect" onClick={click}>
 			{Array(4).fill(0).map((_,i) =>
-				<img src={`/uma-tools/icons/utx_ico_weather_0${i}.png`} title={SKILL_STRINGS_en.skilldetails.weather[i+1]}
+				<img src={umaToolsAsset(`icons/utx_ico_weather_0${i}.png`)} title={SKILL_STRINGS_en.skilldetails.weather[i+1]}
 					class={i+1 == props.value ? 'selected' : ''} data-weather={i+1} />)}
 		</div>
 	);
@@ -301,7 +302,7 @@ function SeasonSelect(props) {
 	return (
 		<div class="seasonSelect" onClick={click}>
 			{Array(4 + +!CC_GLOBAL /* global doenst have late spring for some reason */).fill(0).map((_,i) =>
-				<img src={`/uma-tools/icons${CC_GLOBAL?'/global':''}/utx_txt_season_0${i}.png`} title={SKILL_STRINGS_en.skilldetails.season[i+1]}
+				<img src={umaToolsAsset(`icons${CC_GLOBAL?'/global':''}/utx_txt_season_0${i}.png`)} title={SKILL_STRINGS_en.skilldetails.season[i+1]}
 					class={i+1 == props.value ? 'selected' : ''} data-season={i+1} />)}
 		</div>
 	);

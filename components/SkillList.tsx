@@ -10,6 +10,7 @@ import { useLanguage } from './Language';
 import { Tooltip } from './Tooltip';
 import { isDebuffSkill } from './HorseDefTypes';
 import { getSkillRatingContributionWithAptitude, calcUniqueBonus, Aptitude } from './CareerRating';
+import { umaToolsAsset } from './assetPaths';
 
 import './SkillList.css';
 
@@ -206,7 +207,7 @@ const classnames = Object.freeze(['', 'skill-white', 'skill-gold', 'skill-unique
 export function Skill(props) {
 	return (
 		<div class={`skill ${classnames[skilldata[props.id].rarity]} ${props.selected ? 'selected' : ''}`} data-skillid={props.id}>
-			<img class="skillIcon" src={`/uma-tools/icons/${skillmeta[props.id].iconId}.png`} /> 
+			<img class="skillIcon" src={umaToolsAsset(`icons/${skillmeta[props.id].iconId}.png`)} /> 
 			<span class="skillName"><Text id={`skillnames.${props.id}`} /></span>
 			{props.dismissable && <span class="skillDismiss">✕</span>}
 		</div>
@@ -484,7 +485,7 @@ export function ExpandedSkillDetails(props) {
 		<IntlProvider definition={lang == 'ja' ? STRINGS_ja : STRINGS_en}>
 			<div class={`expandedSkill ${classnames[skill.rarity]}`} data-skillid={props.id}>
 				<div class="expandedSkillHeader">
-					<img class="skillIcon" src={`/uma-tools/icons/${skillmeta[props.id].iconId}.png`} />
+					<img class="skillIcon" src={umaToolsAsset(`icons/${skillmeta[props.id].iconId}.png`)} />
 					<span class="skillName"><Text id={`skillnames.${props.id}`} /></span>
 					{props.dismissable && <span class="skillDismiss">✕</span>}
 				</div>
@@ -733,7 +734,7 @@ export function SkillList(props) {
 	}
 	
 	function IconFilterButton(props) {
-		return <button data-filter={props.type} class={`iconFilterButton ${active[props.group][props.type] ? 'active': ''}`} style={`background-image:url(/uma-tools/icons/${props.type}1.png)`}></button>
+		return <button data-filter={props.type} class={`iconFilterButton ${active[props.group][props.type] ? 'active': ''}`} style={`background-image:url(${umaToolsAsset(`icons/${props.type}1.png`)})`}></button>
 	}
 
 	const items = useMemo(() => {
