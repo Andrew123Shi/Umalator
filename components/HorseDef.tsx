@@ -5,6 +5,8 @@ import { Set as ImmSet } from 'immutable';
 
 import { SkillList, Skill, ExpandedSkillDetails } from '../components/SkillList';
 import { SkillProcDataDialog } from './SkillProcDataDialog';
+import { ProfileScreenshotImportDialog } from './ProfileScreenshotImportDialog';
+import { ProfileImportDraft } from './ProfileScreenshotImportV3';
 
 import { HorseParameters } from '../uma-skill-tools/HorseTypes';
 
@@ -380,6 +382,7 @@ export function UmaSelector(props) {
 	const randomMob = useMemo(() => `/uma-tools/icons/mob/trained_mob_chr_icon_${8000 + Math.floor(Math.random() * 624)}_000001_01.png`, []);
 	const u = props.value && umas[props.value.slice(0,4)];
 	const [profileManagerOpen, setProfileManagerOpen] = useState(false);
+	const [profileImportOpen, setProfileImportOpen] = useState(false);
 
 	const input = useRef(null);
 	const suggestionsContainer = useRef(null);
@@ -462,6 +465,35 @@ export function UmaSelector(props) {
 		}
 	}
 
+	function handleOpenImport(e: MouseEvent) {
+		e.preventDefault();
+		e.stopPropagation();
+		setProfileImportOpen(true);
+	}
+
+	async function handleApplyImportedDraft(draft: ProfileImportDraft, saveProfileAfterApply: boolean) {
+		let nextState = props.currentState || new HorseState();
+		if (draft.outfitId) {
+			nextState = nextState.set('outfitId', draft.outfitId);
+		}
+		if (draft.stats.speed != null) nextState = nextState.set('speed', draft.stats.speed);
+		if (draft.stats.stamina != null) nextState = nextState.set('stamina', draft.stats.stamina);
+		if (draft.stats.power != null) nextState = nextState.set('power', draft.stats.power);
+		if (draft.stats.guts != null) nextState = nextState.set('guts', draft.stats.guts);
+		if (draft.stats.wisdom != null) nextState = nextState.set('wisdom', draft.stats.wisdom);
+		if (draft.uniqueLevel != null) nextState = nextState.set('uniqueLevel', draft.uniqueLevel);
+		if (draft.skillIds.length > 0) {
+			nextState = nextState.set('skills', SkillSet(draft.skillIds));
+		}
+		if (props.onLoadProfile) {
+			props.onLoadProfile(nextState);
+		}
+		if (saveProfileAfterApply) {
+			await saveUmaProfile(nextState);
+			alert('Imported profile applied and saved.');
+		}
+	}
+
 	return (
 		<>
 			<div class="umaSelector">
@@ -471,8 +503,11 @@ export function UmaSelector(props) {
 				</div>
 				<div class="umaEpithet"><span>{props.value && getOutfitEpithet(props.value.slice(0,4), props.value)}</span></div>
 				<div class="profileButtons">
-					{props.currentState && <button className="resetUmaButton" onClick={handleSaveProfile} title="Save current profile">Save</button>}
-					{props.currentState && <button className="resetUmaButton" onClick={() => setProfileManagerOpen(true)} title="Load saved profile">Load</button>}
+					{props.currentState && <button type="button" className="resetUmaButton importButton" onClick={handleOpenImport} title="Import from screenshot">📷 Import</button>}
+					<div class="profileButtonsRow">
+						{props.currentState && <button className="resetUmaButton" onClick={handleSaveProfile} title="Save current profile">Save</button>}
+						{props.currentState && <button className="resetUmaButton" onClick={() => setProfileManagerOpen(true)} title="Load saved profile">Load</button>}
+					</div>
 				</div>
 				<div class="resetButtons">
 					{props.onReset && <button className="resetUmaButton" onClick={props.onReset} title="Reset this horse to default stats and skills">Reset</button>}
@@ -504,6 +539,11 @@ export function UmaSelector(props) {
 					onClose={() => setProfileManagerOpen(false)}
 				/>
 			)}
+			<ProfileScreenshotImportDialog
+				isOpen={profileImportOpen}
+				onClose={() => setProfileImportOpen(false)}
+				onApplyDraft={handleApplyImportedDraft}
+			/>
 		</>
 	);
 }

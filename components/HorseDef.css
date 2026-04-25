@@ -229,11 +229,18 @@
 
 .profileButtons {
 	position: absolute;
-	bottom: 48px;
+	bottom: 44px;
 	right: 25px;
 	display: flex;
+	flex-direction: column;
 	gap: 8px;
 	z-index: 10;
+	align-items: flex-end;
+}
+
+.profileButtonsRow {
+	display: flex;
+	gap: 8px;
 }
 
 .resetButtons {
@@ -947,4 +954,618 @@
 	color: rgb(121, 64, 22);
 	cursor: pointer;
 	z-index: 1;
+}
+
+.importButton {
+	min-width: 98px;
+}
+
+.profileImportOverlay {
+	background: rgba(25, 25, 25, 0.6);
+	display: none;
+	height: 100%;
+	left: 0;
+	position: fixed;
+	top: 0;
+	width: 100%;
+	z-index: 32;
+}
+
+.profileImportDialog {
+	background: white;
+	border: 2px solid rgb(170, 221, 154);
+	border-radius: 12px;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+	display: flex;
+	flex-direction: column;
+	left: 50%;
+	max-height: 90vh;
+	max-width: 92vw;
+	overflow: hidden;
+	position: fixed;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	width: 90vw;
+	max-width: 1280px;
+	z-index: 33;
+	display: none;
+}
+
+.profileImportOverlay.open {
+	display: block;
+}
+
+.profileImportDialog.open {
+	display: flex;
+}
+
+.profileImportHeader {
+	background: linear-gradient(rgb(153, 219, 68), rgb(112, 190, 18));
+	border-bottom: 2px solid rgb(170, 221, 154);
+	border-radius: 10px 10px 0 0;
+	color: white;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 12px 16px;
+	position: sticky;
+	top: 0;
+	z-index: 2;
+}
+
+.profileImportHeader h3 {
+	margin: 0;
+	font-size: 1.2em;
+}
+
+.profileImportClose {
+	background: transparent;
+	border: none;
+	color: white;
+	font-size: 1.5em;
+	font-weight: bold;
+	cursor: pointer;
+}
+
+.profileImportContent {
+	padding: 16px;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	color: rgb(121, 64, 22);
+	overflow-y: auto;
+	max-height: calc(90vh - 62px);
+}
+
+.profileImportTwoPanel {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.profileImportTwoPanel.active {
+	display: grid;
+	grid-template-columns: minmax(360px, 44%) minmax(0, 1fr);
+	gap: 12px;
+	align-items: stretch;
+	min-height: calc(90vh - 108px);
+}
+
+.profileImportScreensPanel {
+	border: 1px solid rgb(224, 214, 204);
+	border-radius: 8px;
+	background: rgb(248, 248, 248);
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.profileImportScreensPanelBody {
+	padding: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	overflow-y: auto;
+}
+
+.profileImportScreensPanelImageWrap {
+	border: 1px solid rgb(224, 214, 204);
+	border-radius: 6px;
+	background: white;
+	overflow: hidden;
+}
+
+.profileImportScreensPanelImageWrap img {
+	width: 100%;
+	height: auto;
+	display: block;
+}
+
+.profileImportExampleHeader {
+	padding: 2px 2px 6px 2px;
+	font-size: 1.12em;
+	text-align: center;
+}
+
+.profileImportActiveThumbStrip {
+	margin: 8px 0 0 0;
+	padding: 0;
+	list-style: none;
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.profileImportActiveThumbStrip li {
+	border: 1px solid rgb(224, 214, 204);
+	border-radius: 4px;
+	overflow: hidden;
+	width: 74px;
+	height: 42px;
+	opacity: 0.65;
+}
+
+.profileImportActiveThumbStrip li.active {
+	opacity: 1;
+	border-color: rgb(153, 219, 68);
+}
+
+.profileImportActiveThumbStrip img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+.profileImportExampleFallback {
+	padding: 16px;
+	text-align: center;
+	line-height: 1.4;
+	color: rgb(121, 64, 22);
+}
+
+.profileImportMainPanel {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	min-width: 0;
+}
+
+.profileImportDropzone {
+	border: 2px dashed rgb(170, 221, 154);
+	border-radius: 8px;
+	padding: 12px;
+	background: rgb(247, 255, 242);
+	min-height: 132px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+}
+
+.profileImportDropzoneClickable {
+	cursor: pointer;
+	text-align: center;
+	font-weight: bold;
+}
+
+.profileImportDropzoneClickable:hover {
+	background: rgb(239, 252, 232);
+}
+
+.profileImportInstructionText {
+	font-size: 0.92em;
+	line-height: 1.35;
+	text-align: center;
+}
+
+.profileImportDropzone p {
+	margin: 6px 0;
+}
+
+.profileImportActions {
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
+	gap: 8px;
+	margin-top: 8px;
+	align-items: center;
+}
+
+.profileImportActions .resetUmaButton:first-child {
+	grid-column: 2;
+	justify-self: center;
+}
+
+.profileImportActions .resetUmaButton:last-child {
+	grid-column: 3;
+	justify-self: end;
+}
+
+.profileImportActionsSingle {
+	display: flex;
+	justify-content: center;
+}
+
+.profileImportScreenshotList {
+	margin: 0;
+	padding: 0;
+	width: 100%;
+	max-height: 120px;
+	overflow-y: auto;
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 8px;
+	list-style: none;
+}
+
+.profileImportScreenshotItem {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 96px;
+	position: relative;
+}
+
+.profileImportScreenshotItem img {
+	width: 100%;
+	height: 56px;
+	object-fit: cover;
+	border-radius: 4px;
+	border: 1px solid rgb(224, 214, 204);
+	background: white;
+}
+
+.profileImportThumbRemove {
+	position: absolute;
+	top: 3px;
+	right: 3px;
+	width: 18px;
+	height: 18px;
+	border: none;
+	border-radius: 50%;
+	background: rgb(198, 53, 53);
+	color: white;
+	font-size: 14px;
+	line-height: 1;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+}
+
+.profileImportThumbRemove:hover {
+	background: rgb(165, 38, 38);
+}
+
+.profileImportError {
+	background: rgba(198, 53, 53, 0.1);
+	border: 1px solid rgba(198, 53, 53, 0.3);
+	border-radius: 6px;
+	padding: 8px 10px;
+	color: rgb(144, 45, 45);
+}
+
+.profileImportWarnings {
+	background: rgba(239, 190, 56, 0.15);
+	border: 1px solid rgba(239, 190, 56, 0.35);
+	border-radius: 6px;
+	padding: 8px 10px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	font-size: 0.9em;
+}
+
+.profileImportUnknownPrompt {
+	border: 1px solid rgb(224, 214, 204);
+	border-radius: 8px;
+	padding: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.profileImportUnknownPrompt h4 {
+	margin: 0;
+}
+
+.profileImportUnknownCrop {
+	width: 100%;
+	max-height: 160px;
+	object-fit: contain;
+	border: 1px solid rgb(224, 214, 204);
+	border-radius: 4px;
+	background: white;
+}
+
+.profileImportUnknownNoCrop {
+	padding: 8px 10px;
+	border: 1px dashed rgb(224, 214, 204);
+	border-radius: 4px;
+	background: rgb(250, 250, 250);
+	font-size: 0.9em;
+}
+
+.profileImportUnknownCandidates {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(220px, 1fr));
+	gap: 6px;
+	align-content: start;
+}
+
+.profileImportSkillCandidateButton {
+	all: unset;
+	cursor: pointer;
+	display: block;
+}
+
+.profileImportSkillCandidateButton .skill {
+	width: 100%;
+}
+
+.profileImportSkillCandidateButton.selected .skill {
+	outline: 2px solid rgb(153, 219, 68);
+	outline-offset: 1px;
+}
+
+.profileImportOtherOption {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	justify-content: flex-start;
+	height: 3em;
+	padding: 0 10px 0 16px;
+	box-sizing: border-box;
+	border: 1px solid rgb(224, 214, 204);
+	border-radius: 8px;
+}
+
+.profileImportOtherOption > span {
+	margin: 0;
+	position: static;
+	top: auto;
+}
+
+.profileImportOtherOption.selected {
+	outline: 2px solid rgb(153, 219, 68);
+	outline-offset: 1px;
+}
+
+.profileImportUnknownNav,
+.profileImportApplyActions {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	justify-content: center;
+}
+
+.profileImportUnknownNav {
+	display: grid;
+	grid-template-columns: minmax(104px, auto) auto minmax(104px, auto);
+	justify-content: center;
+	align-items: center;
+}
+
+.profileImportUnknownNav .resetUmaButton:first-child {
+	justify-self: start;
+}
+
+.profileImportUnknownNav .resetUmaButton:last-child {
+	justify-self: end;
+}
+
+.profileImportUnknownIndex {
+	min-width: 46px;
+	text-align: center;
+	font-weight: bold;
+}
+
+.profileImportReview {
+	border: 1px solid rgb(224, 214, 204);
+	border-radius: 8px;
+	padding: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.profileImportReview h4 {
+	margin: 0 0 4px 0;
+}
+
+.profileImportSummaryRow {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.profileImportSkillPreview {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.profileImportSkillPreview > .profileImportSkillPreviewBubble {
+	background: rgb(242, 242, 242);
+	border: 1px solid rgb(224, 214, 204);
+	border-radius: 10px;
+	padding: 2px 8px;
+	font-size: 0.85em;
+}
+
+.profileImportSkillPreviewBubble {
+	background: rgb(242, 242, 242);
+	border: 1px solid rgb(224, 214, 204);
+	border-radius: 10px;
+	padding: 2px 8px;
+	font-size: 0.85em;
+	color: rgb(121, 64, 22);
+	cursor: pointer;
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+}
+
+.profileImportSkillPreviewBubble:hover {
+	background: rgb(232, 246, 224);
+	border-color: rgb(170, 221, 154);
+}
+
+.profileImportSkillHoverCard {
+	position: absolute;
+	left: 50%;
+	bottom: calc(100% + 8px);
+	transform: translateX(-50%);
+	display: none;
+	align-items: center;
+	gap: 8px;
+	background: white;
+	border: 1px solid rgb(224, 214, 204);
+	border-radius: 8px;
+	padding: 6px 10px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+	white-space: nowrap;
+	z-index: 5;
+}
+
+.profileImportSkillHoverCard img {
+	width: 24px;
+	height: 24px;
+	object-fit: contain;
+}
+
+.profileImportSkillPreviewBubble:hover .profileImportSkillHoverCard {
+	display: inline-flex;
+}
+
+.profileImportSkillPickerOverlay {
+	background: rgba(25, 25, 25, 0.6);
+	position: fixed;
+	inset: 0;
+	z-index: 34;
+}
+
+.profileImportSkillPickerDialog {
+	position: fixed;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	width: min(920px, 92vw);
+	height: min(76vh, 780px);
+	background: white;
+	border: 2px solid rgb(170, 221, 154);
+	border-radius: 12px;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+	display: flex;
+	flex-direction: column;
+	padding: 12px;
+	gap: 10px;
+	z-index: 35;
+}
+
+.profileImportSkillPickerHeader {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.profileImportSkillPickerHeader h4 {
+	margin: 0;
+}
+
+.profileImportSkillPickerSearch {
+	border: 2px solid rgb(224, 214, 204);
+	border-radius: 6px;
+	padding: 8px 10px;
+}
+
+.profileImportSkillPickerList {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(280px, 1fr));
+	gap: 8px;
+	overflow-y: auto;
+	padding-right: 4px;
+}
+
+.profileImportApplyActionsCentered {
+	width: 100%;
+	justify-content: center;
+	padding-bottom: 20px;
+}
+
+.profileImportDisclaimer {
+	font-size: 0.88em;
+	line-height: 1.4;
+	color: rgb(121, 64, 22);
+	opacity: 0.9;
+	text-align: center;
+	padding: 0 6px 10px 6px;
+	font-style: italic;
+}
+
+.profileImportPrimaryAction {
+	background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+	border: 2px solid #1e40af;
+	border-radius: 8px;
+	color: white;
+	font-size: 1.05em;
+	font-weight: 700;
+	padding: 10px 20px;
+	min-width: 190px;
+	box-shadow: 0 3px 8px rgba(59, 130, 246, 0.3);
+}
+
+.profileImportPrimaryAction:hover {
+	background: linear-gradient(135deg, #2563eb, #1e3a8a);
+	border-color: #1e3a8a;
+	transform: translateY(-1px);
+	box-shadow: 0 6px 16px rgba(59, 130, 246, 0.35);
+}
+
+.profileImportPrimaryAction:disabled,
+.profileImportPrimaryAction:disabled:hover {
+	background: linear-gradient(135deg, #9ca3af, #6b7280);
+	border-color: #6b7280;
+	color: #d1d5db;
+	transform: none;
+	box-shadow: 0 2px 4px rgba(107, 114, 128, 0.2);
+}
+
+.profileImportResetAction {
+	background: linear-gradient(135deg, #dc2626, #b91c1c);
+	border: 2px solid #991b1b;
+	border-radius: 8px;
+	color: white;
+	font-size: 1.05em;
+	font-weight: 700;
+	min-width: 190px;
+	padding: 10px 20px;
+	box-shadow: 0 3px 8px rgba(220, 38, 38, 0.3);
+}
+
+.profileImportResetAction:hover {
+	background: linear-gradient(135deg, #b91c1c, #991b1b);
+	border-color: #7f1d1d;
+	transform: translateY(-1px);
+	box-shadow: 0 6px 16px rgba(220, 38, 38, 0.35);
+}
+
+.profileImportResetAction:disabled,
+.profileImportResetAction:disabled:hover {
+	background: linear-gradient(135deg, #9ca3af, #6b7280);
+	border-color: #6b7280;
+	color: #d1d5db;
+	transform: none;
+	box-shadow: 0 2px 4px rgba(107, 114, 128, 0.2);
+}
+
+.profileImportOtherPickerOverlay {
+	z-index: 60;
+}
+
+.profileImportOtherPickerWrapper {
+	z-index: 61;
 }

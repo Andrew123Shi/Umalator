@@ -1,0 +1,29 @@
+{
+  "statText": "Speed SS 1200   Stamina B+ 777   Power SS 1200   Guts C+ 500   Wit A 817",
+  "skills": [
+    {
+      "raw": "Festive Miracle Lvl 5",
+      "expectedSkillId": "110061"
+    },
+    {
+      "raw": "Shadow Break",
+      "expectedSkillId": "100161"
+    },
+    {
+      "raw": "∴win Q.E.D.",
+      "expectedSkillId": "100231"
+    },
+    {
+      "raw": "U=ma2",
+      "expectedSkillId": "100321"
+    },
+    {
+      "raw": "Firm Course Menace",
+      "expectedSkillId": "200154"
+    },
+    {
+      "raw": "Prepared to Pass",
+      "expectedSkillId": "200582"
+    }
+  ]
+}
