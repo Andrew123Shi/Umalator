@@ -329,9 +329,13 @@ function Histogram(props) {
 		g.append('g').attr('transform', `translate(${yW},0)`).call(d3.axisLeft(y));
 	}, [data, width, height]);
 
-	const rects = buckets.map((b,i) =>
-		<rect key={i} fill="#2a77c5" stroke="black" x={x(b.x0)} y={y(b.length)} width={x(b.x1) - x(b.x0)} height={height - xH - y(b.length)} />
-	);
+	const rects = buckets.map((b,i) => {
+		const bucketMidpoint = ((b.x0 ?? 0) + (b.x1 ?? 0)) / 2;
+		const fillColor = bucketMidpoint > 0 ? '#c52a2a' : '#2a77c5';
+		return (
+			<rect key={i} fill={fillColor} stroke="black" x={x(b.x0)} y={y(b.length)} width={x(b.x1) - x(b.x0)} height={height - xH - y(b.length)} />
+		);
+	});
 	return (
 		<svg id="histogram" width={width} height={height}>
 			<g>{rects}</g>
