@@ -9,13 +9,13 @@ import { SkillRarity } from '../uma-skill-tools/RaceSolver.ts';
 import { useLanguage } from './Language';
 import { Tooltip } from './Tooltip';
 import { isDebuffSkill } from './HorseDefTypes';
-import { getSkillRatingContribution, calcUniqueBonus } from './CareerRating';
+import { getSkillRatingContributionWithAptitude, calcUniqueBonus, Aptitude } from './CareerRating';
 
 import './SkillList.css';
 
 import skilldata from '../uma-skill-tools/data/skill_data.json';
 import skillnames from '../uma-skill-tools/data/skillnames.json';
-import skillmeta from '../skill_meta.json';
+import skillmeta from '../umalator/skill_meta.json';
 
 const Parser = getParser(Matcher.mockConditions);
 
@@ -465,13 +465,13 @@ export function ExpandedSkillDetails(props) {
 	}, [baseCost, isUnique, skill.rarity, meta?.groupId, props.id]);
 	
 	useEffect(() => {
-		getSkillRatingContribution(props.id).then(score => {
+		getSkillRatingContributionWithAptitude(props.id, props.aptitudes as Aptitude[] | undefined).then(score => {
 			setScoreContribution(score);
 		}).catch(err => {
 			console.warn('Failed to get skill rating contribution:', err);
 			setScoreContribution(0);
 		});
-	}, [props.id]);
+	}, [props.id, props.aptitudes]);
 
 	const displayedScoreContribution = useMemo(() => {
 		if (isUnique) {

@@ -12,14 +12,14 @@ import { SkillSet, HorseState } from './HorseDefTypes';
 
 import './HorseDef.css';
 
-import umas from '../umas.json';
+import umas from '../umalator/umas.json';
 import icons from '../icons.json';
 import skilldata from '../uma-skill-tools/data/skill_data.json';
-import skillmeta from '../skill_meta.json';
+import skillmeta from '../umalator/skill_meta.json';
 
 import { getAllSavedProfiles, saveUmaProfile, loadUmaProfile, deleteUmaProfile, renameUmaProfile, selectAnotherProfilesDatabase, createNewProfilesDatabase } from '../umalator/app';
 
-import { calculateRatingBreakdown, calculateSkillScore, getRatingBadge, RATING_BADGES } from './CareerRating';
+import { calculateRatingBreakdown, calculateSkillScore, getRatingBadge, RATING_BADGES, buildAptitudeVector } from './CareerRating';
 
 // Type for saved profiles (matches the one in app.tsx)
 interface SavedUmaProfile {
@@ -31,13 +31,39 @@ interface SavedUmaProfile {
 
 const umaAltIds = Object.keys(umas).flatMap(id => Object.keys(umas[id].outfits));
 const umaNamesForSearch = {};
+
+function getOutfitData(umaId: string, outfitId: string) {
+	const outfit = umas[umaId]?.outfits?.[outfitId];
+	if (!outfit) return null;
+	return typeof outfit === 'string' ? {epithet: outfit} : outfit;
+}
+
+function getOutfitEpithet(umaId: string, outfitId: string): string {
+	return getOutfitData(umaId, outfitId)?.epithet || '';
+}
+
+function strategyFromOutfitData(outfitData: any): HorseState['strategy'] | null {
+	if (!outfitData || typeof outfitData.strategy !== 'number') return null;
+	const mapped = ['', 'Nige', 'Senkou', 'Sasi', 'Oikomi'][outfitData.strategy];
+	return (mapped as HorseState['strategy']) || null;
+}
+
+function strategyAptitudeFromOutfitData(outfitData: any, strategy: HorseState['strategy']) {
+	if (!outfitData || !Array.isArray(outfitData.aptitudes)) return null;
+	const strategyIndex = ['Nige', 'Senkou', 'Sasi', 'Oikomi'].indexOf(strategy === 'Oonige' ? 'Nige' : strategy);
+	if (strategyIndex < 0) return null;
+	const raw = outfitData.aptitudes[4 + strategyIndex];
+	if (typeof raw !== 'number' || raw < 0 || raw > 7) return null;
+	return ' GFEDCBA'[raw] || null;
+}
+
 umaAltIds.forEach(id => {
 	const u = umas[id.slice(0,4)];
-	umaNamesForSearch[id] = (u.outfits[id] + ' ' + u.name[1]).toUpperCase().replace(/\./g, '');
+	umaNamesForSearch[id] = (getOutfitEpithet(id.slice(0,4), id) + ' ' + ((u && u.name && u.name[1]) || '')).toUpperCase().replace(/\./g, '');
 });
 
 function searchNames(query) {
-	const q = query.toUpperCase().replace(/\./g, '');
+	const q = (query == null ? '' : String(query)).toUpperCase().replace(/\./g, '');
 	return umaAltIds.filter(oid => umaNamesForSearch[oid].indexOf(q) > -1);
 }
 
@@ -76,7 +102,8 @@ export function UmaProfileManager(props) {
 						return true;
 					}
 					// Check outfit/epithet name if it exists
-					if (u.outfits && u.outfits[umaId] && u.outfits[umaId].toLowerCase().includes(query)) {
+					const epithet = getOutfitEpithet(umaId.slice(0,4), umaId);
+					if (epithet && epithet.toLowerCase().includes(query)) {
 						return true;
 					}
 				}
@@ -319,7 +346,7 @@ export function UmaProfileManager(props) {
 													<div class="umaProfileManagerItemName">{profile.name}</div>
 												)}
 												{umaId && u && (
-													<div class="umaProfileManagerItemUma">{u.outfits[umaId]} {u.name[1]}</div>
+													<div class="umaProfileManagerItemUma">{getOutfitEpithet(umaId.slice(0,4), umaId)} {u.name[1]}</div>
 												)}
 												<div class="umaProfileManagerItemTime">{formatTimestamp(profile.timestamp)}</div>
 											</div>
@@ -361,7 +388,7 @@ export function UmaSelector(props) {
 	function update(q) {
 		return {input: q, suggestions: searchNames(q)};
 	}
-	const [query, search] = useReducer((_,q) => update(q), u && u.name[1], update);
+	const [query, search] = useReducer((_,q) => update(q), (u && u.name && u.name[1]) || '', update);
 
 	function confirm(oid) {
 		setOpen(false);
@@ -442,7 +469,7 @@ export function UmaSelector(props) {
 					<img src={props.value ? icons[props.value] : randomMob} />
 					<img src="/uma-tools/icons/utx_ico_umamusume_00.png" />
 				</div>
-				<div class="umaEpithet"><span>{props.value && u.outfits[props.value]}</span></div>
+				<div class="umaEpithet"><span>{props.value && getOutfitEpithet(props.value.slice(0,4), props.value)}</span></div>
 				<div class="profileButtons">
 					{props.currentState && <button className="resetUmaButton" onClick={handleSaveProfile} title="Save current profile">Save</button>}
 					{props.currentState && <button className="resetUmaButton" onClick={() => setProfileManagerOpen(true)} title="Load saved profile">Load</button>}
@@ -458,7 +485,7 @@ export function UmaSelector(props) {
 							const uid = oid.slice(0,4);
 							return (
 								<li key={oid} data-uma-id={oid} class={`umaSuggestion ${i == activeIdx ? 'selected' : ''}`}>
-									<img src={icons[oid]} loading="lazy" /><span>{umas[uid].outfits[oid]} {umas[uid].name[1]}</span>
+									<img src={icons[oid]} loading="lazy" /><span>{getOutfitEpithet(uid, oid)} {umas[uid].name[1]}</span>
 								</li>
 							);
 						})}
@@ -643,20 +670,30 @@ export function HorseDef(props) {
 
 	function setUma(id) {
 		let newSkills = state.skills.filter(isGeneralSkill);
+		let nextState = state;
 
 		if (id) {
 			const uid = uniqueSkillForUma(id);
 			newSkills = newSkills.set(skillmeta[uid].groupId, uid);
+			const outfitData = getOutfitData(id.slice(0, 4), id);
+			const strategy = strategyFromOutfitData(outfitData);
+			if (strategy) {
+				nextState = nextState.set('strategy', strategy);
+				const mappedStrategyAptitude = strategyAptitudeFromOutfitData(outfitData, strategy);
+				if (mappedStrategyAptitude) {
+					nextState = nextState.set('strategyAptitude', mappedStrategyAptitude);
+				}
+			}
 		}
 
-		const removedSkillIds = state.skills.valueSeq().toSet().subtract(newSkills.valueSeq().toSet());
-		let newForcedPositions = state.forcedSkillPositions;
+		const removedSkillIds = nextState.skills.valueSeq().toSet().subtract(newSkills.valueSeq().toSet());
+		let newForcedPositions = nextState.forcedSkillPositions;
 		removedSkillIds.forEach(skillId => {
 			newForcedPositions = newForcedPositions.delete(skillId);
 		});
 
 		setState(
-			state.set('outfitId', id)
+			nextState.set('outfitId', id)
 				.set('skills', newSkills)
 				.set('forcedSkillPositions', newForcedPositions)
 		);
@@ -738,6 +775,10 @@ export function HorseDef(props) {
 	}, [hasRunawaySkill, state.strategy]);
 
 	const u = uniqueSkillForUma(umaId);
+	const aptitudeVector = useMemo(
+		() => buildAptitudeVector(state.distanceAptitude, state.strategyAptitude, state.surfaceAptitude),
+		[state.distanceAptitude, state.strategyAptitude, state.surfaceAptitude]
+	);
 	
 	const skillList = useMemo(function () {
 		const hasRunData = props.runData != null && props.umaIndex != null;
@@ -755,6 +796,7 @@ export function HorseDef(props) {
 						  runData={hasRunData ? props.runData : null}
 						  umaIndex={hasRunData ? props.umaIndex : null}
 						  onViewProcData={hasRunData ? () => setProcDataSkillId(id) : null}
+						  aptitudes={aptitudeVector}
 						  uniqueLevel={isUnique ? (state.uniqueLevel || 0) : undefined}
 						  onUniqueLevelChange={isUnique ? ((level: number) => setState(prev => prev.set('uniqueLevel', level))) : undefined}
 					  />
@@ -783,7 +825,7 @@ export function HorseDef(props) {
 					  </div>
 				  </li>
 		});
-	}, [state.skills, umaId, expanded, props.courseDistance, state.forcedSkillPositions, state.uniqueLevel, props.runData, props.umaIndex]);
+	}, [state.skills, umaId, expanded, props.courseDistance, state.forcedSkillPositions, state.uniqueLevel, props.runData, props.umaIndex, aptitudeVector]);
 
 	// Calculate career rating with async skill score
 	const [skillScore, setSkillScore] = useState(0);
@@ -791,13 +833,13 @@ export function HorseDef(props) {
 	useEffect(() => {
 		// Get all skills except unique skill
 		const nonUniqueSkillIds = Array.from(state.skills.values()).filter(id => id != u);
-		calculateSkillScore(nonUniqueSkillIds).then(score => {
+		calculateSkillScore(nonUniqueSkillIds, aptitudeVector).then(score => {
 			setSkillScore(score);
 		}).catch(err => {
 			console.warn('Failed to calculate skill score:', err);
 			setSkillScore(0);
 		});
-	}, [state.skills, u]);
+	}, [state.skills, u, aptitudeVector]);
 	
 	const ratingBreakdown = useMemo(() => {
 		return calculateRatingBreakdown(

@@ -7,7 +7,7 @@ import { Map as ImmMap } from 'immutable';
 import { HorseState } from '../components/HorseDefTypes';
 import { runComparison, runGlobalComparison } from './compare';
 import { DistanceType, Surface } from '../uma-skill-tools/CourseData';
-import skillmeta from '../skill_meta.json';
+import skillmeta from './skill_meta.json';
 import { runOptimization, OptimizerIteration } from './optimizer';
 import courses from '../uma-skill-tools/data/course_data.json';
 

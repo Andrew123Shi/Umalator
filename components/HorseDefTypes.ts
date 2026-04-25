@@ -1,9 +1,14 @@
 import { Record, Map as ImmMap } from 'immutable';
 
 import skills from '../uma-skill-tools/data/skill_data.json';
-import skillmeta from '../skill_meta.json';
+import skillmeta from '../umalator/skill_meta.json';
+
+function isKnownSkill(id: string) {
+	return id in skillmeta && id in skills;
+}
 
 export function isDebuffSkill(id: string) {
+	if (!isKnownSkill(id)) return false;
 	// iconId 3xxxx is the debuff icons
 	// i think this basically matches the intuitive behavior of being able to add multiple debuff skills and not other skills;
 	// e.g. there are some skills with both a debuff component and a positive component and typically it doesnt make sense to
@@ -12,8 +17,9 @@ export function isDebuffSkill(id: string) {
 }
 
 export function SkillSet(ids): ImmMap<(typeof skill_meta)['groupId'], keyof typeof skills> {
-	return ImmMap(ids.reduce((acc, id) => {
+	return ImmMap((ids || []).reduce((acc, id) => {
 		const {entries, ndebuff} = acc;
+		if (!isKnownSkill(id)) return acc;
 		const groupId = skillmeta[id].groupId;
 		if (isDebuffSkill(id)) {
 			entries.push([groupId + '-' + ndebuff, id]);

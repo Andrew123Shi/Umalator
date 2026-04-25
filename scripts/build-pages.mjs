@@ -17,11 +17,6 @@ const requiredCopies = [
 		from: path.join(root, 'fonts'),
 		to: path.join(distPagesDir, 'uma-tools', 'fonts'),
 		label: 'fonts'
-	},
-	{
-		from: path.join(root, 'uma-skill-tools', 'data', 'uma_skills.csv'),
-		to: path.join(distPagesDir, 'uma-tools', 'uma-skill-tools', 'data', 'uma_skills.csv'),
-		label: 'uma_skills.csv'
 	}
 ];
 
@@ -31,8 +26,7 @@ const requiredOutputs = [
 	path.join(distPagesDir, 'bundle.css'),
 	path.join(distPagesDir, 'simulator.worker.js'),
 	path.join(distPagesDir, 'uma-tools', 'icons'),
-	path.join(distPagesDir, 'uma-tools', 'fonts'),
-	path.join(distPagesDir, 'uma-tools', 'uma-skill-tools', 'data', 'uma_skills.csv')
+	path.join(distPagesDir, 'uma-tools', 'fonts')
 ];
 
 function runGlobalBuild() {

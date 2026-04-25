@@ -1,9 +1,8 @@
 // Career Rating Calculation Utilities
 // Based on the rating calculation logic from optimizer.js
 
-import skillmeta from '../skill_meta.json';
+import skillmeta from '../umalator/skill_meta.json';
 import skilldata from '../uma-skill-tools/data/skill_data.json';
-import skillnames from '../umalator-global/skillnames.json';
 
 const STAT_BLOCK_SIZE = 50;
 const STAT_MULTIPLIERS = [
@@ -179,208 +178,126 @@ export function getRatingBadgeIndex(totalScore: number): number {
 	return RATING_BADGES.length - 1;
 }
 
-// Cache for CSV data
-let skillRatingCache: Map<string, number> | null = null;
-let csvLoadPromise: Promise<void> | null = null;
+const APTITUDE_MULTIPLIER = Object.freeze({S: 1.1, A: 1.1, B: 0.9, C: 0.9, D: 0.8, E: 0.8, F: 0.8, G: 0.7});
+const ASSUME_PROPER_APTITUDE_WHEN_USED = true;
 
-/**
- * Normalize a skill name for lookup (lowercase, trim)
- */
-function normalizeSkillName(name: string): string {
-	return (name || '').trim().toLowerCase();
+export type Aptitude = keyof typeof APTITUDE_MULTIPLIER;
+
+export function buildAptitudeVector(
+	distanceAptitude?: Aptitude,
+	strategyAptitude?: Aptitude,
+	surfaceAptitude?: Aptitude
+): Aptitude[] | undefined {
+	if (!distanceAptitude || !strategyAptitude || !surfaceAptitude) return undefined;
+	return [
+		distanceAptitude, distanceAptitude, distanceAptitude, distanceAptitude,
+		strategyAptitude, strategyAptitude, strategyAptitude, strategyAptitude,
+		surfaceAptitude, surfaceAptitude
+	];
 }
 
-/**
- * Parse a CSV line into fields (handles quoted fields).
- */
-function parseCsvLine(line: string): string[] {
-	const fields: string[] = [];
-	let current = '';
-	let inQuotes = false;
+// NB. aptitude order: short mile middle long nige senko sashi oikomi turf dirt
+function aptitudeIndexFromTag(tag: number): number {
+	if (tag >= 500 && tag < 600) return -1; // turf/dirt do not affect score
+	if (tag >= 100 && tag < 200) return 3 + (tag - 100); // strategy (101-104)
+	if (tag >= 200 && tag < 300) return -1 + (tag - 200); // distance (201-204)
+	return -1;
+}
 
-	for (let j = 0; j < line.length; j++) {
-		const char = line[j];
-		if (char === '"') {
-			if (inQuotes && line[j + 1] === '"') {
-				current += '"';
-				j++;
-			} else {
-				inQuotes = !inQuotes;
+function scoreFromMeta(skillId: string): number {
+	const meta = (skillmeta as any)[skillId];
+	if (!meta) return 0;
+	if (typeof meta.score === 'number') return meta.score;
+	if (typeof meta.score === 'string') {
+		const parsed = Number(meta.score);
+		return Number.isFinite(parsed) ? parsed : 0;
+	}
+	return 0;
+}
+
+function scoreForSkillWithAptitude(skillId: string, aptitudes?: Aptitude[]): number {
+	const baseScore = scoreFromMeta(skillId);
+	if (!baseScore) return 0;
+	const skill = (skilldata as any)[skillId];
+	const tags = skill?.tags;
+	const hasAptitudeTag = Array.isArray(tags) && tags.some((tag: number) => (tag >= 100 && tag < 300));
+	const alts = Array.isArray(skill?.alternatives) ? skill.alternatives : [];
+	const hasAptitudeCondition = alts.some((alt: any) => {
+		const condition = typeof alt?.condition === 'string' ? alt.condition : '';
+		const precondition = typeof alt?.precondition === 'string' ? alt.precondition : '';
+		return /(running_style|distance_type|ground_type)\s*==/.test(condition) ||
+			/(running_style|distance_type|ground_type)\s*==/.test(precondition);
+	});
+	const isAptitudeDependent = hasAptitudeTag || hasAptitudeCondition;
+
+	// Current UI does not model per-distance/per-style aptitude granularity.
+	// Treat aptitude-dependent skills as being used on matching aptitude.
+	if (ASSUME_PROPER_APTITUDE_WHEN_USED && isAptitudeDependent) {
+		return Math.round(baseScore * APTITUDE_MULTIPLIER.A);
+	}
+
+	if (!aptitudes || aptitudes.length < 10) return baseScore;
+	if (!Array.isArray(tags) || tags.length === 0) return baseScore;
+
+	const grouped = new Map<number, number[]>();
+	for (const tag of tags) {
+		const family = Math.floor(tag / 100);
+		const familyTags = grouped.get(family);
+		if (familyTags) familyTags.push(tag);
+		else grouped.set(family, [tag]);
+	}
+
+	let aptitudeCoef = 1;
+	for (const familyTags of grouped.values()) {
+		let bestCoef = 0;
+		for (const tag of familyTags) {
+			const idx = aptitudeIndexFromTag(tag);
+			if (idx === -1) {
+				bestCoef = Math.max(bestCoef, 1);
+				continue;
 			}
-		} else if (char === ',' && !inQuotes) {
-			fields.push(current);
-			current = '';
-		} else {
-			current += char;
+			const apt = aptitudes[idx];
+			const aptCoef = apt ? APTITUDE_MULTIPLIER[apt] : 1;
+			bestCoef = Math.max(bestCoef, aptCoef || 1);
 		}
-	}
-	fields.push(current);
-	return fields;
-}
-
-/**
- * Parse CSV content and create a skill name -> rating score mapping.
- * Uses S_A when present; otherwise falls back to base_value.
- */
-function parseSkillsCSV(csvText: string): Map<string, number> {
-	const map = new Map<string, number>();
-	const lines = csvText.split(/\r?\n/);
-
-	if (lines.length < 2) return map;
-
-	const header = parseCsvLine(lines[0].trim()).map(h => h.trim().toLowerCase());
-	const nameIdx = header.indexOf('name');
-	const baseIdx = header.indexOf('base_value');
-	const saIdx = header.indexOf('s_a');
-
-	if (nameIdx === -1 || baseIdx === -1) return map;
-
-	// Skip header line
-	for (let i = 1; i < lines.length; i++) {
-		const line = lines[i].trim();
-		if (!line) continue;
-
-		const fields = parseCsvLine(line);
-		if (fields.length <= Math.max(nameIdx, baseIdx, saIdx)) continue;
-
-		const name = fields[nameIdx]?.trim();
-		const baseRaw = fields[baseIdx]?.trim();
-		const saRaw = saIdx >= 0 ? fields[saIdx]?.trim() : '';
-		const baseValue = baseRaw ? parseFloat(baseRaw) : NaN;
-		const saValue = saRaw ? parseFloat(saRaw) : NaN;
-
-		if (!name) continue;
-
-		const normalizedName = normalizeSkillName(name);
-		const chosenValue = !isNaN(saValue) ? saValue : (!isNaN(baseValue) ? baseValue : NaN);
-
-		if (!isNaN(chosenValue)) {
-			// Use the highest rating if multiple entries exist for the same name
-			const existing = map.get(normalizedName);
-			if (!existing || chosenValue > existing) {
-				map.set(normalizedName, chosenValue);
-			}
-		}
+		aptitudeCoef *= (bestCoef || 1);
 	}
 
-	return map;
-}
-
-/**
- * Load the skills CSV and cache the rating scores.
- */
-async function loadSkillsCSV(): Promise<void> {
-	if (skillRatingCache) return;
-	if (csvLoadPromise) return csvLoadPromise;
-	
-	csvLoadPromise = (async () => {
-		try {
-			const response = await fetch('/uma-tools/uma-skill-tools/data/uma_skills.csv');
-			if (!response.ok) {
-				console.warn('Failed to load uma_skills.csv, using fallback calculation');
-				skillRatingCache = new Map();
-				return;
-			}
-			const csvText = await response.text();
-			skillRatingCache = parseSkillsCSV(csvText);
-		} catch (error) {
-			console.warn('Error loading uma_skills.csv:', error);
-			skillRatingCache = new Map();
-		}
-	})();
-	
-	return csvLoadPromise;
-}
-
-/**
- * Get skill name from skill ID using skillnames.json.
- */
-function getSkillName(skillId: string): string | null {
-	const names = (skillnames as any)[skillId];
-	if (!names || !Array.isArray(names) || names.length === 0) {
-		return null;
-	}
-	// Use English name if available, otherwise first name
-	return names[names.length > 1 ? 1 : 0] || names[0];
-}
-
-/**
- * Find the lower skill version for a gold skill based on groupId.
- * Gold skills (rarity 4) often have a lower version (rarity < 4) in the same group.
- */
-function findLowerSkillForGold(goldSkillId: string): string | null {
-	const goldMeta = (skillmeta as any)[goldSkillId];
-	if (!goldMeta || !goldMeta.groupId) return null;
-	
-	const goldSkill = (skilldata as any)[goldSkillId];
-	if (!goldSkill || goldSkill.rarity !== 4) return null; // Only for gold skills
-	
-	const groupId = goldMeta.groupId;
-	
-	// Find skills in the same group with lower rarity
-	for (const skillId in skillmeta) {
-		if (skillId === goldSkillId) continue;
-		const meta = (skillmeta as any)[skillId];
-		const skill = (skilldata as any)[skillId];
-		
-		if (meta && meta.groupId === groupId && skill && skill.rarity < 4) {
-			return skillId;
-		}
-	}
-	
-	return null;
+	return Math.round(baseScore * aptitudeCoef);
 }
 
 /**
  * Get rating contribution for a single skill by its ID.
- * Uses the CSV data (base_value) which is the actual rating score contribution.
- * For gold skills, includes the rating contribution from the lower skill version.
+ * Uses ID-based score data from skill_meta.json.
  */
 export async function getSkillRatingContribution(skillId: string): Promise<number> {
-	await loadSkillsCSV();
-	
-	if (!skillRatingCache) {
-		// Fallback if CSV loading failed
-		const meta = (skillmeta as any)[skillId];
-		if (meta && typeof meta.baseCost === 'number' && meta.baseCost > 0) {
-			return meta.baseCost;
-		}
-		return 0;
-	}
-	
-	const skillName = getSkillName(skillId);
-	if (!skillName) return 0;
-	
-	const normalizedName = normalizeSkillName(skillName);
-	let rating = skillRatingCache.get(normalizedName) || 0;
-	
-	// For gold skills, include the lower skill's rating contribution
-	const skill = (skilldata as any)[skillId];
-	if (skill && skill.rarity === 4) {
-		const lowerSkillId = findLowerSkillForGold(skillId);
-		if (lowerSkillId) {
-			const lowerSkillName = getSkillName(lowerSkillId);
-			if (lowerSkillName) {
-				const lowerNormalizedName = normalizeSkillName(lowerSkillName);
-				const lowerRating = skillRatingCache.get(lowerNormalizedName) || 0;
-				rating += lowerRating;
-			}
-		}
-	}
-	
-	return rating;
+	return scoreFromMeta(skillId);
+}
+
+export async function getSkillRatingContributionWithAptitude(skillId: string, aptitudes?: Aptitude[]): Promise<number> {
+	return scoreForSkillWithAptitude(skillId, aptitudes);
 }
 
 /**
  * Calculate total skill score from a set of skill IDs.
  * @param skillIds Array or Set of skill IDs (excluding unique skill)
  */
-export async function calculateSkillScore(skillIds: Iterable<string>): Promise<number> {
-	await loadSkillsCSV();
-	
+export async function calculateSkillScore(skillIds: Iterable<string>, aptitudes?: Aptitude[]): Promise<number> {
 	let total = 0;
 	for (const skillId of skillIds) {
-		total += await getSkillRatingContribution(skillId);
+		total += await getSkillRatingContributionWithAptitude(skillId, aptitudes);
+	}
+	return total;
+}
+
+/**
+ * Calculate total score with optional aptitude multipliers.
+ * If aptitudes are not provided, this matches plain meta score summation.
+ */
+export function calculateSkillScoreWithAptitudes(skillIds: Iterable<string>, aptitudes?: Aptitude[]): number {
+	let total = 0;
+	for (const skillId of skillIds) {
+		total += scoreForSkillWithAptitude(skillId, aptitudes);
 	}
 	return total;
 }

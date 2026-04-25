@@ -29,7 +29,7 @@ my $root = dirname(dirname(abs_path($mastermdb)));
 my $meta = $root . "./meta";
 my $datadir = $root . "/dat";
 
-my $umas = decode_json(read_binary('umas.json'));
+my $umas = decode_json(read_binary('umalator/umas.json'));
 my $icons = decode_json(read_binary('icons.json'));
 
 # temporary: for importing english names from the old icons file
@@ -49,6 +49,21 @@ $db->{RaiseError} = 1;
 
 my $select_umas = $db->prepare('SELECT [index], text FROM text_data WHERE category = 6 AND [index] < 2000;');
 my $select_outfits = $db->prepare('SELECT [index], text FROM text_data WHERE category = 5 AND [index] BETWEEN (?1 * 100) AND ((?1 + 1) * 100) ORDER BY [index] ASC;');
+my $APTITUDES = q(
+ cr.proper_distance_short, cr.proper_distance_mile, cr.proper_distance_middle, cr.proper_distance_long,
+ cr.proper_running_style_nige, cr.proper_running_style_senko, cr.proper_running_style_sashi, cr.proper_running_style_oikomi,
+ cr.proper_ground_turf, cr.proper_ground_dirt
+);
+my $select_outfit_data = $db->prepare("
+ SELECT c.default_rarity, c.running_style, json_array($APTITUDES), json_group_array(ss.skill_id)
+ FROM card_data c
+INNER JOIN available_skill_set ss
+        ON c.available_skill_set_id = ss.available_skill_set_id
+INNER JOIN (SELECT card_id, $APTITUDES FROM card_rarity_data cr GROUP BY card_id) cr
+        ON c.id = cr.card_id
+ WHERE c.id = ?1
+ GROUP BY ss.available_skill_set_id;
+");
 
 my $metadb = DBI->connect("dbi:SQLite:$meta", undef, undef, {
 	sqlite_open_flags => SQLITE_OPEN_READONLY
@@ -97,7 +112,16 @@ while ($select_umas->fetch) {
 	$select_outfits->bind_columns(\($o_id, $epithet));
 	while ($select_outfits->fetch) {
 		push @outfit_ids, $o_id;
-		$umas->{$id}->{outfits}->{$o_id} = Encode::decode('utf8', $epithet);
+		$select_outfit_data->execute($o_id);
+		$select_outfit_data->bind_columns(\(my $default_rarity, my $running_style, my $aptitudes, my $awakenings));
+		$select_outfit_data->fetch;
+		$umas->{$id}->{outfits}->{$o_id} = {
+			epithet => Encode::decode('utf8', $epithet),
+			rarity => $default_rarity,
+			strategy => $running_style,
+			aptitudes => decode_json($aptitudes),
+			awakenings => [map { "$_" } @{decode_json($awakenings)}]
+		};
 	}
 
 	my $icon_path;
@@ -119,7 +143,7 @@ while ($select_umas->fetch) {
 my $json = JSON::PP->new;
 $json->canonical(1);
 $json->utf8(1);
-open(my $umas_fh, '>', 'umas.json');
+open(my $umas_fh, '>', 'umalator/umas.json');
 print $umas_fh $json->encode($umas);
 close $umas_fh;
 open(my $icons_fh, '>', 'icons.json');

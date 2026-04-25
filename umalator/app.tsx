@@ -28,7 +28,7 @@ import { IntroText } from './IntroText';
 
 import skilldata from '../uma-skill-tools/data/skill_data.json';
 import skillnames from '../uma-skill-tools/data/skillnames.json';
-import skillmeta from '../skill_meta.json';
+import skillmeta from './skill_meta.json';
 import nonGlobalPresetDefs from './presets.json';
 import globalPresetDefs from '../umalator-global/presets.json';
 

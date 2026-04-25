@@ -4,9 +4,9 @@ import { RaceSolverBuilder, buildBaseStats, buildAdjustedStats, Perspective } fr
 import { RaceSolver, PosKeepMode } from '../uma-skill-tools/RaceSolver';
 import { HorseState } from '../components/HorseDefTypes';
 import { Rule30CARng } from '../uma-skill-tools/Random';
-import { calculateRatingBreakdown, calculateSkillScore } from '../components/CareerRating';
+import { calculateRatingBreakdown, calculateSkillScore, buildAptitudeVector, Aptitude } from '../components/CareerRating';
 import { runComparison } from './compare';
-import skillmeta from '../skill_meta.json';
+import skillmeta from './skill_meta.json';
 
 export interface OptimizerStats {
 	speed: number;
@@ -227,7 +227,12 @@ export async function runOptimization(
 	// Calculate skill score (excluding unique skill)
 	const allSkills = Array.from(uma.skills.values());
 	const skillIds = uniqueSkillId ? allSkills.filter(id => id !== uniqueSkillId) : allSkills;
-	const skillScore = await calculateSkillScore(skillIds);
+	const aptitudeVector = buildAptitudeVector(
+		uma.distanceAptitude as Aptitude,
+		uma.strategyAptitude as Aptitude,
+		uma.surfaceAptitude as Aptitude
+	);
+	const skillScore = await calculateSkillScore(skillIds, aptitudeVector);
 	
 	const baseSeed = options.seed || 2615953739;
 	const rng = new Rule30CARng(baseSeed);

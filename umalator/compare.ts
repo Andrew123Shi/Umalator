@@ -12,7 +12,7 @@ import { HorseParameters } from '../uma-skill-tools/HorseTypes';
 import { HorseState } from '../components/HorseDefTypes';
 
 import skilldata from '../uma-skill-tools/data/skill_data.json';
-import skillmeta from '../skill_meta.json';
+import skillmeta from './skill_meta.json';
 import { Rule30CARng } from '../uma-skill-tools/Random';
 
 export function runComparison(nsamples: number, course: CourseData, racedef: RaceParameters, uma1: HorseState, uma2: HorseState, pacer: HorseState, options, onProgress?: (completed: number, total: number, cumulativeResults?: any) => void) {
