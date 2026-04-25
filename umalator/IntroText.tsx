@@ -62,10 +62,10 @@ export function IntroText(props) {
 			</details>
 			<details>
 				<summary>Credits</summary>
-					<p>This is a fork of the Umalator released by Kachi-dev. All credits to the original Umalator go to Kachi and everyone before him that made his version possible!</p>
+					<p>This is a fork of the Umalator released by Kachi-dev. All credit for the underlying architecture goes to Kachi and everyone before him that made his version possible!</p>
 			</details>
 			<footer id="sourcelinks">
-			Source Code: <a href="https://github.com/Andrew123Shi/Umalator/">https://github.com/Andrew123Shi/Umalator/</a>. Original Umalator: <a href="https://kachi-dev.github.io/uma-tools/umalator-global/">Simulator</a>, <a href="https://github.com/kachi-dev/uma-tools">GitHub</a>
+			Source Code: <a href="https://github.com/Andrew123Shi/Umalator/">https://github.com/Andrew123Shi/Umalator/</a>. Based on the Umalator made by Kachi-dev: <a href="https://kachi-dev.github.io/uma-tools/umalator-global/">Simulator</a>, <a href="https://github.com/kachi-dev/uma-tools">GitHub</a>
 			</footer>
 		</div>
 	);
