@@ -24,8 +24,8 @@ export function IntroText(props) {
 	return (
 		<div id="introtext">
 			<details>
-				<summary>Caveats</summary>
-				The simulator is fairly complete and implements nearly all relevant game mechanics, with the following exceptions:
+				<summary>Disclaimer</summary>
+				The Umalator is one of the best tools for understanding the behavior and performance of umas based on their stats, skills, aptitudes, and other race mechanics. While the Umalator represents the most faithful understanding of publicly-known race mechanics, it should never be treated as a one-to-one representation of how the game actually drives races. That is to say, what is simulated in the Umalator is not going to be 100% accurate to what happens in the game. For example:
 				<ul>
 					<li>
 						<details>
@@ -54,11 +54,17 @@ export function IntroText(props) {
 					<li>
 						<details>
 							<summary>Skill cooldowns are not implemented.</summary>
-							Skills only ever activate once even if they have a cooldown like Professor of Curvature or Beeline Burst. 
+							<p>Skills only ever activate once even if they have a cooldown like Professor of Curvature or Beeline Burst.</p>
+						</details>
+					</li>
+					<li>
+						<details>
+							<summary>The Umalator tends to be biased towards later styles (End {'>'} Late {'>'} Pace {'>'} Front)</summary>
+							<p>This is simply based on the fact that later styles have naturally higher target speeds (balanced in-game by the risk of getting blocked or stuck), so even comparing two umas of differing styles may show skewed results that will artificially make one uma seem better than another.</p>
 						</details>
 					</li>
 				</ul>
-				By and large it should be highly accurate. It has been battle-tested on the JP server for several years.
+				<p>Take all results with a grain of salt, and use your own understanding of game mechanics to draw conclusions from the Umalator.</p>
 			</details>
 			<details>
 				<summary>Credits</summary>
