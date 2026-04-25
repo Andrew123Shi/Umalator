@@ -57,7 +57,8 @@ const horse = Object.freeze({
 	distanceAptitude: Aptitude.S,
 	surfaceAptitude: Aptitude.A,
 	strategyAptitde: Aptitude.A,
-	rawStamina: 2000
+	rawStamina: 2000,
+	rawWisdom: 2000
 });
 
 function baseSpeed(distance: number) {

@@ -649,7 +649,7 @@ export function HorseDef(props) {
 			newSkills = newSkills.set(skillmeta[uid].groupId, uid);
 		}
 
-		const removedSkillIds = state.skills.keySeq().toSet().subtract(newSkills.keySeq().toSet());
+		const removedSkillIds = state.skills.valueSeq().toSet().subtract(newSkills.valueSeq().toSet());
 		let newForcedPositions = state.forcedSkillPositions;
 		removedSkillIds.forEach(skillId => {
 			newForcedPositions = newForcedPositions.delete(skillId);
@@ -718,7 +718,7 @@ export function HorseDef(props) {
 	}, [expanded]);
 
 	useEffect(function () {
-		const currentSkillIds = state.skills.keySeq().toSet();
+		const currentSkillIds = state.skills.valueSeq().toSet();
 		const forcedPositionSkillIds = state.forcedSkillPositions.keySeq().toSet();
 		const orphanedSkillIds = forcedPositionSkillIds.subtract(currentSkillIds);
 		if (orphanedSkillIds.size > 0) {
