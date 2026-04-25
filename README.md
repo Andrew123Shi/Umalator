@@ -1,7 +1,13 @@
 ### A Umalator fork of https://github.com/kachi-dev/uma-tools
-Original Umalator: https://kachi-dev.github.io/uma-tools/umalator-global/
+This Umalator is based off of the version made by Kachi: https://kachi-dev.github.io/uma-tools/umalator-global/
+
+### Disclaimer
+
+The Umalator is one of the best tools for understanding the behavior and performance of umas based on their stats, skills, aptitudes, and other race mechanics. While the Umalator represents the most faithful understanding of publicly-known race mechanics, it should never be treated as a one-to-one representation of how the game actually drives races. That is to say, what is simulated in the Umalator is not going to be 100% accurate to what happens in the game. Some aspects such as position-based skill conditions (e.g. order_rate, bashin_diff_infront, etc) and getting "blocked in" cannot be simulated when just comparing two umas in a vacuum. The Umalator also tends to be biased towards later styles (End > Late > Pace > Front), simply based on the fact that later styles have naturally higher target speeds (balanced in-game by the risk of getting blocked or stuck), so even comparing two umas of differing styles may show skewed results that will artificially make one uma seem better than another. Take all results with a grain of salt, and use your own understanding of game mechanics to draw conclusions from the Umalator. 
 
 # Improvements
+
+Improvements implemented from Kachi's version. Refer to their repo for how the baseline simulator architecture and logic is improved on previous versions (such as Alpha123's). 
 
 ### Global Compare
 
