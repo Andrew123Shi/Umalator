@@ -20,13 +20,21 @@ export function withBasePath(url: string): string {
 	if (/^(https?:)?\/\//.test(url) || url.startsWith('data:') || url.startsWith('blob:')) {
 		return url;
 	}
-	if (!url.startsWith('/')) {
-		return `${BASE_PATH}/${url}`;
+	const normalizedPath = url.replace(/^\/+/, '');
+	if (!BASE_PATH) {
+		return `/${normalizedPath}`;
 	}
-	return `${BASE_PATH}${url}`;
+	return `${BASE_PATH}/${normalizedPath}`;
 }
 
 export function umaToolsAsset(relativePath: string): string {
 	const normalized = relativePath.replace(/^\/+/, '');
-	return withBasePath(`/uma-tools/${normalized}`);
+	return withBasePath(`uma-tools/${normalized}`);
+}
+
+export function applyAssetCssVars(): void {
+	if (typeof document === 'undefined') return;
+	const rootStyle = document.documentElement.style;
+	rootStyle.setProperty('--uma-font-inter-url', `url("${umaToolsAsset('fonts/Inter-VariableFont_opsz,wght.ttf')}")`);
+	rootStyle.setProperty('--uma-font-jp-url', `url("${umaToolsAsset('fonts/NotoSansJP-VariableFont_wght.ttf')}")`);
 }

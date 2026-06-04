@@ -17,7 +17,7 @@ import { ExpandedSkillDetails, Skill, SkillList, STRINGS_en as SKILL_STRINGS_en 
 import { RaceTrack, TrackSelect, RegionDisplayType } from '../components/RaceTrack';
 import { HorseState, SkillSet } from '../components/HorseDefTypes';
 import { HorseDef, horseDefTabs, isGeneralSkill } from '../components/HorseDef';
-import { umaToolsAsset } from '../components/assetPaths';
+import { applyAssetCssVars, umaToolsAsset } from '../components/assetPaths';
 import { TRACKNAMES_ja, TRACKNAMES_en } from '../strings/common';
 import { RaceState } from '../uma-skill-tools/RaceSolver';
 
@@ -5163,6 +5163,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 }
 
 initTelemetry();
+applyAssetCssVars();
 render(<App lang="en-ja" />, document.getElementById('app'));
 
 

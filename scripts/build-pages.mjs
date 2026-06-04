@@ -19,16 +19,6 @@ const requiredCopies = [
 		label: 'fonts'
 	},
 	{
-		from: path.join(root, 'icons'),
-		to: path.join(distPagesDir, 'icons'),
-		label: 'icons (root fallback)'
-	},
-	{
-		from: path.join(root, 'fonts'),
-		to: path.join(distPagesDir, 'fonts'),
-		label: 'fonts (root fallback)'
-	},
-	{
 		from: path.join(root, 'icon.ico'),
 		to: path.join(distPagesDir, 'icon.ico'),
 		label: 'favicon'
@@ -37,11 +27,6 @@ const requiredCopies = [
 		from: path.join(root, 'components', 'ExampleProfile.png'),
 		to: path.join(distPagesDir, 'uma-tools', 'components', 'ExampleProfile.png'),
 		label: 'example profile screenshot'
-	},
-	{
-		from: path.join(root, 'components', 'ExampleProfile.png'),
-		to: path.join(distPagesDir, 'components', 'ExampleProfile.png'),
-		label: 'example profile screenshot (root fallback)'
 	}
 ];
 
@@ -53,10 +38,7 @@ const requiredOutputs = [
 	path.join(distPagesDir, 'icon.ico'),
 	path.join(distPagesDir, 'uma-tools', 'icons'),
 	path.join(distPagesDir, 'uma-tools', 'fonts'),
-	path.join(distPagesDir, 'uma-tools', 'components', 'ExampleProfile.png'),
-	path.join(distPagesDir, 'icons'),
-	path.join(distPagesDir, 'fonts'),
-	path.join(distPagesDir, 'components', 'ExampleProfile.png')
+	path.join(distPagesDir, 'uma-tools', 'components', 'ExampleProfile.png')
 ];
 
 function runGlobalBuild() {

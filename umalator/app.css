@@ -1,11 +1,16 @@
+:root {
+	--uma-font-inter-url: url("fonts/Inter-VariableFont_opsz,wght.ttf");
+	--uma-font-jp-url: url("fonts/NotoSansJP-VariableFont_wght.ttf");
+}
+
 @font-face {
 	font-family: "Inter";
-	src: local("Inter"), url("/uma-tools/fonts/Inter-VariableFont_opsz,wght.ttf") format("truetype");
+	src: local("Inter"), var(--uma-font-inter-url) format("truetype");
 }
 
 @font-face {
 	font-family: "Noto Sans JP";
-	src: local("Noto Sans JP"), url("/uma-tools/fonts/NotoSansJP-VariableFont_wght.ttf") format("truetype");
+	src: local("Noto Sans JP"), var(--uma-font-jp-url) format("truetype");
 }
 
 body {
