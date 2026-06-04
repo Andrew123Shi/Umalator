@@ -29,6 +29,11 @@ const requiredCopies = [
 		label: 'fonts (root fallback)'
 	},
 	{
+		from: path.join(root, 'icon.ico'),
+		to: path.join(distPagesDir, 'icon.ico'),
+		label: 'favicon'
+	},
+	{
 		from: path.join(root, 'components', 'ExampleProfile.png'),
 		to: path.join(distPagesDir, 'uma-tools', 'components', 'ExampleProfile.png'),
 		label: 'example profile screenshot'
@@ -45,6 +50,7 @@ const requiredOutputs = [
 	path.join(distPagesDir, 'bundle.js'),
 	path.join(distPagesDir, 'bundle.css'),
 	path.join(distPagesDir, 'simulator.worker.js'),
+	path.join(distPagesDir, 'icon.ico'),
 	path.join(distPagesDir, 'uma-tools', 'icons'),
 	path.join(distPagesDir, 'uma-tools', 'fonts'),
 	path.join(distPagesDir, 'uma-tools', 'components', 'ExampleProfile.png'),
