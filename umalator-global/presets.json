@@ -1,5 +1,49 @@
 [
   {
+    "id": 16,
+    "type": "CM",
+    "name": "Leo Cup",
+    "date": "2026-07-12",
+    "courseId": 10501,
+    "season": "Summer",
+    "ground": "Good",
+    "weather": "Sunny",
+    "time": "Midday"
+  },
+  {
+    "id": 15,
+    "type": "CM",
+    "name": "Cancer Cup",
+    "date": "2026-06-21",
+    "courseId": 10906,
+    "season": "Summer",
+    "ground": "Yielding",
+    "weather": "Cloudy",
+    "time": "Midday"
+  },
+  {
+    "id": 14,
+    "type": "CM",
+    "name": "Gemini Cup",
+    "date": "2026-05-31",
+    "courseId": 10602,
+    "season": "Spring",
+    "ground": "Good",
+    "weather": "Sunny",
+    "time": "Midday"
+  },
+  {
+    "id": 13,
+    "type": "CM",
+    "name": "Taurus Cup",
+    "date": "2026-05-10",
+    "courseId": 10606,
+    "season": "Spring",
+    "ground": "Good",
+    "weather": "Sunny",
+    "time": "Midday"
+  },
+  {
     "id": 12,
     "type": "CM",
     "name": "Aries Cup",
