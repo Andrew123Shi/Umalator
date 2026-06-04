@@ -30,6 +30,3 @@ jobs:
           path: dist-pages
       - id: deployment
         uses: actions/deploy-pages@v4
-      - run: ls -la dist-pages/uma-tools/icons | head -n 20
-      - run: test -f dist-pages/uma-tools/icons/20092.png
-      - run: test -f dist-pages/icons/20092.png
