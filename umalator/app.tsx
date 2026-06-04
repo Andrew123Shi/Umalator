@@ -1708,6 +1708,52 @@ interface SavedUmaProfile {
 	data: any; // Serialized HorseState
 }
 
+function isSavedUmaProfile(value: any): value is SavedUmaProfile {
+	return value != null
+		&& typeof value.id === 'string'
+		&& typeof value.name === 'string'
+		&& typeof value.timestamp === 'number'
+		&& Number.isFinite(value.timestamp);
+}
+
+function normalizeSavedProfiles(value: any): SavedUmaProfile[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value.filter(isSavedUmaProfile);
+}
+
+function mergeProfilesByNewestTimestamp(primaryProfiles: SavedUmaProfile[], secondaryProfiles: SavedUmaProfile[]): SavedUmaProfile[] {
+	const merged = new Map<string, SavedUmaProfile>();
+	const maybeSet = (profile: SavedUmaProfile) => {
+		const current = merged.get(profile.id);
+		if (!current || profile.timestamp >= current.timestamp) {
+			merged.set(profile.id, profile);
+		}
+	};
+	for (const profile of secondaryProfiles) {
+		maybeSet(profile);
+	}
+	for (const profile of primaryProfiles) {
+		maybeSet(profile);
+	}
+	return Array.from(merged.values());
+}
+
+async function readProfilesFromHandle(fileHandle: FileSystemFileHandle): Promise<SavedUmaProfile[]> {
+	try {
+		const file = await fileHandle.getFile();
+		const text = await file.text();
+		if (text.trim() === '') {
+			return [];
+		}
+		return normalizeSavedProfiles(JSON.parse(text));
+	} catch (error) {
+		console.warn('Failed to read profiles from selected database file:', error);
+		return [];
+	}
+}
+
 function serializeHorseState(state: HorseState): any {
 	return state.set('skills', Array.from(state.skills.values()) as any).toJS();
 }
@@ -1755,13 +1801,26 @@ async function getProfilesFileHandle(): Promise<FileSystemFileHandle | null> {
 }
 
 // Save profiles to file (and localStorage as backup)
-async function saveProfilesToStorage(profiles: SavedUmaProfile[]): Promise<void> {
-	const json = JSON.stringify(profiles, null, 2);
+async function saveProfilesToStorage(
+	profiles: SavedUmaProfile[],
+	options: { mergeWithOnDisk?: boolean } = {}
+): Promise<void> {
+	const { mergeWithOnDisk = true } = options;
+	let profilesToPersist = profiles;
 	
 	// Try to save to file first
 	try {
 		const handle = await getProfilesFileHandle();
 		if (handle) {
+			// Merge with on-disk profiles so selecting an existing DB never wipes newer entries.
+			if (mergeWithOnDisk) {
+				const fileProfiles = await readProfilesFromHandle(handle);
+				if (fileProfiles.length > 0) {
+					profilesToPersist = mergeProfilesByNewestTimestamp(profiles, fileProfiles);
+				}
+			}
+
+			const json = JSON.stringify(profilesToPersist, null, 2);
 			const writable = await handle.createWritable();
 			await writable.write(json);
 			await writable.close();
@@ -1779,6 +1838,7 @@ async function saveProfilesToStorage(profiles: SavedUmaProfile[]): Promise<void>
 
 	// Fallback to localStorage if file save fails or File System API not available
 	try {
+		const json = JSON.stringify(profilesToPersist, null, 2);
 		localStorage.setItem('umalator-saved-profiles', json);
 	} catch (error) {
 		console.warn('Failed to save profiles to localStorage:', error);
@@ -1787,13 +1847,14 @@ async function saveProfilesToStorage(profiles: SavedUmaProfile[]): Promise<void>
 }
 
 // Load profiles from file (or localStorage as fallback)
-async function getAllSavedProfiles(): Promise<SavedUmaProfile[]> {
+async function getAllSavedProfiles(options: { allowFilePrompt?: boolean } = {}): Promise<SavedUmaProfile[]> {
+	const { allowFilePrompt = true } = options;
 	// Try to load from file first if we have a handle
 	if (profilesFileHandle) {
 		try {
 			const file = await profilesFileHandle.getFile();
 			const text = await file.text();
-			const profiles = JSON.parse(text) as SavedUmaProfile[];
+			const profiles = normalizeSavedProfiles(JSON.parse(text));
 			// Update localStorage cache
 			try {
 				localStorage.setItem('umalator-saved-profiles', JSON.stringify(profiles));
@@ -1820,7 +1881,7 @@ async function getAllSavedProfiles(): Promise<SavedUmaProfile[]> {
 
 	// Try to load from file if File System API is available
 	// Only prompt if localStorage is empty (first time) or if user explicitly wants to reload
-	if ('showOpenFilePicker' in window && !hasLocalStorageData) {
+	if (allowFilePrompt && 'showOpenFilePicker' in window && !hasLocalStorageData) {
 		try {
 			const [fileHandle] = await (window as any).showOpenFilePicker({
 				types: [{
@@ -1832,7 +1893,7 @@ async function getAllSavedProfiles(): Promise<SavedUmaProfile[]> {
 			profilesFileHandle = fileHandle;
 			const file = await fileHandle.getFile();
 			const text = await file.text();
-			const profiles = JSON.parse(text) as SavedUmaProfile[];
+			const profiles = normalizeSavedProfiles(JSON.parse(text));
 			// Update localStorage cache
 			try {
 				localStorage.setItem('umalator-saved-profiles', JSON.stringify(profiles));
@@ -1853,7 +1914,7 @@ async function getAllSavedProfiles(): Promise<SavedUmaProfile[]> {
 	try {
 		const stored = localStorage.getItem('umalator-saved-profiles');
 		if (stored) {
-			return JSON.parse(stored);
+			return normalizeSavedProfiles(JSON.parse(stored));
 		}
 	} catch (error) {
 		console.warn('Failed to load saved profiles from localStorage:', error);
@@ -1891,7 +1952,17 @@ function getNextProfileName(): string {
 }
 
 export async function saveUmaProfile(horseState: HorseState, profileName?: string): Promise<string> {
-	const profiles = await getAllSavedProfiles();
+	// Prompt for a save target first (while still in the user gesture) on first save this session.
+	if (!profilesFileHandle && 'showSaveFilePicker' in window) {
+		try {
+			await getProfilesFileHandle();
+		} catch (error) {
+			console.warn('Failed to select profiles database before save:', error);
+		}
+	}
+
+	// Saving should not trigger an "open database" prompt.
+	const profiles = await getAllSavedProfiles({ allowFilePrompt: false });
 	const name = profileName || getNextProfileName();
 	const id = Date.now().toString();
 	const profile: SavedUmaProfile = {
@@ -1926,7 +1997,8 @@ export async function deleteUmaProfile(profileId: string): Promise<boolean> {
 		return false;
 	}
 	profiles.splice(index, 1);
-	await saveProfilesToStorage(profiles);
+	// Deletion must persist exact new state; do not merge deleted entries back from disk.
+	await saveProfilesToStorage(profiles, { mergeWithOnDisk: false });
 	return true;
 }
 
@@ -1957,7 +2029,7 @@ export async function selectAnotherProfilesDatabase(): Promise<SavedUmaProfile[]
 		profilesFileHandle = fileHandle;
 		const file = await fileHandle.getFile();
 		const text = await file.text();
-		const profiles = JSON.parse(text) as SavedUmaProfile[];
+		const profiles = normalizeSavedProfiles(JSON.parse(text));
 		try {
 			localStorage.setItem('umalator-saved-profiles', JSON.stringify(profiles));
 		} catch (e) {
