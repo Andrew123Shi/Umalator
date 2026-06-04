@@ -4169,8 +4169,10 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 							courseDistance={course.distance}
 							expandedContent={mode == Mode.GlobalSkillChart ? createGlobalSkillExpandedContent : createExpandedContent}
 						/>
-						<button class={`basinnChartRefresh${dirty ? '' : ' hidden'}`} onClick={mode == Mode.GlobalSkillChart ? doGlobalSkillChart : doBasinnChart} disabled={isSimulationRunning || loadingAdditionalSamples.size > 0}>⟲</button>
-						<div class={`basinnChartRefreshText${dirty ? '' : ' hidden'}`}>Uma skills have changed, refresh is required</div>
+						<div class={`basinnChartRefreshNotice${dirty ? '' : ' hidden'}`}>
+							<div class="basinnChartRefreshText">Uma characteristics have changed. Data may be outdated.</div>
+							<button class="basinnChartRefresh" onClick={mode == Mode.GlobalSkillChart ? doGlobalSkillChart : doBasinnChart} disabled={isSimulationRunning || loadingAdditionalSamples.size > 0}>⟲</button>
+						</div>
 					</div>
 					{mode == Mode.GlobalSkillChart && skillsOpen && (
 						<>

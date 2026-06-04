@@ -102,14 +102,26 @@
 	width: 100%;
 }
 
+.basinnChartRefreshNotice {
+	position: absolute;
+	top: calc(100% + 6px);
+	right: -36px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.basinnChartRefreshNotice.hidden {
+	display: none;
+}
+
 .basinnChartRefresh {
 	background: unset;
 	border: unset;
 	color: rgb(222, 161, 87);
 	font-size: 26px;
-	position: absolute;
-	right: -36px;
-	top: -12px;
+	line-height: 1;
+	padding: 0;
 	transition: all 100ms;
 }
 
@@ -130,12 +142,8 @@
 .basinnChartRefreshText {
 	color: rgb(222, 161, 87);
 	font-size: 11px;
-	position: absolute;
-	right: -130px;
-	top: 24px;
 	white-space: nowrap;
-	text-align: left;
-	width: 120px;
+	text-align: right;
 }
 
 .basinnChartRefreshText.hidden {
