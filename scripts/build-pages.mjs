@@ -27,6 +27,16 @@ const requiredCopies = [
 		from: path.join(root, 'fonts'),
 		to: path.join(distPagesDir, 'fonts'),
 		label: 'fonts (root fallback)'
+	},
+	{
+		from: path.join(root, 'components', 'ExampleProfile.png'),
+		to: path.join(distPagesDir, 'uma-tools', 'components', 'ExampleProfile.png'),
+		label: 'example profile screenshot'
+	},
+	{
+		from: path.join(root, 'components', 'ExampleProfile.png'),
+		to: path.join(distPagesDir, 'components', 'ExampleProfile.png'),
+		label: 'example profile screenshot (root fallback)'
 	}
 ];
 
@@ -37,8 +47,10 @@ const requiredOutputs = [
 	path.join(distPagesDir, 'simulator.worker.js'),
 	path.join(distPagesDir, 'uma-tools', 'icons'),
 	path.join(distPagesDir, 'uma-tools', 'fonts'),
+	path.join(distPagesDir, 'uma-tools', 'components', 'ExampleProfile.png'),
 	path.join(distPagesDir, 'icons'),
-	path.join(distPagesDir, 'fonts')
+	path.join(distPagesDir, 'fonts'),
+	path.join(distPagesDir, 'components', 'ExampleProfile.png')
 ];
 
 function runGlobalBuild() {
