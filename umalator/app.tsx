@@ -2415,7 +2415,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 	const setResults = setSimState;
 	const setChartData = setSimState;
 
-	const [tableData, updateTableData] = useReducer((data,newData) => {
+	const mergeTableData = (data, newData) => {
 		const merged = new Map();
 		if (newData == 'reset') {
 			return merged;
@@ -2423,12 +2423,27 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 		data.forEach((v,k) => merged.set(k,v));
 		(newData as any).forEach((v,k) => merged.set(k,v));
 		return merged;
-	}, new Map());
-	const tableDataRef = useRef(tableData);
+	};
+	const [skillTableData, updateSkillTableData] = useReducer(mergeTableData, new Map());
+	const [uniquesTableData, updateUniquesTableData] = useReducer(mergeTableData, new Map());
+	const [globalTableData, updateGlobalTableData] = useReducer(mergeTableData, new Map());
+	const skillTableDataRef = useRef(skillTableData);
+	const uniquesTableDataRef = useRef(uniquesTableData);
+	const globalTableDataRef = useRef(globalTableData);
 	const selectedSkillIdRef = useRef('');
+	const selectedUniquesSkillIdRef = useRef('');
+	const selectedGlobalSkillIdRef = useRef('');
+	const chartRunModeRef = useRef<Mode>(Mode.Chart);
+	const additionalSamplesTargetsRef = useRef(new Map<string, Mode>());
 	useEffect(() => {
-		tableDataRef.current = tableData;
-	}, [tableData]);
+		skillTableDataRef.current = skillTableData;
+	}, [skillTableData]);
+	useEffect(() => {
+		uniquesTableDataRef.current = uniquesTableData;
+	}, [uniquesTableData]);
+	useEffect(() => {
+		globalTableDataRef.current = globalTableData;
+	}, [globalTableData]);
 
 	const [popoverSkill, setPopoverSkill] = useState('');
 
@@ -2471,7 +2486,13 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 					setResults(results);
 					break;
 				case 'chart':
-					updateTableData(results);
+					if (chartRunModeRef.current === Mode.GlobalSkillChart) {
+						updateGlobalTableData(results);
+					} else if (chartRunModeRef.current === Mode.UniquesChart) {
+						updateUniquesTableData(results);
+					} else {
+						updateSkillTableData(results);
+					}
 					break;
 				case 'optimizer':
 					setOptimizerPhase(null);
@@ -2607,15 +2628,34 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 					break;
 				case 'additional-samples':
 					if (progressSkillId && result) {
+						const sampleTargetMode = additionalSamplesTargetsRef.current.get(progressSkillId) ?? Mode.Chart;
 						const baseResult = additionalSamplesBaseResultsRef.current.get(progressSkillId);
 						const merged = baseResult ? mergeResults(baseResult, result) : result;
-						const updatedMap = new Map(tableDataRef.current);
+						const updatedMap = new Map(
+							sampleTargetMode === Mode.GlobalSkillChart
+								? globalTableDataRef.current
+								: sampleTargetMode === Mode.UniquesChart
+									? uniquesTableDataRef.current
+									: skillTableDataRef.current
+						);
 						updatedMap.set(progressSkillId, merged);
-						updateTableData(updatedMap);
-						if (selectedSkillIdRef.current === progressSkillId) {
+						if (sampleTargetMode === Mode.GlobalSkillChart) {
+							updateGlobalTableData(updatedMap);
+						} else if (sampleTargetMode === Mode.UniquesChart) {
+							updateUniquesTableData(updatedMap);
+						} else {
+							updateSkillTableData(updatedMap);
+						}
+						const selectedSkillRef = sampleTargetMode === Mode.GlobalSkillChart
+							? selectedGlobalSkillIdRef
+							: sampleTargetMode === Mode.UniquesChart
+								? selectedUniquesSkillIdRef
+								: selectedSkillIdRef;
+						if (selectedSkillRef.current === progressSkillId) {
 							setResults(merged);
 						}
 						additionalSamplesBaseResultsRef.current.delete(progressSkillId);
+						additionalSamplesTargetsRef.current.delete(progressSkillId);
 					}
 					setLoadingAdditionalSamples(prev => {
 						const next = new Set(prev);
@@ -2633,12 +2673,30 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 						});
 					}
 					if (progressSkillId && partialResult) {
+						const sampleTargetMode = additionalSamplesTargetsRef.current.get(progressSkillId) ?? Mode.Chart;
 						const baseResult = additionalSamplesBaseResultsRef.current.get(progressSkillId);
 						const merged = baseResult ? mergeResults(baseResult, partialResult) : partialResult;
-						const updatedMap = new Map(tableDataRef.current);
+						const updatedMap = new Map(
+							sampleTargetMode === Mode.GlobalSkillChart
+								? globalTableDataRef.current
+								: sampleTargetMode === Mode.UniquesChart
+									? uniquesTableDataRef.current
+									: skillTableDataRef.current
+						);
 						updatedMap.set(progressSkillId, merged);
-						updateTableData(updatedMap);
-						if (selectedSkillIdRef.current === progressSkillId) {
+						if (sampleTargetMode === Mode.GlobalSkillChart) {
+							updateGlobalTableData(updatedMap);
+						} else if (sampleTargetMode === Mode.UniquesChart) {
+							updateUniquesTableData(updatedMap);
+						} else {
+							updateSkillTableData(updatedMap);
+						}
+						const selectedSkillRef = sampleTargetMode === Mode.GlobalSkillChart
+							? selectedGlobalSkillIdRef
+							: sampleTargetMode === Mode.UniquesChart
+								? selectedUniquesSkillIdRef
+								: selectedSkillIdRef;
+						if (selectedSkillRef.current === progressSkillId) {
 							setResults(merged);
 						}
 					}
@@ -2650,7 +2708,10 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 						return next;
 					});
 					setAdditionalSamplesProgress(null);
-					if (progressSkillId) additionalSamplesBaseResultsRef.current.delete(progressSkillId);
+					if (progressSkillId) {
+						additionalSamplesBaseResultsRef.current.delete(progressSkillId);
+						additionalSamplesTargetsRef.current.delete(progressSkillId);
+					}
 					console.error('additional-samples-error', error);
 					break;
 			}
@@ -2886,6 +2947,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 
 	function doGlobalSkillChart() {
 		postEvent('doGlobalSkillChart', {});
+		chartRunModeRef.current = Mode.GlobalSkillChart;
 		setHasGlobalSkillChartRun(true);
 		setLastRunChartUma(uma1);
 		chartWorkersCompletedRef.current = 0;
@@ -2921,8 +2983,8 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 			skillChunks.push(skills.slice(start, end));
 		}
 
-		updateTableData('reset');
-		updateTableData(filler);
+		updateGlobalTableData('reset');
+		updateGlobalTableData(filler);
 		setAdditionalSamplesRunCount(new Map());
 
 		const chartOptions = {
@@ -3070,6 +3132,8 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 
 	function doBasinnChart() {
 		postEvent('doBasinnChart', {});
+		const currentChartMode = mode === Mode.UniquesChart ? Mode.UniquesChart : Mode.Chart;
+		chartRunModeRef.current = currentChartMode;
 		setLastRunChartUma(uma1);
 		chartWorkersCompletedRef.current = 0;
 		chartWorkersProgressRef.current.clear();
@@ -3109,8 +3173,13 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 			skillChunks.push(skills.slice(start, end));
 		}
 		
-		updateTableData('reset');
-		updateTableData(filler);
+		if (currentChartMode === Mode.UniquesChart) {
+			updateUniquesTableData('reset');
+			updateUniquesTableData(filler);
+		} else {
+			updateSkillTableData('reset');
+			updateSkillTableData(filler);
+		}
 		setAdditionalSamplesRunCount(new Map());
 		const chartOptions = {
 			seed, 
@@ -3142,31 +3211,73 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 		}
 	}
 
+	const activeTableData =
+		mode == Mode.GlobalSkillChart
+			? globalTableData
+			: mode == Mode.UniquesChart
+				? uniquesTableData
+				: skillTableData;
 	const [selectedSkillId, setSelectedSkillId] = useState('');
+	const [selectedUniquesSkillId, setSelectedUniquesSkillId] = useState('');
+	const [selectedGlobalSkillId, setSelectedGlobalSkillId] = useState('');
+	const activeSelectedSkillId =
+		mode == Mode.GlobalSkillChart
+			? selectedGlobalSkillId
+			: mode == Mode.UniquesChart
+				? selectedUniquesSkillId
+				: selectedSkillId;
 	useEffect(() => {
 		selectedSkillIdRef.current = selectedSkillId;
 	}, [selectedSkillId]);
+	useEffect(() => {
+		selectedUniquesSkillIdRef.current = selectedUniquesSkillId;
+	}, [selectedUniquesSkillId]);
+	useEffect(() => {
+		selectedGlobalSkillIdRef.current = selectedGlobalSkillId;
+	}, [selectedGlobalSkillId]);
 
 	function basinnChartSelection(skillId) {
-		const r = tableData.get(skillId);
+		const r = activeTableData.get(skillId);
 		if (r.runData != null) {
 			setResults(r);
-			setSelectedSkillId(skillId);
+			if (mode == Mode.GlobalSkillChart) {
+				setSelectedGlobalSkillId(skillId);
+			} else if (mode == Mode.UniquesChart) {
+				setSelectedUniquesSkillId(skillId);
+			} else {
+				setSelectedSkillId(skillId);
+			}
 		} else {
-			setSelectedSkillId('');
+			if (mode == Mode.GlobalSkillChart) {
+				setSelectedGlobalSkillId('');
+			} else if (mode == Mode.UniquesChart) {
+				setSelectedUniquesSkillId('');
+			} else {
+				setSelectedSkillId('');
+			}
 		}
 	}
 
 	function runAdditionalSamplesForSkill(skillId: string) {
 		const normalizedSkillId = String(skillId);
 		if (loadingAdditionalSamples.has(normalizedSkillId) || isSimulationRunning) return;
+		const targetMode = mode == Mode.GlobalSkillChart
+			? Mode.GlobalSkillChart
+			: mode == Mode.UniquesChart
+				? Mode.UniquesChart
+				: Mode.Chart;
 		
 		setLoadingAdditionalSamples(prev => new Set(prev).add(normalizedSkillId));
 		setAdditionalSamplesProgress({skillId: normalizedSkillId, completed: 0, total: 500});
-		const existingResult = tableDataRef.current.get(normalizedSkillId);
+		const existingResult = targetMode == Mode.GlobalSkillChart
+			? globalTableDataRef.current.get(normalizedSkillId)
+			: targetMode == Mode.UniquesChart
+				? uniquesTableDataRef.current.get(normalizedSkillId)
+				: skillTableDataRef.current.get(normalizedSkillId);
 		if (existingResult) {
 			additionalSamplesBaseResultsRef.current.set(normalizedSkillId, existingResult);
 		}
+		additionalSamplesTargetsRef.current.set(normalizedSkillId, targetMode);
 		
 		const currentRunCount = additionalSamplesRunCount.get(skillId) || 0;
 		const effectiveSeed = seed + currentRunCount + 1;
@@ -3236,13 +3347,13 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 	}, [isPacemakerDropdownOpen]);
 
 	useEffect(function () {
-		if (selectedSkillId && tableData.has(selectedSkillId)) {
-			const r = tableData.get(selectedSkillId);
+		if (activeSelectedSkillId && activeTableData.has(activeSelectedSkillId)) {
+			const r = activeTableData.get(activeSelectedSkillId);
 			if (r && r.runData != null) {
 				setResults(r);
 			}
 		}
-	}, [tableData, selectedSkillId]);
+	}, [activeTableData, activeSelectedSkillId]);
 
 	function rtMouseMove(pos) {
 		if (chartData == null) return;
@@ -4095,7 +4206,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 		);
 	} else if (
 		mode == Mode.GlobalSkillChart ||
-		((mode == Mode.Chart || mode == Mode.UniquesChart) && tableData.size > 0)
+		((mode == Mode.Chart || mode == Mode.UniquesChart) && activeTableData.size > 0)
 	) {
 		const dirty = mode == Mode.GlobalSkillChart
 			? (hasGlobalSkillChartRun && !uma1.equals(lastRunChartUma))
@@ -4158,7 +4269,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 					)}
 					<div class="basinnChartWrapperWrapper">
 						<BasinnChart 
-							data={Array.from(tableData.values())} 
+							data={Array.from(activeTableData.values())} 
 							dirty={dirty}
 							hidden={mode == Mode.Chart ? uma1.skills : new Set()}
 							onSelectionChange={basinnChartSelection}
@@ -4191,7 +4302,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 							</div>
 						</>
 					)}
-					{mode == Mode.GlobalSkillChart && selectedSkillId && results.length > 0 && (
+					{mode == Mode.GlobalSkillChart && selectedGlobalSkillId && results.length > 0 && (
 						<div id="globalCompareWrapper" style="display: flex; align-items: flex-start; gap: 20px; margin-top: 16px;">
 							<div id="resultsPane" class="mode-compare global-compare-mode" style={{width: '535px', minWidth: '535px', maxWidth: '535px'}}>
 								<table id="resultsSummary">
@@ -4332,8 +4443,8 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 								</div>
 							</div>
 							<div style={{marginTop: '130px', marginLeft: '-5px', alignSelf: 'flex-start'}}>
-								{(tableData.get(selectedSkillId)?.raceParams || raceParams) && (() => {
-									const selectedRaceParams = tableData.get(selectedSkillId)?.raceParams || raceParams;
+								{(globalTableData.get(selectedGlobalSkillId)?.raceParams || raceParams) && (() => {
+									const selectedRaceParams = globalTableData.get(selectedGlobalSkillId)?.raceParams || raceParams;
 									const groupByValue = <T,>(data: Array<{value: T, result: number}>, getLabel: (val: T) => string, sortFn?: (a: T, b: T) => number) => {
 										const grouped = new Map<string, number[]>();
 										data.forEach(({value, result}) => {
@@ -4893,7 +5004,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 					</div>}
 					{expanded && <div id="closeUmaOverlay" title="Close panel" onClick={toggleExpand}>✕</div>}
 				</div>
-				{popoverSkill && <BasinnChartPopover skillid={popoverSkill} results={tableData.get(popoverSkill).results} courseDistance={course.distance} />}
+				{popoverSkill && activeTableData.has(popoverSkill) && <BasinnChartPopover skillid={popoverSkill} results={activeTableData.get(popoverSkill).results} courseDistance={course.distance} />}
 				{duelingConfigOpen && (
 					<div 
 						style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;"
