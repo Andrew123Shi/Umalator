@@ -2315,6 +2315,12 @@ function App(props) {
 			setGlobalSkillChartSimulateAll(false);
 		}
 	}, [globalSpecificSkillIds]);
+	function removeGlobalSpecificSkill(skillId: string) {
+		setGlobalSkillChartSelectedSkills(prev => {
+			const key = prev.findKey(id => id == skillId);
+			return key == null ? prev : prev.delete(key);
+		});
+	}
 	const [maxCareerRating, setMaxCareerRating] = useState(8200);
 	const [optimizerResult, setOptimizerResult] = useState<any>(null);
 	const [optimizerProgress, setOptimizerProgress] = useState<any>(null);
@@ -4121,15 +4127,21 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 							<div style="display: grid; grid-template-columns: repeat(3, minmax(0, max-content)); gap: 8px 10px; align-items: start;">
 								{globalSpecificSkillIds.map(skillId => (
 									<div
+										key={skillId}
 										style={globalSkillChartSimulateAll ? 'opacity: 0.45; filter: grayscale(0.85); cursor: pointer;' : ''}
-										onClick={() => {
+										onClick={(e) => {
+											if ((e.target as HTMLElement).classList.contains('skillDismiss')) {
+												e.stopPropagation();
+												removeGlobalSpecificSkill(skillId);
+												return;
+											}
 											if (globalSkillChartSimulateAll) {
 												setGlobalSkillChartSimulateAll(false);
 											}
 										}}
 										title={globalSkillChartSimulateAll ? 'Switch to specific skills mode' : ''}
 									>
-										<Skill id={skillId} />
+										<Skill id={skillId} dismissable={true} />
 									</div>
 								))}
 								{!globalSkillChartSimulateAll && (
@@ -4171,6 +4183,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 										setGlobalSkillChartSelectedSkills(skills);
 										setSkillsOpen(false);
 									}}
+									allowRelatedSkillCoexistence={true}
 									isOpen={skillsOpen}
 								/>
 							</div>

@@ -640,6 +640,7 @@ function textSearch(id: string, searchText: string, searchConditions: boolean) {
 export function SkillList(props) {
 	const lang = useLanguage();
 	const [visible, setVisible] = useState(() => new Set(props.ids));
+	const allowRelatedSkillCoexistence = props.allowRelatedSkillCoexistence === true;
 	const active = {}, setActive = {};
 	Object.keys(groups_filters).forEach(group => {
 		active[group] = {};
@@ -672,7 +673,9 @@ export function SkillList(props) {
 		// they're the same for skills that should be mutually exclusive (which we want for white/gold/pink sets, but not for
 		// debuffs)
 		let newSelected;
-		if (isDebuffSkill(id)) {
+		if (allowRelatedSkillCoexistence) {
+			newSelected = props.selected.set(id, id);
+		} else if (isDebuffSkill(id)) {
 			const ndebuffs = props.selected.count(isDebuffSkill);
 			newSelected = props.selected.set(groupId + '-' + ndebuffs, id);
 		} else {
@@ -740,10 +743,10 @@ export function SkillList(props) {
 	const items = useMemo(() => {
 		return props.ids.map(id => (
 			<li key={id} class={visible.has(id) ? '' : 'hidden'}>
-				<Skill id={id} selected={props.selected.get(skillmeta[id].groupId) == id} />
+				<Skill id={id} selected={allowRelatedSkillCoexistence ? props.selected.has(id) : props.selected.get(skillmeta[id].groupId) == id} />
 			</li>
 		));
-	}, [props.ids, props.selected, visible]);
+	}, [props.ids, props.selected, visible, allowRelatedSkillCoexistence]);
 	
 	return (
 		<IntlProvider definition={lang == 'ja' ? STRINGS_ja : STRINGS_en}>
