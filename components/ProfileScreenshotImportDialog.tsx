@@ -83,6 +83,8 @@ export function ProfileScreenshotImportDialog(props: ProfileScreenshotImportDial
 	const activeUnknown = hasUnknowns && unknownIndex < unresolved.length ? unresolved[unknownIndex] : null;
 	const activeScreenshot = useMemo(() => {
 		if (!hasStartedOcr || screenshots.length === 0) return null;
+		// While OCR is still processing, keep focus on the first screenshot.
+		if (processing && !draft) return screenshots[0];
 		if (activeUnknown) {
 			return screenshots.find(screenshot => screenshot.id === activeUnknown.screenshotId)
 				|| screenshots.find(screenshot => screenshot.name === activeUnknown.screenshotName)
@@ -95,7 +97,7 @@ export function ProfileScreenshotImportDialog(props: ProfileScreenshotImportDial
 				|| screenshots[screenshots.length - 1];
 		}
 		return screenshots[screenshots.length - 1];
-	}, [activeUnknown, hasStartedOcr, screenshots, unresolved]);
+	}, [activeUnknown, draft, hasStartedOcr, processing, screenshots, unresolved]);
 	const selectableSkillIds = useMemo(() => Object.keys(skilldata).filter(skillId => {
 		const rarity = (skilldata as any)[skillId]?.rarity;
 		const isTrueUnique = rarity > 2 && rarity < 6 && !String(skillId).startsWith('9');
