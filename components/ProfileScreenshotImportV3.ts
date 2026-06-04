@@ -47,6 +47,19 @@ interface SkillLine {
 	column: 'left' | 'right';
 }
 
+interface UniqueSignal {
+	skillId: string;
+	score: number;
+	source: 'probe' | 'line';
+	y: number;
+	hasLevel: boolean;
+}
+
+interface UniquePromptCleanupContext {
+	uniqueSkillId: string | null;
+	firstScreenshotId: string | null;
+}
+
 export interface ProfileImportDraft {
 	stats: Partial<Record<StatKey, number>>;
 	uniqueSkillId: string | null;
@@ -74,16 +87,36 @@ const CANONICAL_WIDTH = 1138;
 const STAT_RECT = Object.freeze({ x: 52, y: 490, w: 1063, h: 72 });
 const STAT_SLOT_INSET_X = 14;
 const STAT_SLOT_INSET_Y = 8;
-const SKILL_LEFT_TEXT_RECT = Object.freeze({ x: 112, y: 895, w: 438, h: 860 });
-const SKILL_RIGHT_TEXT_RECT = Object.freeze({ x: 647, y: 895, w: 438, h: 860 });
+const SKILL_LEFT_TEXT_RECT = Object.freeze({ x: 112, y: 0, w: 438, h: 0 });
+const SKILL_RIGHT_TEXT_RECT = Object.freeze({ x: 647, y: 0, w: 438, h: 0 });
+const SKILL_BLOCK_BOTTOM_PCT_FROM_BOTTOM = 0.10;
+const SKILL_BLOCK_TOP_PCT_FROM_BOTTOM_DEFAULT = 0.54;
+const SKILL_BLOCK_TOP_PCT_FROM_BOTTOM_PARTNER = 0.44;
+const PARTNER_PROBE_TOP_PCT_FROM_BOTTOM = 0.60;
+const PARTNER_PROBE_BOTTOM_PCT_FROM_BOTTOM = 0.50;
+const PARTNER_PROBE_LEFT_PCT = 0.18;
+const PARTNER_PROBE_RIGHT_PCT = 0.82;
 const SKILL_VERTICAL_PAD = 28;
 const SKILL_TEXT_LEFT_PAD = 0;
 const SKILL_TEXT_LEFT_EXPAND = 4;
 const SKILL_TEXT_RIGHT_TRIM = 0;
+const SKILL_TILE_RELATIVE_HEIGHT_PCT = 0.05;
+const SKILL_TILE_MERGE_HEIGHT_TOLERANCE = 1.35;
+const UNIQUE_PROBE_UPWARD_BUFFER_PCT = 0.04;
+const UNIQUE_PROBE_HEIGHT_PCT = 0.08;
+const UNIQUE_TOP_ROW_MAX_OFFSET_PCT = 0.07;
+const UNIQUE_LINE_SCAN_HEIGHT_PCT = 0.10;
+const UNIQUE_PARTNER_TOP_PCT = 0.37;
+const UNIQUE_PARTNER_BOTTOM_PCT = 0.44;
 
 const AUTO_ACCEPT_SCORE = 0.88;
 const AUTO_ACCEPT_MARGIN = 0.03;
 const HIGH_CONFIDENCE_SCORE = 0.965;
+const SKILL_UI_BANNED_FRAGMENTS = Object.freeze([
+	'skills',
+	'inspiration',
+	'career info'
+]);
 
 const canonicalSkillEntries = Object.keys(globalSkillNames)
 	.filter(skillId => skilldata[skillId] != null && globalSkillMeta[skillId] != null)
@@ -169,6 +202,14 @@ function tokenFullyContained(queryText: string, candidateText: string): boolean 
 	return queryTokens.every(queryToken => candidateTokens.includes(queryToken));
 }
 
+function isLikelyUiText(raw: string): boolean {
+	const t = normalizeSkillText(raw);
+	if (!t) return true;
+	if (SKILL_UI_BANNED_FRAGMENTS.some(fragment => t.includes(fragment))) return true;
+	// Match "close" as a full word only so skills like "Blue Rose Closer" survive.
+	return /\bclose\b/.test(t);
+}
+
 function levenshteinDistance(a: string, b: string): number {
 	if (a === b) return 0;
 	if (!a.length) return b.length;
@@ -221,6 +262,22 @@ export function getSkillCandidates(rawText: string, limit = 5): SkillMatchCandid
 		if (tokenContained.length > 0) filtered = tokenContained;
 	}
 	return filtered.slice(0, limit);
+}
+
+function getUniqueSkillCandidates(rawText: string, limit = 5, mappableOnly = false): SkillMatchCandidate[] {
+	const text = normalizeSkillText(rawText);
+	if (!text) return [];
+	// Unique detection intentionally avoids phrase gates so words like "Closer"
+	// don't get over-constrained by generic candidate filters.
+	return canonicalSkillEntries
+		.map(({ skillId, name }) => ({ skillId, name, score: similarity(text, name) }))
+		.filter(candidate => {
+			if (!isUniqueRarity(candidate.skillId) || candidate.skillId.startsWith('9')) return false;
+			if (!mappableOnly) return true;
+			return uniqueSkillToOutfit[candidate.skillId] != null;
+		})
+		.sort((a, b) => b.score - a.score)
+		.slice(0, limit);
 }
 
 export function parseStatsFromText(text: string): ProfileImportDraft['stats'] {
@@ -356,6 +413,14 @@ function toScaledRect(c: HTMLCanvasElement, rect: { x: number; y: number; w: num
 	};
 }
 
+function clampRectToCanvas(rect: Rect, canvas: HTMLCanvasElement): Rect {
+	const left = Math.min(Math.max(0, rect.left), Math.max(0, canvas.width - 8));
+	const top = Math.min(Math.max(0, rect.top), Math.max(0, canvas.height - 8));
+	const width = Math.max(8, Math.min(rect.width, canvas.width - left));
+	const height = Math.max(8, Math.min(rect.height, canvas.height - top));
+	return { left, top, width, height };
+}
+
 function extractLines(result: any, column: 'left' | 'right'): SkillLine[] {
 	const blocks = result?.data?.blocks || [];
 	const lines = blocks.flatMap((b: any) => (b?.paragraphs || []).flatMap((p: any) => p?.lines || []));
@@ -366,12 +431,16 @@ function extractLines(result: any, column: 'left' | 'right'): SkillLine[] {
 	}));
 }
 
-function mergeMultiline(lines: SkillLine[]): SkillLine[] {
+function mergeMultiline(lines: SkillLine[], panelHeight: number): SkillLine[] {
 	const byColumn = {
 		left: lines.filter(line => line.column === 'left'),
 		right: lines.filter(line => line.column === 'right')
 	};
 	const mergedColumns: SkillLine[] = [];
+	const maxMergedLineHeight = Math.max(
+		24,
+		Math.round(panelHeight * SKILL_TILE_RELATIVE_HEIGHT_PCT * SKILL_TILE_MERGE_HEIGHT_TOLERANCE)
+	);
 	(['left', 'right'] as const).forEach(column => {
 		const colLines = byColumn[column]
 			.filter(line => line.text.length > 0)
@@ -391,7 +460,10 @@ function mergeMultiline(lines: SkillLine[]): SkillLine[] {
 			const overlap = Math.max(0, Math.min(prev.bbox.x1, line.bbox.x1) - Math.max(prev.bbox.x0, line.bbox.x0));
 			const minWidth = Math.max(1, Math.min(prev.bbox.x1 - prev.bbox.x0, line.bbox.x1 - line.bbox.x0));
 			const overlapRatio = overlap / minWidth;
-			const shouldMerge = gap <= mergeGapThreshold && overlapRatio >= 0.45;
+			const mergedHeight = Math.max(1, Math.max(prev.bbox.y1, line.bbox.y1) - Math.min(prev.bbox.y0, line.bbox.y0));
+			const shouldMerge = gap <= mergeGapThreshold
+				&& overlapRatio >= 0.45
+				&& mergedHeight <= maxMergedLineHeight;
 			if (!shouldMerge) {
 				out.push({ ...line });
 				return;
@@ -474,6 +546,17 @@ function forceInheritedUniqueCandidates(cands: SkillMatchCandidate[]): SkillMatc
 	return Array.from(collapsed.values()).sort((a, b) => b.score - a.score);
 }
 
+function isLikelyRedundantUniquePrompt(
+	prompt: UnknownSkillPrompt,
+	ctx: UniquePromptCleanupContext
+): boolean {
+	if (!ctx.uniqueSkillId || !ctx.firstScreenshotId) return false;
+	if (prompt.screenshotId !== ctx.firstScreenshotId) return false;
+	// If first screenshot already resolved the exact unique skill,
+	// do not ask the user to resolve that same unique tile again.
+	return prompt.candidates.some(candidate => candidate.skillId === ctx.uniqueSkillId);
+}
+
 async function extractStatsBySlots(canvas: HTMLCanvasElement, worker: any): Promise<Partial<Record<StatKey, number>>> {
 	const slotWidth = STAT_RECT.w / 5;
 	const orderedKeys: StatKey[] = ['speed', 'stamina', 'power', 'guts', 'wisdom'];
@@ -491,6 +574,79 @@ async function extractStatsBySlots(canvas: HTMLCanvasElement, worker: any): Prom
 		if (value != null) parsed[orderedKeys[i]] = value;
 	}
 	return parsed;
+}
+
+async function detectHasPartnerButton(canvas: HTMLCanvasElement, worker: any): Promise<boolean> {
+	const probeBand = skillBlockFromBottomPercents(
+		canvas,
+		PARTNER_PROBE_TOP_PCT_FROM_BOTTOM,
+		PARTNER_PROBE_BOTTOM_PCT_FROM_BOTTOM
+	);
+	const probeRect = clampRectToCanvas({
+		left: Math.round(canvas.width * PARTNER_PROBE_LEFT_PCT),
+		top: probeBand.top,
+		width: Math.round(canvas.width * (PARTNER_PROBE_RIGHT_PCT - PARTNER_PROBE_LEFT_PCT)),
+		height: probeBand.height
+	}, canvas);
+	const result = await worker.recognize(canvas, { rectangle: probeRect }, { blocks: true });
+	const text = String(result?.data?.text || '').toLowerCase();
+	const normalized = text.replace(/[^a-z]/g, '');
+	const hasPartnerButton =
+		text.includes('partner')
+		|| normalized.includes('partner')
+		|| text.includes('practice partner')
+		|| normalized.includes('practicepartner');
+	return hasPartnerButton;
+}
+
+function uniqueProbeRectFromLeftBand(panel: HTMLCanvasElement, leftRect: Rect, hasPartnerButton: boolean): Rect {
+	if (hasPartnerButton) {
+		const top = Math.round(panel.height * UNIQUE_PARTNER_TOP_PCT);
+		const bottom = Math.round(panel.height * UNIQUE_PARTNER_BOTTOM_PCT);
+		return clampRectToCanvas({
+			left: leftRect.left,
+			top,
+			width: leftRect.width,
+			height: Math.max(8, bottom - top)
+		}, panel);
+	}
+	const upward = Math.round(panel.height * UNIQUE_PROBE_UPWARD_BUFFER_PCT);
+	const probeHeight = Math.max(24, Math.round(panel.height * UNIQUE_PROBE_HEIGHT_PCT));
+	return clampRectToCanvas({
+		left: leftRect.left,
+		top: Math.max(0, leftRect.top - upward),
+		width: leftRect.width,
+		height: probeHeight
+	}, panel);
+}
+
+function chooseBestUniqueSignal(signals: UniqueSignal[], requireLevelSignal: boolean): UniqueSignal | null {
+	if (!signals.length) return null;
+	const scored = [...signals];
+	const leveled = scored.filter(signal => signal.hasLevel);
+	const candidates = leveled.length > 0 ? leveled : (requireLevelSignal ? [] : scored);
+	if (candidates.length === 0) return null;
+	return candidates.sort((a, b) => {
+		// Prefer explicit level marker (Lvl X), it strongly indicates the unique row.
+		if (a.hasLevel !== b.hasLevel) return a.hasLevel ? -1 : 1;
+		// Then prefer high OCR confidence.
+		if (b.score !== a.score) return b.score - a.score;
+		// Prefer probe-derived signal over row-derived when tied.
+		if (a.source !== b.source) return a.source === 'probe' ? -1 : 1;
+		// Finally prefer the visually higher tile.
+		return a.y - b.y;
+	})[0] || null;
+}
+
+function skillBlockFromBottomPercents(canvas: HTMLCanvasElement, topPctFromBottom: number, bottomPctFromBottom: number): { top: number; height: number } {
+	const top = Math.round(canvas.height * (1 - topPctFromBottom));
+	const bottom = Math.round(canvas.height * (1 - bottomPctFromBottom));
+	const safeTop = Math.max(0, Math.min(top, canvas.height - 8));
+	const safeBottom = Math.max(safeTop + 8, Math.min(bottom, canvas.height));
+	return {
+		top: safeTop,
+		height: Math.max(8, safeBottom - safeTop)
+	};
 }
 
 async function makeWorkers(): Promise<OcrWorkers> {
@@ -528,8 +684,20 @@ export async function importProfileFromScreenshots(screenshots: ImportScreenshot
 			const pp = preprocess(panel);
 
 			const statRect = toScaledRect(panel, STAT_RECT);
-			const leftRect = toScaledRect(panel, SKILL_LEFT_TEXT_RECT);
-			const rightRect = toScaledRect(panel, SKILL_RIGHT_TEXT_RECT);
+			const hasPartnerButton = await detectHasPartnerButton(pp, workers.skillLeft);
+			const skillBand = skillBlockFromBottomPercents(
+				panel,
+				hasPartnerButton ? SKILL_BLOCK_TOP_PCT_FROM_BOTTOM_PARTNER : SKILL_BLOCK_TOP_PCT_FROM_BOTTOM_DEFAULT,
+				SKILL_BLOCK_BOTTOM_PCT_FROM_BOTTOM
+			);
+			const leftRect = clampRectToCanvas(
+				toScaledRect(panel, { ...SKILL_LEFT_TEXT_RECT, y: skillBand.top, h: skillBand.height }),
+				panel
+			);
+			const rightRect = clampRectToCanvas(
+				toScaledRect(panel, { ...SKILL_RIGHT_TEXT_RECT, y: skillBand.top, h: skillBand.height }),
+				panel
+			);
 
 			if (i === 0) {
 				const slotStats = await extractStatsBySlots(pp, workers.stat);
@@ -547,24 +715,69 @@ export async function importProfileFromScreenshots(screenshots: ImportScreenshot
 				workers.skillLeft.recognize(pp, { rectangle: leftRect }, { blocks: true }),
 				workers.skillRight.recognize(pp, { rectangle: rightRect }, { blocks: true })
 			]);
-			const lines = mergeMultiline([...extractLines(leftRes, 'left'), ...extractLines(rightRes, 'right')])
+			const lines = mergeMultiline([...extractLines(leftRes, 'left'), ...extractLines(rightRes, 'right')], panel.height)
 				.filter(line => line.text.length > 0)
-				.filter(line => {
-					const t = normalizeSkillText(line.text);
-					return t && !t.includes('skills') && !t.includes('inspiration') && !t.includes('career info') && t !== 'close';
-				})
+				.filter(line => !isLikelyUiText(line.text))
 				.sort((a, b) => a.bbox.y0 - b.bbox.y0 || (a.column === 'left' ? -1 : 1));
 
 			const debugLineRows = lines.map(line => ({ column: line.column, text: line.text, y: line.bbox.y0 }));
+			const uniqueTopLimit = leftRect.top + Math.round(panel.height * UNIQUE_TOP_ROW_MAX_OFFSET_PCT);
+			const uniqueSignals: UniqueSignal[] = [];
+
+			if (i === 0) {
+				const uniqueProbeRect = uniqueProbeRectFromLeftBand(panel, leftRect, hasPartnerButton);
+				const uniqueProbeResult = await workers.skillLeft.recognize(pp, { rectangle: uniqueProbeRect }, { blocks: true });
+				const uniqueProbeText = sanitizeSkillLineText(String(uniqueProbeResult?.data?.text || ''));
+				if (uniqueProbeText) {
+					const lv = parseUniqueLevel(uniqueProbeText);
+					if (lv != null) uniqueLevel = lv;
+					const uniqueProbeCandidates = dedupeUniqueInheritedVariants(
+						getUniqueSkillCandidates(uniqueProbeText.replace(/lvl\.?\s*\d/ig, '').trim(), 6, true),
+						true
+					);
+					if (uniqueProbeCandidates.length > 0) {
+						uniqueSignals.push({
+							skillId: uniqueProbeCandidates[0].skillId,
+							score: uniqueProbeCandidates[0].score,
+							source: 'probe',
+							y: uniqueProbeRect.top,
+							hasLevel: lv != null
+						});
+					}
+				}
+			}
 
 			for (let idx = 0; idx < lines.length; idx++) {
 				const line = lines[idx];
-				const isTopLeft = i === 0 && line.column === 'left' && !lines.slice(0, idx).some(prev => prev.column === 'left');
+				const isTopLeft = i === 0
+					&& line.column === 'left'
+					&& line.bbox.y0 <= uniqueTopLimit
+					&& !lines.slice(0, idx).some(prev => prev.column === 'left');
 				const text = sanitizeSkillLineText(line.text);
 				if (!text) continue;
 
 				const textOnly = text.replace(/lvl\.?\s*\d/ig, '').trim();
-				const rawCandidates = getSkillCandidates(textOnly, 6).filter(c => isTopLeft ? isUniqueRarity(c.skillId) : true);
+				if (isLikelyUiText(textOnly)) continue;
+				if (i === 0 && !hasPartnerButton && line.column === 'left' && line.bbox.y0 <= leftRect.top + Math.round(panel.height * UNIQUE_LINE_SCAN_HEIGHT_PCT)) {
+					const lineLv = parseUniqueLevel(text);
+					const lineUniqueCandidates = dedupeUniqueInheritedVariants(
+						getUniqueSkillCandidates(textOnly, 5, true),
+						true
+					);
+					if (lineUniqueCandidates.length > 0) {
+						uniqueSignals.push({
+							skillId: lineUniqueCandidates[0].skillId,
+							score: lineUniqueCandidates[0].score,
+							source: 'line',
+							y: line.bbox.y0,
+							hasLevel: lineLv != null
+						});
+						if (lineLv != null && uniqueLevel == null) uniqueLevel = lineLv;
+					}
+				}
+				const rawCandidates = isTopLeft
+					? getUniqueSkillCandidates(textOnly, 6, true)
+					: getSkillCandidates(textOnly, 6);
 				// Only collapse inherited/non-inherited variants for the unique tile.
 				const candidates = isTopLeft
 					? dedupeUniqueInheritedVariants(
@@ -626,6 +839,15 @@ export async function importProfileFromScreenshots(screenshots: ImportScreenshot
 				if (isTopLeft && isUniqueRarity(picked) && !picked.startsWith('9')) uniqueSkillId = picked;
 			}
 
+			if (i === 0) {
+				const bestUnique = chooseBestUniqueSignal(uniqueSignals, hasPartnerButton);
+				const uniqueMinScore = hasPartnerButton ? 0.86 : 0.79;
+				if (bestUnique && (uniqueSkillId == null || bestUnique.score >= uniqueMinScore)) {
+					uniqueSkillId = bestUnique.skillId;
+					if (!resolvedSkills.includes(bestUnique.skillId)) resolvedSkills.push(bestUnique.skillId);
+				}
+			}
+
 			debugShots.push({
 				name: screenshot.name,
 				panelWidth: panel.width,
@@ -647,7 +869,16 @@ export async function importProfileFromScreenshots(screenshots: ImportScreenshot
 	if (!resolvedSkills.length) warnings.push('No skill tiles were detected. Try a clearer screenshot or include more of the skills panel.');
 
 	const outfitId = uniqueSkillId ? (uniqueSkillToOutfit[uniqueSkillId] || null) : null;
-	if (uniqueSkillId && !outfitId) warnings.push('Unique skill was matched, but no outfit mapping was found.');
+	if (uniqueSkillId && !outfitId) {
+		const uniqueName = (globalSkillNames[uniqueSkillId] || [])[0] || '(name unavailable)';
+		warnings.push(`Unique skill was matched, but no outfit mapping was found (matched unique id=${uniqueSkillId}, name="${uniqueName}").`);
+	}
+
+	const firstScreenshotId = screenshots[0]?.id || null;
+	const filteredUnknownSkills = unknownSkills.filter(prompt => !isLikelyRedundantUniquePrompt(prompt, {
+		uniqueSkillId,
+		firstScreenshotId
+	}));
 
 	return {
 		stats,
@@ -655,7 +886,7 @@ export async function importProfileFromScreenshots(screenshots: ImportScreenshot
 		uniqueLevel,
 		outfitId,
 		skillIds: resolvedSkills.filter(skillId => skilldata[skillId] != null && globalSkillMeta[skillId] != null),
-		unknownSkills,
+		unknownSkills: filteredUnknownSkills,
 		warnings,
 		debug: { screenshots: debugShots }
 	};

@@ -338,9 +338,24 @@ export function ProfileScreenshotImportDialog(props: ProfileScreenshotImportDial
 							<input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" multiple style="display:none" onChange={(e) => e.currentTarget.files && handleFiles(e.currentTarget.files)} />
 							{!hasStartedOcr && (
 								<div class="profileImportInstructionText">
-									To ensure the OCR works properly, upload a screenshot that includes the <strong>entire</strong> Umamusume profile box with the skills displayed. This includes both &quot;Umamusume Details&quot; header at the top of the profile and the &quot;Close&quot; button at the bottom. If there are too many skills to be included in one screenshot, upload multiple screenshots that show the additional skills with the same formatting (e.g. scroll down in the skills section), or simply add them manually. The first screenshot must include the unique (rainbow) skill.
-									<br />
-									Refer to the example screenshot to the left.
+									<p>To ensure the OCR works properly, follow these formatting guidelines:</p>
+									<ul class="profileImportInstructionList">
+										<li>
+										    Upload screenshot(s) that include the <strong>entire</strong> Umamusume profile box. 
+											<ul class="profileImportInstructionSubList">
+											<li>Include both the &quot;Umamusume Details&quot; header at the top and the &quot;Close&quot; button at the bottom.</li>
+											</ul>
+										</li>
+										<li>
+											If all skills do not fit in one image, upload additional screenshots with the same format (for example, after scrolling the skills section).
+											<ul class="profileImportInstructionSubList">
+											<li>The first screenshot must include the unique (rainbow) skill. Ensure that the skill list is scrolled all the way to the top.</li>
+											<li>For subsequent screenshots, scroll the skills such that the top row of skill tiles is entirely visible and not cut off partially.</li>
+											</ul>
+										</li>
+										<li>Refer to the example screenshot on the left.</li>
+										</ul>
+									<p>The OCR may make mistakes. Verify all imported values before applying. Note that aptitudes are not imported and must be set manually.</p>
 								</div>
 							)}
 							{!hasStartedOcr ? (

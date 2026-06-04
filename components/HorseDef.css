@@ -1160,6 +1160,17 @@
 	text-align: center;
 }
 
+.profileImportInstructionList {
+	margin: 6px auto;
+	padding-left: 20px;
+	max-width: 560px;
+	text-align: left;
+}
+
+.profileImportInstructionList li {
+	margin: 4px 0;
+}
+
 .profileImportDropzone p {
 	margin: 6px 0;
 }
