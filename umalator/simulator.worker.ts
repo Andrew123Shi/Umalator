@@ -4,12 +4,37 @@ import type { CourseData } from '../uma-skill-tools/CourseData';
 import type { RaceParameters } from '../uma-skill-tools/RaceParameters';
 
 import { Map as ImmMap } from 'immutable';
-import { HorseState } from '../components/HorseDefTypes';
+import { HorseState, RANDOM_MOOD } from '../components/HorseDefTypes';
 import { runComparison, runGlobalComparison } from './compare';
 import { DistanceType, Surface } from '../uma-skill-tools/CourseData';
 import skillmeta from './skill_meta.json';
 import { runOptimization, OptimizerIteration } from './optimizer';
 import courses from '../uma-skill-tools/data/course_data.json';
+import { Rule30CARng } from '../uma-skill-tools/Random';
+
+const COMPARE_MOODS = [2, 1, 0, -1, -2] as const;
+
+function normalizeMood(value: number, fallback: number) {
+	return COMPARE_MOODS.includes(value as any) ? value : fallback;
+}
+
+function resolveCompareMoods(uma1Mood: number, uma2Mood: number, options: any) {
+	const forceIdenticalMood = options?.forceIdenticalMood === true;
+	const rng = new Rule30CARng(((options?.seed ?? 0) >>> 0) + 17);
+	const mood1IsRandom = uma1Mood === RANDOM_MOOD;
+	const mood2IsRandom = uma2Mood === RANDOM_MOOD;
+	const randomMood = () => COMPARE_MOODS[rng.uniform(COMPARE_MOODS.length)];
+
+	if (forceIdenticalMood && mood1IsRandom && mood2IsRandom) {
+		const shared = randomMood();
+		return { mood1: shared, mood2: shared };
+	}
+
+	return {
+		mood1: mood1IsRandom ? randomMood() : normalizeMood(uma1Mood, 2),
+		mood2: mood2IsRandom ? randomMood() : normalizeMood(uma2Mood, 2)
+	};
+}
 
 function mergeSkillMaps(map1, map2) {
 	const obj1 = map1 instanceof Map ? Object.fromEntries(map1) : (map1 || {});
@@ -91,6 +116,111 @@ function mergeResultSets(data1, data2) {
 	});
 }
 
+function summarizeSkillResult(id: string, results: number[], runData: any, extras: any = {}) {
+	const mid = Math.floor(results.length / 2);
+	const median = results.length % 2 == 0 ? (results[mid-1] + results[mid]) / 2 : results[mid];
+	const mean = results.reduce((a,b) => a+b, 0) / results.length;
+	return {
+		id,
+		results,
+		runData,
+		min: results[0],
+		max: results[results.length-1],
+		mean,
+		median,
+		...extras
+	};
+}
+
+function moodCountsForSamples(nsamples: number, seed: number) {
+	const counts = new Map<number, number>();
+	for (const mood of COMPARE_MOODS) {
+		counts.set(mood, 0);
+	}
+	const rng = new Rule30CARng(seed >>> 0);
+	for (let i = 0; i < nsamples; i++) {
+		const mood = COMPARE_MOODS[rng.uniform(COMPARE_MOODS.length)];
+		counts.set(mood, (counts.get(mood) || 0) + 1);
+	}
+	return counts;
+}
+
+function runComparisonForSkillWithMoodSampling(
+	id: string,
+	nsamples: number,
+	course: CourseData,
+	racedef: RaceParameters,
+	uma: HorseState,
+	withSkill: HorseState,
+	pacer: HorseState | null,
+	options: any,
+	seedSalt: number
+) {
+	const baseMood = normalizeMood(uma.mood, 2);
+	if (uma.mood !== RANDOM_MOOD) {
+		const fixedUma = uma.set('mood', baseMood);
+		const fixedWithSkill = withSkill.set('mood', baseMood);
+		const {results, runData} = runComparison(nsamples, course, {...racedef, mood: baseMood}, fixedUma, fixedWithSkill, pacer, options);
+		return summarizeSkillResult(id, results, runData);
+	}
+
+	const counts = moodCountsForSamples(nsamples, ((options?.seed ?? 0) >>> 0) + seedSalt);
+	let merged: any = null;
+	for (const mood of COMPARE_MOODS) {
+		const moodSamples = counts.get(mood) || 0;
+		if (moodSamples <= 0) continue;
+		const moodUma = uma.set('mood', mood);
+		const moodWithSkill = withSkill.set('mood', mood);
+		const {results, runData} = runComparison(moodSamples, course, {...racedef, mood}, moodUma, moodWithSkill, pacer, options);
+		const chunk = summarizeSkillResult(id, results, runData);
+		merged = merged == null ? chunk : mergeResults(merged, chunk);
+	}
+	return merged;
+}
+
+function runGlobalComparisonForSkillWithMoodSampling(
+	id: string,
+	nsamples: number,
+	distanceType: DistanceType,
+	surface: Surface,
+	uma: HorseState,
+	withSkill: HorseState,
+	pacer: HorseState | null,
+	options: any,
+	seedSalt: number
+) {
+	const baseMood = normalizeMood(uma.mood, 2);
+	if (uma.mood !== RANDOM_MOOD) {
+		const fixedUma = uma.set('mood', baseMood);
+		const fixedWithSkill = withSkill.set('mood', baseMood);
+		const globalOptions = {...options, fixedMood: baseMood, safeSkipUnactivatableSkill: true, safeSkipSkillId: id};
+		const result = runGlobalComparison(nsamples, distanceType, surface, fixedUma, fixedWithSkill, pacer, globalOptions);
+		return summarizeSkillResult(id, result.results, result.runData, {
+			staminaStats: result.staminaStats,
+			firstUmaStats: result.firstUmaStats,
+			raceParams: result.raceParams
+		});
+	}
+
+	const counts = moodCountsForSamples(nsamples, ((options?.seed ?? 0) >>> 0) + seedSalt);
+	let merged: any = null;
+	for (const mood of COMPARE_MOODS) {
+		const moodSamples = counts.get(mood) || 0;
+		if (moodSamples <= 0) continue;
+		const moodUma = uma.set('mood', mood);
+		const moodWithSkill = withSkill.set('mood', mood);
+		const globalOptions = {...options, fixedMood: mood, safeSkipUnactivatableSkill: true, safeSkipSkillId: id};
+		const result = runGlobalComparison(moodSamples, distanceType, surface, moodUma, moodWithSkill, pacer, globalOptions);
+		const chunk = summarizeSkillResult(id, result.results, result.runData, {
+			staminaStats: result.staminaStats,
+			firstUmaStats: result.firstUmaStats,
+			raceParams: result.raceParams
+		});
+		merged = merged == null ? chunk : mergeResults(merged, chunk);
+	}
+	return merged;
+}
+
 function run1Round(nsamples: number, skills: string[], course: CourseData, racedef: RaceParameters, uma: HorseState, pacer, options, onProgress?: (completed: number, total: number) => void) {
 	const data = new Map();
 	const totalSkills = skills.length;
@@ -106,17 +236,18 @@ function run1Round(nsamples: number, skills: string[], course: CourseData, raced
 		}
 		
 		const withSkill = uma.set('skills', skillsToUse.set(skillmeta[id].groupId, id));
-		const {results, runData} = runComparison(nsamples, course, racedef, uma, withSkill, pacer, options);
-		const mid = Math.floor(results.length / 2);
-		const median = results.length % 2 == 0 ? (results[mid-1] + results[mid]) / 2 : results[mid];
-		const mean = results.reduce((a,b) => a+b, 0) / results.length;
-		data.set(id, {
-			id, results, runData,
-			min: results[0],
-			max: results[results.length-1],
-			mean,
-			median
-		});
+		const result = runComparisonForSkillWithMoodSampling(
+			id,
+			nsamples,
+			course,
+			racedef,
+			uma,
+			withSkill,
+			pacer,
+			options,
+			index * 4099 + nsamples * 131
+		);
+		data.set(id, result);
 		
 		// Report progress after each skill
 		if (onProgress) {
@@ -169,16 +300,22 @@ function run1RoundGlobal(nsamples: number, skills: string[], distanceType: Dista
 		}
 		
 		const withSkill = uma.set('skills', skillsToUse.set(skillmeta[id].groupId, id));
-		const globalOptions = {
-			...options,
-			seed: (options.seed || 0) + index * 9973 + nsamples * 131,
-			fixedMood: uma.mood,
-			safeSkipUnactivatableSkill: true,
-			safeSkipSkillId: id
-		};
 		let result;
 		try {
-			result = runGlobalComparison(nsamples, distanceType, surface, uma, withSkill, pacer, globalOptions);
+			result = runGlobalComparisonForSkillWithMoodSampling(
+				id,
+				nsamples,
+				distanceType,
+				surface,
+				uma,
+				withSkill,
+				pacer,
+				{
+					...options,
+					seed: (options.seed || 0) + index * 9973 + nsamples * 131
+				},
+				index * 4099 + nsamples * 181
+			);
 		} catch (err) {
 			postMessage({
 				type: 'chart-skill-error',
@@ -191,17 +328,7 @@ function run1RoundGlobal(nsamples: number, skills: string[], distanceType: Dista
 			});
 			throw err;
 		}
-		const { results, runData, staminaStats, firstUmaStats, raceParams } = result;
-		const mid = Math.floor(results.length / 2);
-		const median = results.length % 2 == 0 ? (results[mid-1] + results[mid]) / 2 : results[mid];
-		const mean = results.reduce((a,b) => a+b, 0) / results.length;
-		data.set(id, {
-			id, results, runData, staminaStats, firstUmaStats, raceParams,
-			min: results[0],
-			max: results[results.length-1],
-			mean,
-			median
-		});
+		data.set(id, result);
 		
 		if (onProgress) {
 			onProgress(index + 1, totalSkills);
@@ -311,18 +438,22 @@ function runGlobalChart({skills, distanceType, surface, uma, pacer, options}) {
 }
 
 function runCompare({nsamples, course, racedef, uma1, uma2, pacer, options}) {
-	const uma1_ = new HorseState(uma1)
+	const baseUma1 = new HorseState(uma1)
 		.set('skills', fromJS(uma1.skills))
 		.set('forcedSkillPositions', ImmMap(uma1.forcedSkillPositions || {}));
-	const uma2_ = new HorseState(uma2)
+	const baseUma2 = new HorseState(uma2)
 		.set('skills', fromJS(uma2.skills))
 		.set('forcedSkillPositions', ImmMap(uma2.forcedSkillPositions || {}));
 	const pacer_ = pacer ? new HorseState(pacer)
 		.set('skills', fromJS(pacer.skills || []))
 		.set('forcedSkillPositions', ImmMap(pacer.forcedSkillPositions || {})) : null;
+	const { mood1, mood2 } = resolveCompareMoods(baseUma1.mood, baseUma2.mood, options);
+	const uma1_ = baseUma1.set('mood', mood1);
+	const uma2_ = baseUma2.set('mood', mood2);
 	const compareOptions = {...options, mode: 'compare'};
+	const raceParams = { ...racedef, mood: mood1 };
 	// Run the full batch with progress updates every 20 samples
-	const results = runComparison(nsamples, course, racedef, uma1_, uma2_, pacer_, compareOptions, (completed, total, cumulativeResults) => {
+	const results = runComparison(nsamples, course, raceParams, uma1_, uma2_, pacer_, compareOptions, (completed, total, cumulativeResults) => {
 		postMessage({type: 'compare-progress', completed, total: nsamples, results: cumulativeResults});
 	});
 	// Send final results
@@ -331,15 +462,18 @@ function runCompare({nsamples, course, racedef, uma1, uma2, pacer, options}) {
 }
 
 function runGlobalCompare({nsamples, distanceType, surface, uma1, uma2, pacer, options}) {
-	const uma1_ = new HorseState(uma1)
+	const baseUma1 = new HorseState(uma1)
 		.set('skills', fromJS(uma1.skills))
 		.set('forcedSkillPositions', ImmMap(uma1.forcedSkillPositions || {}));
-	const uma2_ = new HorseState(uma2)
+	const baseUma2 = new HorseState(uma2)
 		.set('skills', fromJS(uma2.skills))
 		.set('forcedSkillPositions', ImmMap(uma2.forcedSkillPositions || {}));
 	const pacer_ = pacer ? new HorseState(pacer)
 		.set('skills', fromJS(pacer.skills || []))
 		.set('forcedSkillPositions', ImmMap(pacer.forcedSkillPositions || {})) : null;
+	const { mood1, mood2 } = resolveCompareMoods(baseUma1.mood, baseUma2.mood, options);
+	const uma1_ = baseUma1.set('mood', mood1);
+	const uma2_ = baseUma2.set('mood', mood2);
 	const compareOptions = {...options, mode: 'compare'};
 	// Run the full batch with progress updates every 20 samples
 	const results = runGlobalComparison(nsamples, distanceType, surface, uma1_, uma2_, pacer_, compareOptions, (completed, total, cumulativeResults) => {
@@ -374,7 +508,10 @@ function runAdditionalSamples({skillId, nsamples, course, racedef, uma, pacer, o
 		}
 		
 		const withSkill = uma_.set('skills', skillsToUse.set(skillmeta[skillId].groupId, skillId));
-		const {results, runData} = runComparison(nsamples, course, racedef, uma_, withSkill, pacer_, progressOptions, (completed, total, cumulativeResults) => {
+		const baseMood = normalizeMood(uma_.mood, 2);
+		const progressUma = uma_.mood === RANDOM_MOOD ? uma_.set('mood', baseMood) : uma_;
+		const progressWithSkill = uma_.mood === RANDOM_MOOD ? withSkill.set('mood', baseMood) : withSkill;
+		const {results, runData} = runComparison(nsamples, course, {...racedef, mood: baseMood}, progressUma, progressWithSkill, pacer_, progressOptions, (completed, total, cumulativeResults) => {
 			let partialResult = null;
 			if (cumulativeResults?.results && cumulativeResults.results.length > 0) {
 				const partialResults = cumulativeResults.results;
@@ -393,18 +530,19 @@ function runAdditionalSamples({skillId, nsamples, course, racedef, uma, pacer, o
 			}
 			postMessage({type: 'additional-samples-progress', skillId, completed, total, partialResult});
 		});
-		const mid = Math.floor(results.length / 2);
-		const median = results.length % 2 == 0 ? (results[mid-1] + results[mid]) / 2 : results[mid];
-		const mean = results.reduce((a,b) => a+b, 0) / results.length;
-		const newResult = {
-			id: skillId,
-			results,
-			runData,
-			min: results[0],
-			max: results[results.length-1],
-			mean,
-			median
-		};
+		const newResult = uma_.mood === RANDOM_MOOD
+			? runComparisonForSkillWithMoodSampling(
+				skillId,
+				nsamples,
+				course,
+				racedef,
+				uma_,
+				withSkill,
+				pacer_,
+				progressOptions,
+				7777 + nsamples * 97
+			)
+			: summarizeSkillResult(skillId, results, runData);
 		postMessage({type: 'additional-samples', skillId, result: newResult});
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);

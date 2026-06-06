@@ -3,6 +3,8 @@ import { Record, Map as ImmMap } from 'immutable';
 import skills from '../uma-skill-tools/data/skill_data.json';
 import skillmeta from '../umalator/skill_meta.json';
 
+export const RANDOM_MOOD = 99;
+
 function isKnownSkill(id: string) {
 	return id in skillmeta && id in skills;
 }

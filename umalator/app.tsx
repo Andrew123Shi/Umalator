@@ -15,7 +15,7 @@ import type { GameHpPolicy } from '../uma-skill-tools/HpPolicy';
 import { Language, LanguageSelect, useLanguageSelect } from '../components/Language';
 import { ExpandedSkillDetails, Skill, SkillList, STRINGS_en as SKILL_STRINGS_en } from '../components/SkillList';
 import { RaceTrack, TrackSelect, RegionDisplayType } from '../components/RaceTrack';
-import { HorseState, SkillSet } from '../components/HorseDefTypes';
+import { HorseState, SkillSet, RANDOM_MOOD } from '../components/HorseDefTypes';
 import { HorseDef, horseDefTabs, isGeneralSkill } from '../components/HorseDef';
 import { applyAssetCssVars, umaToolsAsset } from '../components/assetPaths';
 import { TRACKNAMES_ja, TRACKNAMES_en } from '../strings/common';
@@ -1471,7 +1471,7 @@ async function serialize(courseId: number, nsamples: number, seed: number, posKe
 	paceChaser: number,
 	lateSurger: number,
 	endCloser: number
-}) {
+}, forceIdenticalMood: boolean) {
 	const json = JSON.stringify({
 		courseId,
 		nsamples,
@@ -1488,7 +1488,8 @@ async function serialize(courseId: number, nsamples: number, seed: number, posKe
 		showLanes,
 		competeFight,
 		leadCompetition,
-		duelingRates
+		duelingRates,
+		forceIdenticalMood
 	});
 	const enc = new TextEncoder();
 	const stringStream = new ReadableStream({
@@ -1560,7 +1561,8 @@ async function deserialize(hash) {
 						paceChaser: 30,
 						lateSurger: 35,
 						endCloser: 35
-					}
+					},
+					forceIdenticalMood: o.forceIdenticalMood != null ? o.forceIdenticalMood : false
 				};
 			} catch (_) {
 				return {
@@ -1589,7 +1591,8 @@ async function deserialize(hash) {
 						paceChaser: 30,
 						lateSurger: 35,
 						endCloser: 35
-					}
+					},
+					forceIdenticalMood: false
 				};
 			}
 		} else {
@@ -1608,9 +1611,9 @@ async function saveToLocalStorage(courseId: number, nsamples: number, seed: numb
 	paceChaser: number,
 	lateSurger: number,
 	endCloser: number
-}) {
+}, forceIdenticalMood: boolean) {
 	try {
-		const hash = await serialize(courseId, nsamples, seed, posKeepMode, racedef, uma1, uma2, pacer, showVirtualPacemakerOnGraph, pacemakerCount, selectedPacemakers, showLanes, witVarianceSettings, competeFight, leadCompetition, duelingRates);
+		const hash = await serialize(courseId, nsamples, seed, posKeepMode, racedef, uma1, uma2, pacer, showVirtualPacemakerOnGraph, pacemakerCount, selectedPacemakers, showLanes, witVarianceSettings, competeFight, leadCompetition, duelingRates, forceIdenticalMood);
 		localStorage.setItem('umalator-settings', hash);
 	} catch (error) {
 		console.warn('Failed to save settings to localStorage:', error);
@@ -2366,6 +2369,7 @@ function App(props) {
 	const [rushedKakari, toggleRushedKakari] = useReducer((b,_) => !b, true);
 	const [competeFight, setCompeteFight] = useState(true);
 	const [leadCompetition, setLeadCompetition] = useState(true);
+	const [forceIdenticalMood, setForceIdenticalMood] = useState(false);
 	const [duelingConfigOpen, setDuelingConfigOpen] = useState(false);
 	const [duelingRates, setDuelingRates] = useState({
 		runaway: 10,
@@ -2465,7 +2469,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 			syncRng,
 			skillWisdomCheck,
 			rushedKakari
-		}, competeFight, leadCompetition, duelingRates);
+		}, competeFight, leadCompetition, duelingRates, forceIdenticalMood);
 	}
 
 	function resetUmas() {
@@ -2832,6 +2836,9 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 				if (o.duelingRates) {
 					setDuelingRates(o.duelingRates);
 				}
+				if (o.forceIdenticalMood !== undefined) {
+					setForceIdenticalMood(!!o.forceIdenticalMood);
+				}
 			});
 		} else {
 			loadFromLocalStorage().then(o => {
@@ -2873,6 +2880,9 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 					if (o.duelingRates) {
 						setDuelingRates(o.duelingRates);
 					}
+					if (o.forceIdenticalMood !== undefined) {
+						setForceIdenticalMood(!!o.forceIdenticalMood);
+					}
 				}
 			});
 		}
@@ -2886,7 +2896,14 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 	// Auto-save settings whenever they change
 	useEffect(() => {
 		autoSaveSettings();
-	}, [courseId, nsamples, seed, posKeepMode, racedef, uma1, uma2, pacer, syncRng, skillWisdomCheck, rushedKakari, showVirtualPacemakerOnGraph, pacemakerCount, selectedPacemakerIndices, competeFight, leadCompetition, duelingRates]);
+	}, [courseId, nsamples, seed, posKeepMode, racedef, uma1, uma2, pacer, syncRng, skillWisdomCheck, rushedKakari, showVirtualPacemakerOnGraph, pacemakerCount, selectedPacemakerIndices, competeFight, leadCompetition, duelingRates, forceIdenticalMood]);
+
+	const bothCompareUmasRandom = uma1.mood === RANDOM_MOOD && uma2.mood === RANDOM_MOOD;
+	useEffect(() => {
+		if (!bothCompareUmasRandom && forceIdenticalMood) {
+			setForceIdenticalMood(false);
+		}
+	}, [bothCompareUmasRandom, forceIdenticalMood]);
 	
 	useEffect(() => {
 		const shouldShow = posKeepMode === PosKeepMode.Virtual && selectedPacemakerIndices.length > 0;
@@ -2979,7 +2996,8 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 					rushedKakari: rushedKakari,
 					competeFight: competeFight,
 					leadCompetition: leadCompetition,
-					duelingRates: duelingRates
+					duelingRates: duelingRates,
+					forceIdenticalMood: forceIdenticalMood
 				}
 			}
 		});
@@ -3011,7 +3029,8 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 					leadCompetition: leadCompetition,
 					duelingRates: duelingRates,
 					time: racedef.time,
-					grade: racedef.grade
+					grade: racedef.grade,
+					forceIdenticalMood: forceIdenticalMood
 				}
 			}
 		});
@@ -3119,7 +3138,8 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 					rushedKakari: rushedKakari,
 					competeFight: competeFight,
 					leadCompetition: leadCompetition,
-					duelingRates: duelingRates
+					duelingRates: duelingRates,
+					forceIdenticalMood: forceIdenticalMood
 				}
 			}
 		});
@@ -4993,6 +5013,18 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 									</div>
 								</div>
 								<div style="display: flex; flex-direction: column; gap: 0;">
+									{(mode == Mode.Compare || mode == Mode.GlobalCompare) && (
+										<div>
+											<label for="forceIdenticalMood">Force Identical Mood</label>
+											<input
+												type="checkbox"
+												id="forceIdenticalMood"
+												checked={forceIdenticalMood}
+												disabled={!bothCompareUmasRandom}
+												onInput={(e) => setForceIdenticalMood(e.currentTarget.checked)}
+											/>
+										</div>
+									)}
 									<div>
 										<label for="leadCompetition">Spot Struggle</label>
 										<input type="checkbox" id="leadCompetition" checked={leadCompetition} onClick={() => setLeadCompetition(!leadCompetition)} />

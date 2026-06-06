@@ -10,7 +10,7 @@ import { ProfileImportDraft } from './ProfileScreenshotImportV3';
 
 import { HorseParameters } from '../uma-skill-tools/HorseTypes';
 
-import { SkillSet, HorseState } from './HorseDefTypes';
+import { SkillSet, HorseState, RANDOM_MOOD } from './HorseDefTypes';
 
 import './HorseDef.css';
 
@@ -611,7 +611,8 @@ export function MoodSelect(props){
 		{value: 1, icon: 'utx_ico_motivation_m_03', label: 'Good'},
 		{value: 0, icon: 'utx_ico_motivation_m_02', label: 'Normal'},
 		{value: -1, icon: 'utx_ico_motivation_m_01', label: 'Bad'},
-		{value: -2, icon: 'utx_ico_motivation_m_00', label: 'Awful'}
+		{value: -2, icon: 'utx_ico_motivation_m_00', label: 'Awful'},
+		{value: RANDOM_MOOD, icon: null, label: 'Random'}
 	];
 	
 	function setMood(e) {
@@ -623,12 +624,18 @@ export function MoodSelect(props){
 	return (
 		<div class="horseMoodSelect" tabindex={props.tabindex} onClick={() => setOpen(!open)} onBlur={setOpen.bind(null, false)}>
 			<span>
-				<img src={umaToolsAsset(`icons/global/${moodValues.find(m => m.value === props.m)?.icon}.png`)} />
+				{props.m === RANDOM_MOOD
+					? <span title="Random">🎲</span>
+					: <img src={umaToolsAsset(`icons/global/${moodValues.find(m => m.value === props.m)?.icon}.png`)} />
+				}
 			</span>
 			<ul style={open ? "display:block" : "display:none"}>
 				{moodValues.map(mood => 
 					<li key={mood.value} data-mood={mood.value} onClick={setMood}>
-						<img src={umaToolsAsset(`icons/global/${mood.icon}.png`)} title={mood.label} />
+						{mood.value === RANDOM_MOOD
+							? <span title={mood.label}>🎲</span>
+							: <img src={umaToolsAsset(`icons/global/${mood.icon}.png`)} title={mood.label} />
+						}
 					</li>
 				)}
 			</ul>
