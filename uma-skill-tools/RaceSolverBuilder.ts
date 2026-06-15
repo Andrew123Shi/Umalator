@@ -291,6 +291,29 @@ function applyUniqueLevelScaling(effects: SkillEffect[], rarity: number, uniqueL
 	}));
 }
 
+/**
+ * When a skill has multiple disjoint static regions (e.g. several uphills/downhills) and a
+ * dynamic accumulatetime threshold, ImmediatePolicy would only keep regions[0] as the trigger
+ * window. Widen the trigger to the full course and require the horse to be inside one of the
+ * qualifying location regions when the dynamic conditions are evaluated.
+ */
+export function adjustTimeGatedMultiRegionTriggers(
+	regions: RegionList,
+	extraCondition: DynamicCondition,
+	condition: string,
+	course: CourseData
+): [RegionList, DynamicCondition] {
+	if (regions.length <= 1 || !/\baccumulatetime\b/.test(condition)) {
+		return [regions, extraCondition];
+	}
+	const locationRegions = regions.map(r => new Region(r.start, r.end));
+	const trigger = new RegionList();
+	trigger.push(new Region(0, course.distance));
+	const onLocation: DynamicCondition = (s) =>
+		locationRegions.some(r => s.pos >= r.start && s.pos < r.end);
+	return [trigger, (s) => extraCondition(s) && onLocation(s)];
+}
+
 export function buildSkillData(horse: HorseParameters, raceParams: PartialRaceParameters, course: CourseData, wholeCourse: RegionList, parser: {parse: any, tokenize: any}, skillId: string, perspective: Perspective, ignoreNullEffects: boolean = false, uniqueLevel?: number) {
 	if (!(skillId in skills)) {
 		throw new Error('bad skill ID ' + skillId);
@@ -314,7 +337,8 @@ export function buildSkillData(horse: HorseParameters, raceParams: PartialRacePa
 		}
 
 		const op = parser.parse(parser.tokenize(skill.condition));
-		const [regions, extraCondition] = op.apply(full, course, horse, extra);
+		let [regions, extraCondition] = op.apply(full, course, horse, extra);
+		[regions, extraCondition] = adjustTimeGatedMultiRegionTriggers(regions, extraCondition, skill.condition, course);
 		if (regions.length == 0) {
 			continue;
 		}

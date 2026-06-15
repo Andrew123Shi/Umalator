@@ -9,6 +9,7 @@ import { ActivationSamplePolicy, ImmediatePolicy } from '../ActivationSamplePoli
 import { Conditions } from '../ActivationConditions';
 import { getParser } from '../ConditionParser';
 import { RaceSolver, DynamicCondition, SkillType, SkillRarity, SkillEffect } from '../RaceSolver';
+import { adjustTimeGatedMultiRegionTriggers } from '../RaceSolverBuilder';
 import { NoopHpPolicy } from '../HpPolicy';
 
 import skills from '../data/skill_data.json';
@@ -99,7 +100,8 @@ export function buildSkillData(horse: HorseParameters, course: CourseData, whole
 			}
 		}
 		const op = parse(tokenize(skill.condition));
-		const [regions, extraCondition] = op.apply(full, course, horse, {} as any);
+		let [regions, extraCondition] = op.apply(full, course, horse, {} as any);
+		[regions, extraCondition] = adjustTimeGatedMultiRegionTriggers(regions, extraCondition, skill.condition, course);
 		if (regions.length == 0) {
 			continue;
 		}

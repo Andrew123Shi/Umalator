@@ -3269,5 +3269,43 @@
       "starLevel": 4,
       "uniqueLevel": 4
     }
+  },
+  {
+    "id": "1780896047335",
+    "name": "16189",
+    "timestamp": 1780896047335,
+    "data": {
+      "outfitId": "102801",
+      "speed": 1200,
+      "stamina": 495,
+      "power": 1200,
+      "guts": 445,
+      "wisdom": 834,
+      "strategy": "Senkou",
+      "distanceAptitude": "S",
+      "surfaceAptitude": "A",
+      "strategyAptitude": "A",
+      "mood": 2,
+      "skills": [
+        "200972",
+        "201312",
+        "201532",
+        "201322",
+        "200331",
+        "201001",
+        "201661",
+        "900511",
+        "200362",
+        "200581",
+        "210061",
+        "200492",
+        "100281",
+        "900101",
+        "910261"
+      ],
+      "forcedSkillPositions": {},
+      "starLevel": 4,
+      "uniqueLevel": 5
+    }
   }
 ]
