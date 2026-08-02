@@ -77,7 +77,10 @@ while ($select_umas->fetch) {
 		if (exists $meta->{$s_id}) {
 			$select_outfit_data->execute($o_id);
 			$select_outfit_data->bind_columns(\(my $default_rarity, my $running_style, my $aptitudes, my $awakenings));
-			$select_outfit_data->fetch;
+			# Global DB can expose unique-skill meta/text before card_data exists.
+			next unless $select_outfit_data->fetch
+				&& defined $aptitudes && $aptitudes ne ''
+				&& defined $awakenings && $awakenings ne '';
 			$outfits{$o_id} = {
 				epithet => Encode::decode('utf8', $epithet),
 				rarity => $default_rarity,
