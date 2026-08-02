@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 
 import { Strategy, Aptitude, HorseParameters, StrategyHelpers } from './HorseTypes';
 import { CourseData, CourseHelpers, Phase } from './CourseData';
-import { Region } from './Region';
+import { Region, RegionList } from './Region';
 import { PRNG, Rule30CARng } from './Random';
 import type { HpPolicy } from './HpPolicy';
 import { ApproximateCondition } from './ApproximateConditions';
@@ -117,6 +117,9 @@ export interface RaceState {
 	readonly accumulatetime: Readonly<Timer>
 	readonly activateCount: readonly number[]
 	readonly activateCountHeal: number
+	readonly activateCountHealLastFrame: number
+	readonly activateCountLastFrame: number
+	readonly activateCountLaterHalf: number
 	readonly currentSpeed: number
 	readonly isLastSpurt: boolean
 	readonly lastSpurtSpeed: number
@@ -206,6 +209,9 @@ export interface PendingSkill {
 	rarity: SkillRarity
 	trigger: Region
 	extraCondition: DynamicCondition
+	preconditionRegions?: RegionList
+	precondition?: DynamicCondition
+	preconditionSatisfied?: boolean
 	effects: SkillEffect[]
 	originWisdom?: number
 }
@@ -268,6 +274,9 @@ export class RaceSolver {
 	hillEnd: number[]
 	activateCount: number[]
 	activateCountHeal: number
+	activateCountHealLastFrame: number
+	activateCountLastFrame: number
+	activateCountLaterHalf: number
 	onSkillActivate: (s: RaceSolver, skillId: string, perspective: Perspective) => void
 	onSkillDeactivate: (s: RaceSolver, skillId: string, perspective: Perspective) => void
 	sectionLength: number
@@ -418,6 +427,9 @@ export class RaceSolver {
 		this.activeChangeLaneSkills = [];
 		this.activateCount = [0,0,0];
 		this.activateCountHeal = 0;
+		this.activateCountHealLastFrame = 0;
+		this.activateCountLastFrame = 0;
+		this.activateCountLaterHalf = 0;
 		this.onSkillActivate = params.onSkillActivate || noop;
 		this.onSkillDeactivate = params.onSkillDeactivate || noop;
 		this.sectionLength = this.course.distance / 24.0;
@@ -1310,13 +1322,20 @@ export class RaceSolver {
 				this.onSkillDeactivate(this, s.skillId, s.perspective);
 			}
 		}
+		let activateCountThisFrame = 0;
+		const activateCountHealBefore = this.activateCountHeal;
 		for (let i = this.pendingSkills.length; --i >= 0;) {
 			const s = this.pendingSkills[i];
+			if (s.precondition && !s.preconditionSatisfied &&
+				s.preconditionRegions?.some(r => this.pos >= r.start && this.pos < r.end) &&
+				s.precondition(this)) {
+				s.preconditionSatisfied = true;
+			}
 			if (this.pos >= s.trigger.end || this.pendingRemoval.has(s.skillId)) {  // NB. `Region`s are half-open [start,end) intervals. If pos == end we are out of the trigger.
 				// skill failed to activate
 				this.pendingSkills.splice(i,1);
 				this.pendingRemoval.delete(s.skillId);
-			} else if (this.pos >= s.trigger.start && s.extraCondition(this)) {
+			} else if (this.pos >= s.trigger.start && (!s.precondition || s.preconditionSatisfied) && s.extraCondition(this)) {
 				// Check wisdom for skill activation if enabled
 				if (!this.shouldSkipWisdomCheck(s) && !this.checkWisdomForSkill(s)) {
 					// Skill fails due to low wisdom
@@ -1324,9 +1343,14 @@ export class RaceSolver {
 				} else {
 					this.activateSkill(s);
 					this.pendingSkills.splice(i,1);
+					if (s.skillId != 'asitame' && s.skillId != 'staminasyoubu') {
+						++activateCountThisFrame;
+					}
 				}
 			}
 		}
+		this.activateCountLastFrame = activateCountThisFrame;
+		this.activateCountHealLastFrame = this.activateCountHeal - activateCountHealBefore;
 	}
 
 	checkWisdomForSkill(skill: PendingSkill): boolean {
@@ -1427,7 +1451,12 @@ export class RaceSolver {
 				break;
 			}
 		});
-		if (s.perspective == Perspective.Self) ++this.activateCount[this.phase];
+		if (s.perspective == Perspective.Self) {
+			++this.activateCount[this.phase];
+			if (this.pos >= this.course.distance / 2) {
+				++this.activateCountLaterHalf;
+			}
+		}
 		this.usedSkills.add(s.skillId);
 		this.onSkillActivate(this, s.skillId, s.perspective);
 	}

@@ -424,6 +424,11 @@ export const Conditions: {[cond: string]: Condition} = Object.freeze({
 			return [regions, (s: RaceState) => s.activateCountHeal >= n] as [RegionList, DynamicCondition];
 		}
 	}),
+	activate_count_later_half: immediate({
+		filterGte(regions: RegionList, n: number, _0: CourseData, _1: HorseParameters, extra: RaceParameters) {
+			return [regions, (s: RaceState) => s.activateCountLaterHalf >= n] as [RegionList, DynamicCondition];
+		}
+	}),
 	activate_count_middle: immediate({
 		filterGte(regions: RegionList, n: number, _0: CourseData, _1: HorseParameters, extra: RaceParameters) {
 			return [regions, (s: RaceState) => s.activateCount[1] >= n] as [RegionList, DynamicCondition];
@@ -612,6 +617,13 @@ export const Conditions: {[cond: string]: Condition} = Object.freeze({
 			return regions.rmap(r => slopes.map(s => r.intersect(s)));
 		}
 	}),
+	furlong: immediate({
+		filterEq(regions: RegionList, furlong: number, course: CourseData, _: HorseParameters, extra: RaceParameters) {
+			assert(furlong >= 0, 'furlong must be non-negative');
+			const bounds = new Region(furlong * 200, Math.min((furlong + 1) * 200, course.distance));
+			return regions.rmap(r => r.intersect(bounds));
+		}
+	}),
 	grade: valueFilter((_0: CourseData, _1: HorseParameters, extra: RaceParameters) => extra.grade),
 	ground_condition: valueFilter((_0: CourseData, _1: HorseParameters, extra: RaceParameters) => extra.groundCondition),
 	ground_type: valueFilter((course: CourseData, _: HorseParameters, extra: RaceParameters) => course.surface),
@@ -626,6 +638,18 @@ export const Conditions: {[cond: string]: Condition} = Object.freeze({
 		}
 	}),
 	infront_near_lane_time: noopErlangRandom(3, 2.0),
+	is_activate_any_skill: immediate({
+		filterEq(regions: RegionList, one: number, _0: CourseData, _1: HorseParameters, extra: RaceParameters) {
+			assert(one == 1, 'must be is_activate_any_skill==1');
+			return [regions, (s: RaceState) => s.activateCountLastFrame > 0] as [RegionList, DynamicCondition];
+		}
+	}),
+	is_activate_heal_skill: immediate({
+		filterEq(regions: RegionList, one: number, _0: CourseData, _1: HorseParameters, extra: RaceParameters) {
+			assert(one == 1, 'must be is_activate_heal_skill==1');
+			return [regions, (s: RaceState) => s.activateCountHealLastFrame > 0] as [RegionList, DynamicCondition];
+		}
+	}),
 	is_activate_other_skill_detail: immediate({
 		filterEq(regions: RegionList, one: number, _0: CourseData, _1: HorseParameters, extra: RaceParameters) {
 			assert(one == 1, 'must be is_activate_other_skill_detail==1');
@@ -725,6 +749,9 @@ export const Conditions: {[cond: string]: Condition} = Object.freeze({
 	}),
 	is_move_lane: noopErlangRandom(5, 1.0),
 	is_overtake: noopErlangRandom(1, 2.0),
+	// The simulator does not model a full field's skill inventories or activation events.
+	is_exist_skill_id: noopImmediate,
+	is_other_character_activate_advantage_skill: noopUniformRandom,
 	is_surrounded: noopErlangRandom(3, 2.0),
 	is_temptation: noopImmediate,
 	is_used_skill_id: immediate({
@@ -756,10 +783,12 @@ export const Conditions: {[cond: string]: Condition} = Object.freeze({
 	}),
 	motivation: valueFilter((_0: CourseData, _1: HorseParameters, extra: RaceParameters) => extra.mood + 3),  // go from -2 to 2 to 1-5 scale
 	near_count: noopErlangRandom(2.0, 2.0),
+	near_infront_count: noopErlangRandom(2.0, 2.0),
 	order: orderFilter((pos: number, _: number) => pos),
 	order_rate: orderFilter((rate: number, numUmas: number) => Math.round(numUmas * (rate / 100.0))),
 	order_rate_in20_continue: orderInFilter(0.2),
 	order_rate_in40_continue: orderInFilter(0.4),
+	order_rate_in50_continue: orderInFilter(0.5),
 	order_rate_in80_continue: orderInFilter(0.8),
 	order_rate_out20_continue: orderOutFilter(0.2),
 	order_rate_out40_continue: orderOutFilter(0.4),
@@ -835,6 +864,21 @@ export const Conditions: {[cond: string]: Condition} = Object.freeze({
 			return regions.rmap(r => r.intersect(bounds));
 		}
 	}),
+	phase_first_half_straight_random: {
+		samplePolicy: StraightRandomPolicy,
+		filterEq(regions: RegionList, phase: number, course: CourseData, _: HorseParameters, extra: RaceParameters) {
+			CourseHelpers.assertIsPhase(phase);
+			const start = CourseHelpers.phaseStart(course.distance, phase);
+			const end = CourseHelpers.phaseEnd(course.distance, phase);
+			const bounds = new Region(start, (start + end) / 2);
+			return regions.rmap(r => course.straights.map(s => r.intersect(s))).rmap(r => r.intersect(bounds));
+		},
+		filterNeq: notSupported,
+		filterLt: notSupported,
+		filterLte: notSupported,
+		filterGt: notSupported,
+		filterGte: notSupported
+	},
 	phase_firstquarter: immediate({
 		filterEq(regions: RegionList, phase: number, course: CourseData, _: HorseParameters, extra: RaceParameters) {
 			CourseHelpers.assertIsPhase(phase);
@@ -853,6 +897,15 @@ export const Conditions: {[cond: string]: Condition} = Object.freeze({
 			return regions.rmap(r => r.intersect(bounds));
 		}
 	}),
+	phase_laterhalf: immediate({
+		filterEq(regions: RegionList, phase: number, course: CourseData, _: HorseParameters, extra: RaceParameters) {
+			CourseHelpers.assertIsPhase(phase);
+			const start = CourseHelpers.phaseStart(course.distance, phase);
+			const end = CourseHelpers.phaseEnd(course.distance, phase);
+			const bounds = new Region((start + end) / 2, end);
+			return regions.rmap(r => r.intersect(bounds));
+		}
+	}),
 	phase_laterhalf_random: random({
 		filterEq(regions: RegionList, phase: number, course: CourseData, _: HorseParameters, extra: RaceParameters) {
 			CourseHelpers.assertIsPhase(phase);
@@ -862,6 +915,21 @@ export const Conditions: {[cond: string]: Condition} = Object.freeze({
 			return regions.rmap(r => r.intersect(bounds));
 		}
 	}),
+	phase_latter_half_straight_random: {
+		samplePolicy: StraightRandomPolicy,
+		filterEq(regions: RegionList, phase: number, course: CourseData, _: HorseParameters, extra: RaceParameters) {
+			CourseHelpers.assertIsPhase(phase);
+			const start = CourseHelpers.phaseStart(course.distance, phase);
+			const end = CourseHelpers.phaseEnd(course.distance, phase);
+			const bounds = new Region((start + end) / 2, end);
+			return regions.rmap(r => course.straights.map(s => r.intersect(s))).rmap(r => r.intersect(bounds));
+		},
+		filterNeq: notSupported,
+		filterLt: notSupported,
+		filterLte: notSupported,
+		filterGt: notSupported,
+		filterGte: notSupported
+	},
 	phase_random: random({
 		filterEq(regions: RegionList, phase: number, course: CourseData, _: HorseParameters, extra: RaceParameters) {
 			CourseHelpers.assertIsPhase(phase);
@@ -955,6 +1023,10 @@ export const Conditions: {[cond: string]: Condition} = Object.freeze({
 	running_style_temptation_count_senko: noopSectionRandom(2,9),
 	running_style_temptation_count_sashi: noopSectionRandom(2,9),
 	running_style_temptation_count_oikomi: noopSectionRandom(2,9),
+	running_style_temptation_opponent_count_nige: noopSectionRandom(2,9),
+	running_style_temptation_opponent_count_senko: noopSectionRandom(2,9),
+	running_style_temptation_opponent_count_sashi: noopSectionRandom(2,9),
+	running_style_temptation_opponent_count_oikomi: noopSectionRandom(2,9),
 	same_skill_horse_count: noopImmediate,
 	season: valueFilter((_0: CourseData, _1: HorseParameters, extra: RaceParameters) => extra.season),
 	slope: immediate({
@@ -1013,6 +1085,8 @@ export const Conditions: {[cond: string]: Condition} = Object.freeze({
 	temptation_count: noopImmediate,
 	temptation_count_behind: noopSectionRandom(2,9),
 	temptation_count_infront: noopSectionRandom(2,9),
+	temptation_opponent_count_behind: noopSectionRandom(2,9),
+	temptation_opponent_count_infront: noopSectionRandom(2,9),
 	time: valueFilter((_0: CourseData, _1: HorseParameters, extra: RaceParameters) => extra.time),
 	track_id: valueFilter((course: CourseData, _: HorseParameters, extra: RaceParameters) => course.raceTrackId),
 	up_slope_random: random({
@@ -1020,6 +1094,14 @@ export const Conditions: {[cond: string]: Condition} = Object.freeze({
 			assert(one == 1, 'must be up_slope_random==1');
 			const slopes = course.slopes.filter(s => s.slope > 0).map(s => new Region(s.start, s.start + s.length));
 			return regions.rmap(r => slopes.map(s => r.intersect(s)));
+		}
+	}),
+	up_slope_random_later_half: random({
+		filterEq(regions: RegionList, one: number, course: CourseData, _: HorseParameters, extra: RaceParameters) {
+			assert(one == 1, 'must be up_slope_random_later_half==1');
+			const secondHalf = new Region(course.distance / 2, course.distance);
+			const slopes = course.slopes.filter(s => s.slope > 0).map(s => new Region(s.start, s.start + s.length));
+			return regions.rmap(r => slopes.map(s => r.intersect(s))).rmap(r => r.intersect(secondHalf));
 		}
 	}),
 	visiblehorse: noopImmediate,

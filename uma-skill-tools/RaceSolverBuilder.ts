@@ -241,6 +241,8 @@ export interface SkillData {
 	samplePolicy: ActivationSamplePolicy,
 	regions: RegionList,
 	extraCondition: DynamicCondition,
+	preconditionRegions?: RegionList,
+	precondition?: DynamicCondition,
 	effects: SkillEffect[]
 }
 
@@ -324,13 +326,17 @@ export function buildSkillData(horse: HorseParameters, raceParams: PartialRacePa
 	for (let i = 0; i < alternatives.length; ++i) {
 		const skill = alternatives[i];
 		let full = new RegionList();
+		let preconditionRegions: RegionList | undefined;
+		let precondition: DynamicCondition | undefined;
 		wholeCourse.forEach(r => full.push(r));
 		if (skill.precondition) {
 			const pre = parser.parse(parser.tokenize(skill.precondition));
-			const preRegions = pre.apply(wholeCourse, course, horse, extra)[0];
+			const [preRegions, preExtraCondition] = pre.apply(wholeCourse, course, horse, extra);
 			if (preRegions.length == 0) {
 				continue;
 			} else {
+				preconditionRegions = preRegions;
+				precondition = preExtraCondition;
 				const bounds = new Region(preRegions[0].start, wholeCourse[wholeCourse.length-1].end);
 				full = full.rmap(r => r.intersect(bounds));
 			}
@@ -364,6 +370,8 @@ export function buildSkillData(horse: HorseParameters, raceParams: PartialRacePa
 				samplePolicy: op.samplePolicy,
 				regions: regions,
 				extraCondition: extraCondition,
+				preconditionRegions,
+				precondition,
 				effects: effects
 			});
 		}
@@ -644,6 +652,9 @@ export class RaceSolverBuilder {
 				rarity: sd.rarity,
 				trigger: this._pacerTriggers[sdi][i % this._pacerTriggers[sdi].length],
 				extraCondition: sd.extraCondition,
+				preconditionRegions: sd.preconditionRegions,
+				precondition: sd.precondition,
+				preconditionSatisfied: sd.precondition == null,
 				effects: sd.effects
 			}))
 			: this._pacerSkills;
@@ -912,6 +923,9 @@ export class RaceSolverBuilder {
 				rarity: sd.rarity,
 				trigger: triggers[sdi][i % triggers[sdi].length],
 				extraCondition: sd.extraCondition,
+				preconditionRegions: sd.preconditionRegions,
+				precondition: sd.precondition,
+				preconditionSatisfied: sd.precondition == null,
 				effects: sd.effects,
 				originWisdom: this._skills[sdi].originWisdom
 			}));
