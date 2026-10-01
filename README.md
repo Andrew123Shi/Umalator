@@ -9,6 +9,10 @@ The Umalator is one of the best tools for understanding the behavior and perform
 
 Improvements implemented from Kachi's version. Refer to their repo for how the baseline simulator architecture and logic is improved on previous versions (such as Alpha123's). 
 
+### Massively Overhauled UI
+
+UI has been completely overhauled and is much better organized, displayed, and modernized. 
+
 ### Global Compare
 
 A new Compare simulator that performs a Monte-Carlo simulation of all combinations of racetracks and conditions for a given Distance and Terrain type. Included are additional aggregate data tables showing min/max/mean/median based on Location, Distance, Terrain Condition, Weather, and Season. NEW: Global Compare mode has been expanded with a Global Skill Chart mode, which performs a similar type of comparison but to specifically see which skills are best for all relevant tracks and conditions, not just one. 
@@ -51,4 +55,4 @@ Stamina skills are now correctly simulated in Skill Chart mode. Previously, all 
 
 Unique skills have selectable levels that impact performance. Namely, for recovery skills, each level is a 2% improvement, while other skills have an improvement of 1% for the first level and 3% each level after. For example, a 5.5% recovery skill at level 4 would be 5.83%. 
 
-The UI has been refined and polished.
+See Releases page for up-to-date changes: https://github.com/Andrew123Shi/Umalator/releases/tag/2.0
