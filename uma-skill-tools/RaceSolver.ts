@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert';
+import { RUNAWAY_STYLE_SKILL_ID } from './SkillConstants';
 
 import { Strategy, Aptitude, HorseParameters, StrategyHelpers } from './HorseTypes';
 import { CourseData, CourseHelpers, Phase } from './CourseData';
@@ -1364,6 +1365,11 @@ export class RaceSolver {
 
 	shouldSkipWisdomCheck(skill: PendingSkill): boolean {
 		if (!this.skillWisdomCheck) {
+			return true;
+		}
+
+		// Runaway style skill always activates (100%), like greens.
+		if (skill.skillId === RUNAWAY_STYLE_SKILL_ID) {
 			return true;
 		}
 

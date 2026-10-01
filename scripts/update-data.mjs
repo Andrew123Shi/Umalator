@@ -5,8 +5,17 @@ import { fileURLToPath } from 'node:url';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dataDir = path.join(rootDir, 'umalator-global');
+const skillToolsDataDir = path.join(rootDir, 'uma-skill-tools', 'data');
+const courseEventParamsDir = path.join(dataDir, 'courseeventparams');
 
-const DATA_FILES = ['skill_data.json', 'skillnames.json', 'skill_meta.json', 'umas.json'];
+const DATA_FILES = [
+  'skill_data.json',
+  'skillnames.json',
+  'skill_meta.json',
+  'umas.json',
+  'course_data.json',
+  'tracknames.json'
+];
 
 function run(command, args, opts = {}) {
   const result = spawnSync(command, args, {
@@ -159,6 +168,88 @@ function summarizeSkillChanges(before, after) {
   };
 }
 
+function trackLabel(id, tracknames) {
+  const entry = tracknames?.[id];
+  const name = Array.isArray(entry) ? entry.find(Boolean) : entry;
+  return name ? `${id} (${name})` : String(id);
+}
+
+function courseLabel(id, courses, tracknames) {
+  const course = courses?.[id];
+  if (!course) {
+    return String(id);
+  }
+  const track = trackLabel(String(course.raceTrackId), tracknames);
+  const surface = course.surface === 2 ? 'dirt' : 'turf';
+  return `${id} (${track}, ${course.distance}m ${surface})`;
+}
+
+function filterCoursesToTracks(courses, allowedTrackIds) {
+  const filtered = {};
+  for (const [id, course] of Object.entries(courses || {})) {
+    if (allowedTrackIds.has(String(course.raceTrackId))) {
+      filtered[id] = course;
+    }
+  }
+  return filtered;
+}
+
+function mergeCourseData(generatedCourses, tracknames, missingParamCourseIds) {
+  const allowedTrackIds = new Set(Object.keys(tracknames || {}));
+  const merged = filterCoursesToTracks(generatedCourses, allowedTrackIds);
+  const missingIds = new Set((missingParamCourseIds || []).map(String));
+
+  // Geometry for some released dirt courses still lives in uma-skill-tools until
+  // matching courseeventparams are extracted. Reuse those for allowed tracks only.
+  const fallbackSources = [
+    readJsonIfExists(path.join(skillToolsDataDir, 'course_data.json')),
+    readJsonIfExists(path.join(dataDir, 'course_data.json'))
+  ].filter(Boolean);
+
+  const filledFromFallback = [];
+  for (const courseId of [...missingIds].sort()) {
+    if (merged[courseId]) {
+      continue;
+    }
+    let filled = null;
+    for (const fallback of fallbackSources) {
+      const course = fallback[courseId];
+      if (course && allowedTrackIds.has(String(course.raceTrackId))) {
+        filled = course;
+        break;
+      }
+    }
+    if (filled) {
+      merged[courseId] = filled;
+      filledFromFallback.push(courseId);
+    } else {
+      console.warn(
+        `Warning: course ${courseId} is on a released track but has no courseeventparams and no fallback geometry.`
+      );
+    }
+  }
+
+  return { courses: merged, filledFromFallback };
+}
+
+function summarizeCourseChanges(beforeCourses, afterCourses, tracknames) {
+  const diff = diffKeyedObjects(beforeCourses, afterCourses);
+  return {
+    added: diff.added.map((id) => courseLabel(id, afterCourses, tracknames)),
+    removed: diff.removed.map((id) => courseLabel(id, beforeCourses, tracknames)),
+    changed: diff.changed.map((id) => courseLabel(id, afterCourses, tracknames))
+  };
+}
+
+function summarizeTrackChanges(beforeTracks, afterTracks) {
+  const diff = diffKeyedObjects(beforeTracks, afterTracks);
+  return {
+    added: diff.added.map((id) => trackLabel(id, afterTracks)),
+    removed: diff.removed.map((id) => trackLabel(id, beforeTracks)),
+    changed: diff.changed.map((id) => trackLabel(id, afterTracks))
+  };
+}
+
 function summarizeUmaChanges(beforeUmas, afterUmas) {
   const before = beforeUmas || {};
   const after = afterUmas || {};
@@ -263,6 +354,30 @@ function printUpdateSummary(before, after) {
     printList('Uma metadata changed', umas.umaChanged);
   }
 
+  const tracks = summarizeTrackChanges(before['tracknames.json'], after['tracknames.json']);
+  console.log('Tracks:');
+  if (tracks.added.length + tracks.removed.length + tracks.changed.length === 0) {
+    console.log('  (no track additions, removals, or changes)');
+  } else {
+    printList('Added', tracks.added);
+    printList('Removed', tracks.removed);
+    printList('Changed', tracks.changed);
+  }
+
+  const courses = summarizeCourseChanges(
+    before['course_data.json'],
+    after['course_data.json'],
+    after['tracknames.json'] || before['tracknames.json'] || {}
+  );
+  console.log('Courses:');
+  if (courses.added.length + courses.removed.length + courses.changed.length === 0) {
+    console.log('  (no course additions, removals, or changes)');
+  } else {
+    printList('Added', courses.added);
+    printList('Removed', courses.removed);
+    printList('Changed', courses.changed);
+  }
+
   console.log('====================================');
   console.log('');
 }
@@ -286,6 +401,42 @@ function main() {
   writeFileAtomic(path.join(dataDir, 'skill_meta.json'), skillMeta);
 
   run(perl, ['make_global_uma_info.pl', masterMdb], { stdio: 'inherit' });
+
+  const trackNamesRaw = run(perl, ['make_global_tracknames.pl', masterMdb]).stdout;
+  const tracknames = JSON.parse(trackNamesRaw);
+  // Keep established English names for tracks we already ship.
+  const previousTracknames = before['tracknames.json'] || {};
+  for (const [id, entry] of Object.entries(previousTracknames)) {
+    if (tracknames[id] && Array.isArray(entry) && entry[1]) {
+      tracknames[id] = ['', entry[1]];
+    }
+  }
+  writeFileAtomic(path.join(dataDir, 'tracknames.json'), `${JSON.stringify(tracknames, null, '\t')}\n`);
+
+  if (!fs.existsSync(courseEventParamsDir)) {
+    throw new Error(`courseeventparams directory not found at: ${courseEventParamsDir}`);
+  }
+
+  const courseResult = run(perl, ['make_global_course_data.pl', masterMdb, 'courseeventparams']);
+  if (courseResult.stderr) {
+    process.stderr.write(courseResult.stderr);
+  }
+  const generatedCourses = JSON.parse(courseResult.stdout);
+  const missingParamCourseIds = [
+    ...String(courseResult.stderr || '').matchAll(/missing courseeventparams\/(\d+)\.json/g)
+  ].map((match) => match[1]);
+  const { courses, filledFromFallback } = mergeCourseData(
+    generatedCourses,
+    tracknames,
+    missingParamCourseIds
+  );
+  writeFileAtomic(path.join(dataDir, 'course_data.json'), `${JSON.stringify(courses, null, 2)}\n`);
+
+  if (filledFromFallback.length > 0) {
+    console.log(
+      `Filled ${filledFromFallback.length} course(s) from existing course_data (missing courseeventparams).`
+    );
+  }
 
   const after = snapshotData();
   printUpdateSummary(before, after);

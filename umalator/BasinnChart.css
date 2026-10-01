@@ -1,112 +1,357 @@
 .basinnChartWrapper {
-	/*border: 2px solid rgb(224,214,204);*/
-	border: 2px solid rgb(181,174,187);
-	border-radius: 6px;
-	height: auto;
-	max-height: 550px;
+	background:
+		radial-gradient(circle at 0 0, rgba(100, 181, 246, 0.09), transparent 30%),
+		linear-gradient(155deg, rgba(20, 29, 43, 0.98), rgba(10, 16, 26, 0.98));
+	border: 1px solid var(--app-border-strong);
+	border-radius: var(--app-radius-lg);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), var(--app-shadow);
+	box-sizing: border-box;
+	flex: 1 1 auto;
+	height: 100%;
+	/* ~15 skill rows + header; fill leftover space when taller */
+	min-height: min(620px, 100%);
 	overflow-x: hidden;
 	overflow-y: auto;
+	scrollbar-color: rgba(100, 181, 246, 0.35) rgba(255, 255, 255, 0.03);
 	width: 100%;
 }
 
 .basinnChartWrapper.dirty {
-	border: 2px solid rgb(222, 161, 87);
+	border-color: rgba(255, 183, 77, 0.65);
+	box-shadow: 0 0 0 1px rgba(255, 183, 77, 0.2);
 }
 
 .basinnChart {
-	border-collapse: collapse;
-	color: #794016;
-	font-weight: bold;
+	border-collapse: separate;
+	border-spacing: 0;
+	color: var(--app-text-primary);
+	font-size: 0.9rem;
+	font-weight: 550;
+	table-layout: fixed;
 	width: 100%;
 }
 
 .basinnChart thead {
 	position: sticky;
 	top: 0;
+	z-index: 3;
 }
 
 .basinnChart th {
-	background: linear-gradient(#fff,#e4e0e9);
+	background: rgba(19, 31, 47, 0.98);
+	border-bottom: 1px solid var(--app-border);
+	box-shadow: 0 2px 12px rgba(0, 0, 0, 0.28), inset 0 -1px 0 rgba(100, 181, 246, 0.18);
+	color: var(--app-text-secondary);
+	font-size: 0.8rem;
+	font-weight: 800;
+	height: 42px;
+	letter-spacing: 0.055em;
 	text-align: left;
-	width: 15%;
+	text-transform: uppercase;
 }
 
-.basinnChart th:first-child {
-	text-align: center;
-	width: 40%;
+.basinnChartHeader--skillName {
+	width: 20%;
+}
+
+.basinnChartHeader--distribution {
+	width: 48%;
+}
+
+.basinnChartWrapper.wideSkillColumn .basinnChartHeader--skillName {
+	width: 25%;
+}
+
+.basinnChartWrapper.wideSkillColumn .basinnChartHeader--distribution {
+	width: 43%;
+}
+
+.basinnChartHeader--min,
+.basinnChartHeader--max,
+.basinnChartHeader--mean,
+.basinnChartHeader--median {
+	min-width: 70px;
+	width: 8%;
 }
 
 .basinnChart .columnHeader {
-	border-bottom: 2px solid rgb(181, 174, 187);
-	margin-left: -18px;
-	padding-right: 30px;
+	align-items: center;
+	box-sizing: border-box;
+	display: flex;
+	height: 100%;
+	padding: 0 10px;
 	width: 100%;
 }
 
-.basinnChart .columnHeader span {
+.basinnChartHeader--skillName .columnHeader {
+	padding-left: 14px;
+	padding-right: 10px;
+}
+
+.basinnChartHeader--distribution .columnHeader {
+	justify-content: center;
+	padding-left: 10px;
+	padding-right: 10px;
+}
+
+.basinnChartHeader--min .columnHeader,
+.basinnChartHeader--max .columnHeader,
+.basinnChartHeader--mean .columnHeader,
+.basinnChartHeader--median .columnHeader {
+	justify-content: flex-end;
+}
+
+.basinnChart td.basinnChartCell--median {
+	padding-right: 18px;
+}
+
+.basinnChartHeader--median .columnHeader {
+	/* Match td.basinnChartCell--median — do not also pad the th or it sits too far left. */
+	padding-right: 18px;
+}
+
+.basinnChart .columnHeader > span {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.basinnChartHeader--skillName .columnHeader > span,
+.basinnChartHeader--min .columnHeader > span,
+.basinnChartHeader--max .columnHeader > span,
+.basinnChartHeader--mean .columnHeader > span,
+.basinnChartHeader--median .columnHeader > span {
 	cursor: pointer;
-	position: relative;
 }
 
-.basinnChartSortedAsc span::after, .basinnChartSortedDesc span::after {
-	border-bottom: 2px solid #794016;
-	border-right: 2px solid #794016;
-	content: "";
+.basinnChartHeader--distribution .columnHeader > span {
+	cursor: default;
+	text-align: center;
+	width: 100%;
+}
+
+.basinnChartHeader--min .columnHeader > span,
+.basinnChartHeader--max .columnHeader > span,
+.basinnChartHeader--mean .columnHeader > span,
+.basinnChartHeader--median .columnHeader > span {
 	display: block;
-	height: 4px;
-	position: absolute;
-	right: -10px;
-	top: calc(50% - 2px);
-	width: 4px;
+	overflow: visible;
+	text-align: right;
+	width: 100%;
 }
 
-.basinnChartSortedAsc span::after {
-	transform: rotate(-135deg);
+.chartMetricHeaderLabel.is-selected {
+	font-weight: 800;
 }
 
-.basinnChartSortedDesc span::after {
-	transform: rotate(45deg);
+.chartMetricHeaderLabel--min.is-selected {
+	color: var(--uma1-color);
+}
+
+.chartMetricHeaderLabel--max.is-selected {
+	color: var(--uma2-color);
+}
+
+.chartMetricHeaderLabel--mean.is-selected {
+	color: var(--app-warning);
+}
+
+.chartMetricHeaderLabel--median.is-selected {
+	color: var(--app-success);
+}
+
+.basinnChart .columnHeader > span.is-selected:not(.chartMetricHeaderLabel) {
+	color: var(--app-accent);
 }
 
 .basinnChart tr.expanded {
-	background: rgb(121, 216, 35);
-}
-
-.basinnChart tr.expanded-content-row {
-	background: rgb(248, 248, 248);
-}
-
-.basinnChart tr.expanded-content-row td {
-	padding: 10px 10px 20px 10px;
-	border-top: 2px solid rgb(181, 174, 187);
-	width: 100%;
+	background:
+		linear-gradient(90deg, rgba(100, 181, 246, 0.19), rgba(100, 181, 246, 0.075));
+	box-shadow: inset 3px 0 0 var(--app-accent);
 }
 
 .basinnChart td {
-	padding-left: 4px;
+	border-bottom: 1px solid rgba(148, 163, 184, 0.11);
+	height: 33px;
+	padding: 2px 10px;
+}
+
+.basinnChartCell--skillName {
+	padding-left: 14px;
+}
+
+.basinnChart tbody tr[data-skillid] {
+	cursor: pointer;
+	position: relative;
+	transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.basinnChart tbody tr[data-skillid]:nth-of-type(even):not(.expanded) {
+	background: rgba(255, 255, 255, 0.018);
+}
+
+.basinnChart tbody tr[data-skillid]:hover {
+	background:
+		linear-gradient(90deg, rgba(100, 181, 246, 0.13), rgba(100, 181, 246, 0.045));
+	box-shadow: inset 3px 0 0 rgba(100, 181, 246, 0.7);
+}
+
+.basinnChartCell--min,
+.basinnChartCell--max,
+.basinnChartCell--mean,
+.basinnChartCell--median {
+	font-variant-numeric: tabular-nums;
+	text-align: right;
 }
 
 .chartSkillName {
 	align-items: center;
 	display: flex;
-	gap: 4px;
+	gap: 8px;
+	min-width: 0;
 }
 
 .chartSkillName > img {
+	background: rgba(255, 255, 255, 0.05);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	border-radius: 7px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 	cursor: pointer;
-	height: 1.5em;
+	flex: 0 0 auto;
+	height: 25px;
+	object-fit: cover;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+	width: 25px;
+}
+
+.chartSkillName > img:hover {
+	border-color: var(--app-border-accent);
+	box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.12), 0 5px 14px rgba(0, 0, 0, 0.3);
+	transform: scale(1.06);
+}
+
+.chartSkillLabel,
+.chartMetricValue {
+	color: var(--app-text-primary);
+	font-size: 0.9rem;
+	font-weight: 700;
+	line-height: 1.25;
+	min-width: 0;
+}
+
+.chartSkillLabel {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chartSkillLabel.is-owned,
+.basinnChartRow.is-owned .chartSkillLabel {
+	font-weight: 650;
+}
+
+.basinnChartRow.is-owned .chartSkillNameText {
+	font-style: italic;
+}
+
+.chartSkillLabel .chartSkillCircle {
+	display: inline;
+	font-style: normal !important;
+	font-synthesis: none;
+}
+
+.chartMetricValue {
+	display: block;
+	font-variant-numeric: tabular-nums;
+	text-align: right;
+}
+
+.skillDistributionPlot {
+	height: 8px;
+	min-width: 0;
+	width: 100%;
+}
+
+.skillDistributionPlot .raceContextMean.positiveMean {
+	/* Fluorescent green — distinct from median's --app-success (#81c784) */
+	background: #39ff6a;
+	border-radius: 0 999px 999px 0;
+}
+
+.skillDistributionPlot .raceContextMean.negativeMean {
+	background: var(--uma2-color);
+	border-radius: 999px 0 0 999px;
+}
+
+.basinnChartCell--min .chartMetricValue,
+.basinnChartCell--mean .chartMetricValue {
+	color: var(--app-text-primary);
+}
+
+.basinnChartRow--rarity-2 .chartSkillLabel {
+	color: #ffe08a;
+}
+
+.basinnChartRow--rarity-3 .chartSkillLabel,
+.basinnChartRow--rarity-4 .chartSkillLabel,
+.basinnChartRow--rarity-5 .chartSkillLabel {
+	color: #ffe8a6;
+}
+
+.basinnChartRow--rarity-6 .chartSkillLabel {
+	color: #d7a6e3;
+}
+
+/* Main column tiers ([data-ui-main], set by components/uiScale.ts). */
+/* Below the reference width 8% no longer fits the metric labels ("MEDIAN" needs
+   ~111px with padding), so those columns get a fixed width and the distribution
+   column takes whatever is left. */
+html[data-ui-main] :is(.basinnChartHeader--min, .basinnChartHeader--max, .basinnChartHeader--mean, .basinnChartHeader--median) {
+	min-width: 0;
+	width: 112px;
+}
+
+html[data-ui-main] .basinnChartHeader--distribution,
+html[data-ui-main] .basinnChartWrapper.wideSkillColumn .basinnChartHeader--distribution {
+	width: auto;
+}
+
+html:is([data-ui-main="narrow"], [data-ui-main="tiny"]) .basinnChart {
+	font-size: 0.86rem;
+}
+
+html:is([data-ui-main="narrow"], [data-ui-main="tiny"]) .basinnChartHeader--skillName {
+	width: 22%;
+}
+
+html:is([data-ui-main="narrow"], [data-ui-main="tiny"]) .basinnChartWrapper.wideSkillColumn .basinnChartHeader--skillName {
+	width: 25%;
+}
+
+html:is([data-ui-main="narrow"], [data-ui-main="tiny"]) :is(.basinnChart .columnHeader, .basinnChart td) {
+	padding-left: 8px;
+	padding-right: 8px;
+}
+
+html:is([data-ui-main="narrow"], [data-ui-main="tiny"]) :is(.basinnChart td.basinnChartCell--median, .basinnChartHeader--median .columnHeader) {
+	padding-right: 18px;
 }
 
 .basinnChartWrapperWrapper {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	margin-left: 0;
+	min-height: 0;
 	position: relative;
 	width: 100%;
-	left: 19px;
 }
 
 .basinnChartRefreshNotice {
 	position: absolute;
 	top: calc(100% + 6px);
-	right: -36px;
+	right: 0;
 	display: flex;
 	align-items: center;
 	gap: 8px;
@@ -119,7 +364,7 @@
 .basinnChartRefresh {
 	background: unset;
 	border: unset;
-	color: rgb(222, 161, 87);
+	color: var(--app-warning);
 	font-size: 26px;
 	line-height: 1;
 	padding: 0;
@@ -131,7 +376,7 @@
 }
 
 .basinnChartRefresh:disabled {
-	color: #9ca3af;
+	color: var(--app-text-muted);
 	cursor: not-allowed;
 	opacity: 0.5;
 }
@@ -141,7 +386,7 @@
 }
 
 .basinnChartRefreshText {
-	color: rgb(222, 161, 87);
+	color: var(--app-warning);
 	font-size: 11px;
 	white-space: nowrap;
 	text-align: right;

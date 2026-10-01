@@ -46,6 +46,88 @@ function mergeSkillMaps(map1, map2) {
 	return merged;
 }
 
+function weightedValue(value1, value2, n1, n2) {
+	if (typeof value1 !== 'number') return value2;
+	if (typeof value2 !== 'number') return value1;
+	return (value1 * n1 + value2 * n2) / (n1 + n2);
+}
+
+function mergeDistributionStats(stats1, stats2, n1, n2) {
+	if (!stats1) return stats2;
+	if (!stats2) return stats1;
+	const count1 = typeof stats1.count === 'number' ? stats1.count : n1;
+	const count2 = typeof stats2.count === 'number' ? stats2.count : n2;
+	const totalCount = count1 + count2;
+	const numericMins = [stats1.min, stats2.min].filter(value => typeof value === 'number');
+	const numericMaxes = [stats1.max, stats2.max].filter(value => typeof value === 'number');
+	return {
+		...stats1,
+		...stats2,
+		...(typeof stats1.count === 'number' || typeof stats2.count === 'number' ? {count: totalCount} : {}),
+		min: numericMins.length > 0 ? Math.min(...numericMins) : null,
+		max: numericMaxes.length > 0 ? Math.max(...numericMaxes) : null,
+		mean: totalCount > 0 ? weightedValue(stats1.mean, stats2.mean, count1, count2) : null,
+		median: totalCount > 0 ? weightedValue(stats1.median, stats2.median, count1, count2) : null,
+		...(typeof stats1.frequency === 'number' || typeof stats2.frequency === 'number'
+			? {frequency: weightedValue(stats1.frequency, stats2.frequency, n1, n2)}
+			: {})
+	};
+}
+
+function mergeStaminaUma(stats1, stats2, n1, n2) {
+	if (!stats1) return stats2;
+	if (!stats2) return stats1;
+	return {
+		staminaSurvivalRate: weightedValue(stats1.staminaSurvivalRate, stats2.staminaSurvivalRate, n1, n2),
+		fullSpurtRate: weightedValue(stats1.fullSpurtRate, stats2.fullSpurtRate, n1, n2),
+		hpDiedPositionStatsFullSpurt: mergeDistributionStats(stats1.hpDiedPositionStatsFullSpurt, stats2.hpDiedPositionStatsFullSpurt, n1, n2),
+		hpDiedPositionStatsNonFullSpurt: mergeDistributionStats(stats1.hpDiedPositionStatsNonFullSpurt, stats2.hpDiedPositionStatsNonFullSpurt, n1, n2),
+		nonFullSpurtVelocityStats: mergeDistributionStats(stats1.nonFullSpurtVelocityStats, stats2.nonFullSpurtVelocityStats, n1, n2),
+		nonFullSpurtDelayStats: mergeDistributionStats(stats1.nonFullSpurtDelayStats, stats2.nonFullSpurtDelayStats, n1, n2)
+	};
+}
+
+function mergeSkillActivationUma(stats1, stats2, n1, n2) {
+	if (!stats1) return stats2;
+	if (!stats2) return stats1;
+	const mergeCategory = (category1, category2) => {
+		if (!category1) return category2;
+		if (!category2) return category1;
+		return {
+			...category1,
+			...category2,
+			equipped: Math.max(category1.equipped || 0, category2.equipped || 0),
+			min: Math.min(category1.min || 0, category2.min || 0),
+			max: Math.max(category1.max || 0, category2.max || 0),
+			mean: weightedValue(category1.mean, category2.mean, n1, n2),
+			median: weightedValue(category1.median, category2.median, n1, n2),
+			minScore: Math.min(category1.minScore || 0, category2.minScore || 0),
+			maxScore: Math.max(category1.maxScore || 0, category2.maxScore || 0),
+			meanScore: weightedValue(category1.meanScore, category2.meanScore, n1, n2),
+			medianScore: weightedValue(category1.medianScore, category2.medianScore, n1, n2)
+		};
+	};
+	const skillRates1 = stats1.skillRates || {};
+	const skillRates2 = stats2.skillRates || {};
+	const skillRates = {};
+	new Set([...Object.keys(skillRates1), ...Object.keys(skillRates2)]).forEach(id => {
+		skillRates[id] = weightedValue(skillRates1[id] || 0, skillRates2[id] || 0, n1, n2);
+	});
+	const uniqueRate = weightedValue(stats1.unique?.rate, stats2.unique?.rate, n1, n2);
+	const uniqueScore = stats2.unique?.score || stats1.unique?.score || 0;
+	return {
+		unique: {
+			equipped: !!(stats1.unique?.equipped || stats2.unique?.equipped),
+			rate: uniqueRate,
+			averageScore: (uniqueRate / 100) * uniqueScore,
+			score: uniqueScore
+		},
+		rare: mergeCategory(stats1.rare, stats2.rare),
+		regular: mergeCategory(stats1.regular, stats2.regular),
+		skillRates
+	};
+}
+
 function mergeResults(results1, results2) {
 	console.assert(results1.id == results2.id, `mergeResults: ${results1.id} != ${results2.id}`);
 	const n1 = results1.results.length, n2 = results2.results.length;
@@ -92,6 +174,46 @@ function mergeResults(results1, results2) {
 	} else if (sk1 || sk2) {
 		mergedAllRuns.sk = sk1 || sk2;
 	}
+
+	['rushed', 'leadCompetition', 'competeFight'].forEach(key => {
+		const values1 = allruns1[key];
+		const values2 = allruns2[key];
+		if (values1 || values2) {
+			mergedAllRuns[key] = [0, 1].map(index =>
+				mergeDistributionStats(values1?.[index], values2?.[index], n1, n2));
+		}
+	});
+
+	const skillRates1 = allruns1.skillRates || [];
+	const skillRates2 = allruns2.skillRates || [];
+	if (skillRates1.length > 0 || skillRates2.length > 0) {
+		mergedAllRuns.skillRates = [0, 1].map(index => {
+			const rates1 = skillRates1[index] || {};
+			const rates2 = skillRates2[index] || {};
+			const rates = {};
+			new Set([...Object.keys(rates1), ...Object.keys(rates2)]).forEach(id => {
+				rates[id] = weightedValue(rates1[id] || 0, rates2[id] || 0, n1, n2);
+			});
+			return rates;
+		});
+	}
+
+	const staminaStats = results1.staminaStats || results2.staminaStats ? {
+		uma1: mergeStaminaUma(results1.staminaStats?.uma1, results2.staminaStats?.uma1, n1, n2),
+		uma2: mergeStaminaUma(results1.staminaStats?.uma2, results2.staminaStats?.uma2, n1, n2)
+	} : null;
+	const firstUmaStats = results1.firstUmaStats || results2.firstUmaStats ? {
+		uma1: {
+			firstPlaceRate: weightedValue(results1.firstUmaStats?.uma1?.firstPlaceRate, results2.firstUmaStats?.uma1?.firstPlaceRate, n1, n2)
+		},
+		uma2: {
+			firstPlaceRate: weightedValue(results1.firstUmaStats?.uma2?.firstPlaceRate, results2.firstUmaStats?.uma2?.firstPlaceRate, n1, n2)
+		}
+	} : null;
+	const skillActivationStats = results1.skillActivationStats || results2.skillActivationStats ? {
+		uma1: mergeSkillActivationUma(results1.skillActivationStats?.uma1, results2.skillActivationStats?.uma1, n1, n2),
+		uma2: mergeSkillActivationUma(results1.skillActivationStats?.uma2, results2.skillActivationStats?.uma2, n1, n2)
+	} : null;
 	
 	return {
 		id: results1.id,
@@ -101,6 +223,9 @@ function mergeResults(results1, results2) {
 		mean: combinedMean,
 		median: newMedian,
 		raceParams: mergedRaceParams,
+		staminaStats,
+		firstUmaStats,
+		skillActivationStats,
 		runData: {
 			...(n2 > n1 ? results2.runData : results1.runData),
 			allruns: mergedAllRuns,
@@ -198,6 +323,7 @@ function runGlobalComparisonForSkillWithMoodSampling(
 		return summarizeSkillResult(id, result.results, result.runData, {
 			staminaStats: result.staminaStats,
 			firstUmaStats: result.firstUmaStats,
+			skillActivationStats: result.skillActivationStats,
 			raceParams: result.raceParams
 		});
 	}
@@ -214,6 +340,7 @@ function runGlobalComparisonForSkillWithMoodSampling(
 		const chunk = summarizeSkillResult(id, result.results, result.runData, {
 			staminaStats: result.staminaStats,
 			firstUmaStats: result.firstUmaStats,
+			skillActivationStats: result.skillActivationStats,
 			raceParams: result.raceParams
 		});
 		merged = merged == null ? chunk : mergeResults(merged, chunk);
@@ -221,27 +348,57 @@ function runGlobalComparisonForSkillWithMoodSampling(
 	return merged;
 }
 
+import { RUNAWAY_STYLE_SKILL_ID } from '../uma-skill-tools/SkillConstants';
+
+function umaOwnsSkill(uma: HorseState, id: string): boolean {
+	return uma.skills.some((skillId: string) => skillId === id);
+}
+
+function withChartSkill(uma: HorseState, id: string): HorseState {
+	const newSkillGroupId = skillmeta[id]?.groupId;
+	let skillsToUse = uma.skills;
+	if (newSkillGroupId) {
+		skillsToUse = skillsToUse.filter((existingSkillId: string) => {
+			const existingGroupId = skillmeta[existingSkillId]?.groupId;
+			return existingGroupId !== newSkillGroupId;
+		});
+	}
+	let next = uma.set('skills', skillsToUse.set(skillmeta[id].groupId, id));
+	// Runaway skill in chart = race as Runaway style, matching HorseDef behavior.
+	if (id === RUNAWAY_STYLE_SKILL_ID) {
+		next = next.set('strategy', 'Oonige');
+	}
+	return next;
+}
+
+function withoutChartSkill(uma: HorseState, id: string): HorseState {
+	let next = uma.set('skills', uma.skills.filter((skillId: string) => skillId !== id));
+	// Owned Runaway: measure benefit vs Front Runner (Nige), not vs still-Oonige.
+	if (id === RUNAWAY_STYLE_SKILL_ID && next.strategy === 'Oonige') {
+		next = next.set('strategy', 'Nige');
+	}
+	return next;
+}
+
+/** Baseline vs with-skill. Owned skills use without→with so the row shows that skill's contribution. */
+function chartComparisonPair(uma: HorseState, id: string): {baseline: HorseState, withSkill: HorseState} {
+	if (umaOwnsSkill(uma, id)) {
+		return {baseline: withoutChartSkill(uma, id), withSkill: uma};
+	}
+	return {baseline: uma, withSkill: withChartSkill(uma, id)};
+}
+
 function run1Round(nsamples: number, skills: string[], course: CourseData, racedef: RaceParameters, uma: HorseState, pacer, options, onProgress?: (completed: number, total: number) => void) {
 	const data = new Map();
 	const totalSkills = skills.length;
 	skills.forEach((id, index) => {
-		const newSkillGroupId = skillmeta[id]?.groupId;
-		let skillsToUse = uma.skills;
-		
-		if (newSkillGroupId) {
-			skillsToUse = skillsToUse.filter((existingSkillId: string) => {
-				const existingGroupId = skillmeta[existingSkillId]?.groupId;
-				return existingGroupId !== newSkillGroupId;
-			});
-		}
-		
-		const withSkill = uma.set('skills', skillsToUse.set(skillmeta[id].groupId, id));
+		const {baseline, withSkill} = chartComparisonPair(uma, id);
 		const result = runComparisonForSkillWithMoodSampling(
 			id,
 			nsamples,
 			course,
 			racedef,
-			uma,
+			baseline,
 			withSkill,
 			pacer,
 			options,
@@ -289,17 +446,7 @@ function run1RoundGlobal(nsamples: number, skills: string[], distanceType: Dista
 			});
 		}
 
-		const newSkillGroupId = skillmeta[id]?.groupId;
-		let skillsToUse = uma.skills;
-		
-		if (newSkillGroupId) {
-			skillsToUse = skillsToUse.filter((existingSkillId: string) => {
-				const existingGroupId = skillmeta[existingSkillId]?.groupId;
-				return existingGroupId !== newSkillGroupId;
-			});
-		}
-		
-		const withSkill = uma.set('skills', skillsToUse.set(skillmeta[id].groupId, id));
+		const {baseline, withSkill} = chartComparisonPair(uma, id);
 		let result;
 		try {
 			result = runGlobalComparisonForSkillWithMoodSampling(
@@ -307,7 +454,7 @@ function run1RoundGlobal(nsamples: number, skills: string[], distanceType: Dista
 				nsamples,
 				distanceType,
 				surface,
-				uma,
+				baseline,
 				withSkill,
 				pacer,
 				{
@@ -497,20 +644,10 @@ function runAdditionalSamples({skillId, nsamples, course, racedef, uma, pacer, o
 		.set('forcedSkillPositions', ImmMap(pacer.forcedSkillPositions || {})) : null;
 
 	try {
-		const newSkillGroupId = skillmeta[skillId]?.groupId;
-		let skillsToUse = uma_.skills;
-		
-		if (newSkillGroupId) {
-			skillsToUse = skillsToUse.filter((existingSkillId: string) => {
-				const existingGroupId = skillmeta[existingSkillId]?.groupId;
-				return existingGroupId !== newSkillGroupId;
-			});
-		}
-		
-		const withSkill = uma_.set('skills', skillsToUse.set(skillmeta[skillId].groupId, skillId));
-		const baseMood = normalizeMood(uma_.mood, 2);
-		const progressUma = uma_.mood === RANDOM_MOOD ? uma_.set('mood', baseMood) : uma_;
-		const progressWithSkill = uma_.mood === RANDOM_MOOD ? withSkill.set('mood', baseMood) : withSkill;
+		const {baseline, withSkill} = chartComparisonPair(uma_, skillId);
+		const baseMood = normalizeMood(baseline.mood, 2);
+		const progressUma = baseline.mood === RANDOM_MOOD ? baseline.set('mood', baseMood) : baseline;
+		const progressWithSkill = withSkill.mood === RANDOM_MOOD ? withSkill.set('mood', baseMood) : withSkill;
 		const {results, runData} = runComparison(nsamples, course, {...racedef, mood: baseMood}, progressUma, progressWithSkill, pacer_, progressOptions, (completed, total, cumulativeResults) => {
 			let partialResult = null;
 			if (cumulativeResults?.results && cumulativeResults.results.length > 0) {
@@ -530,13 +667,13 @@ function runAdditionalSamples({skillId, nsamples, course, racedef, uma, pacer, o
 			}
 			postMessage({type: 'additional-samples-progress', skillId, completed, total, partialResult});
 		});
-		const newResult = uma_.mood === RANDOM_MOOD
+		const newResult = baseline.mood === RANDOM_MOOD
 			? runComparisonForSkillWithMoodSampling(
 				skillId,
 				nsamples,
 				course,
 				racedef,
-				uma_,
+				baseline,
 				withSkill,
 				pacer_,
 				progressOptions,
@@ -569,8 +706,8 @@ async function runOptimizer({course, racedef, uma, uniqueSkillId, maxCareerRatin
 		finalRunSamples || 200,
 		maxIterations || 50,
 		evaluationMethod || 'median',
-		minStat || 300,
-		maxStat || 1200,
+		minStat ?? 300,
+		maxStat ?? 1200,
 		(completed, total) => {
 			postMessage({type: 'optimizer-init-progress', data: {completed, total}});
 		},

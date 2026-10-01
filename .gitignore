@@ -4,3 +4,12 @@ release-package/
 dist-pages/
 *.zip
 /umalatorTEST
+
+# Local UI QA tooling and output
+/qa-shots/
+/.responsive-baseline/
+/scripts/ui-qa-shots.js
+/scripts/ui-responsive-shots.js
+/scripts/ui-responsive-preload.js
+/scripts/compare-shots.js
+/UI_REDESIGN_SPEC.md

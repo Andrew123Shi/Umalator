@@ -475,6 +475,7 @@ export class RaceSolverBuilder {
 	_onSkillDeactivate: (state: RaceSolver, skillId: string) => void
 	_posKeepMode: PosKeepMode
 	_mode: string | undefined
+	_hpConsumption: boolean | undefined
 	_skillWisdomCheck: boolean | undefined
 	_rushedKakari: boolean | undefined
 	_competeFight: boolean | undefined
@@ -514,6 +515,7 @@ export class RaceSolverBuilder {
 		this._onSkillDeactivate = null;
 		this._posKeepMode = PosKeepMode.None;
 		this._mode = undefined;
+		this._hpConsumption = undefined;
 		this._skillWisdomCheck = undefined;
 		this._rushedKakari = undefined;
 		this._competeFight = undefined;
@@ -818,6 +820,11 @@ export class RaceSolverBuilder {
 		return this;
 	}
 
+	hpConsumption(enabled: boolean) {
+		this._hpConsumption = enabled;
+		return this;
+	}
+
 	skillWisdomCheck(enabled: boolean) {
 		this._skillWisdomCheck = enabled;
 		return this;
@@ -880,6 +887,7 @@ export class RaceSolverBuilder {
 		clone._onSkillDeactivate = this._onSkillDeactivate;
 		clone._posKeepMode = this._posKeepMode;
 		clone._mode = this._mode;
+		clone._hpConsumption = this._hpConsumption;
 		clone._skillWisdomCheck = this._skillWisdomCheck;
 		clone._rushedKakari = this._rushedKakari;
 		clone._competeFight = this._competeFight;
@@ -931,7 +939,8 @@ export class RaceSolverBuilder {
 			}));
 
 			const hpRng = new Rule30CARng(this._rng.int32());
-			const hpPolicy = this._mode === 'compare' ? new GameHpPolicy(this._course, this._raceParams.groundCondition, hpRng) : NoopHpPolicy;
+			const useHpConsumption = this._hpConsumption ?? this._mode === 'compare';
+			const hpPolicy = useHpConsumption ? new GameHpPolicy(this._course, this._raceParams.groundCondition, hpRng) : NoopHpPolicy;
 
 			const redo: boolean = yield new RaceSolver({
 				horse,

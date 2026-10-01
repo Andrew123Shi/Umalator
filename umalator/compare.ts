@@ -15,6 +15,159 @@ import skilldata from '../uma-skill-tools/data/skill_data.json';
 import skillmeta from './skill_meta.json';
 import { Rule30CARng } from '../uma-skill-tools/Random';
 
+export const RARE_SKILL_SCORE = 1200;
+export const REGULAR_SKILL_SCORE = 500;
+
+export function uniqueSkillScore(uniqueLevel: number): number {
+	const level = Math.min(6, Math.max(1, uniqueLevel || 1));
+	return 2000 + (level >= 2 ? 100 * level : 0);
+}
+
+export function classifyActivatedSkill(id: string): 'unique' | 'rare' | 'regular' | null {
+	const rarity = (skilldata as any)[id]?.rarity;
+	if (rarity == null) return null;
+	if (rarity >= 3 && rarity <= 5) return 'unique';
+	if (rarity === 2 || rarity === 6) return 'rare';
+	if (rarity === 1) return 'regular';
+	return null;
+}
+
+function skillIdsFromUma(uma: HorseState): string[] {
+	const skills: any = uma?.skills;
+	if (skills && typeof skills.valueSeq === 'function') {
+		return Array.from(skills.valueSeq());
+	}
+	if (Array.isArray(skills)) return skills;
+	if (skills && typeof skills === 'object') return Object.values(skills);
+	return [];
+}
+
+function createSkillActivationTracker(skillIds: string[], uniqueLevel: number) {
+	let uniqueEquipped = false;
+	let rareEquipped = 0;
+	let regularEquipped = 0;
+	for (const id of skillIds) {
+		const cls = classifyActivatedSkill(id);
+		if (cls === 'unique') uniqueEquipped = true;
+		else if (cls === 'rare') rareEquipped++;
+		else if (cls === 'regular') regularEquipped++;
+	}
+	return {
+		uniqueEquipped,
+		uniqueLevel: uniqueLevel || 0,
+		rareEquipped,
+		regularEquipped,
+		uniqueActivatedCount: 0,
+		rareCounts: [] as number[],
+		regularCounts: [] as number[],
+		skillRunCounts: new Map<string, number>()
+	};
+}
+
+function recordRunSkillActivations(tracker: ReturnType<typeof createSkillActivationTracker>, activatedIds: Iterable<string>) {
+	const seen = new Set<string>();
+	let uniqueActivated = 0;
+	let rare = 0;
+	let regular = 0;
+	for (const id of activatedIds) {
+		if (seen.has(id)) continue;
+		seen.add(id);
+		const cls = classifyActivatedSkill(id);
+		if (cls == null) continue;
+		tracker.skillRunCounts.set(id, (tracker.skillRunCounts.get(id) || 0) + 1);
+		if (cls === 'unique') uniqueActivated = 1;
+		else if (cls === 'rare') rare++;
+		else regular++;
+	}
+	tracker.uniqueActivatedCount += uniqueActivated;
+	tracker.rareCounts.push(rare);
+	tracker.regularCounts.push(regular);
+}
+
+function countDistribution(values: number[]) {
+	if (values.length === 0) {
+		return { min: 0, max: 0, mean: 0, median: 0 };
+	}
+	const sorted = [...values].sort((a, b) => a - b);
+	const min = sorted[0];
+	const max = sorted[sorted.length - 1];
+	const mean = values.reduce((a, b) => a + b, 0) / values.length;
+	const mid = Math.floor(sorted.length / 2);
+	const median = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+	return { min, max, mean, median };
+}
+
+function summarizeSkillActivationUma(tracker: ReturnType<typeof createSkillActivationTracker>) {
+	const totalRuns = tracker.rareCounts.length;
+	const uniqueRate = totalRuns > 0 ? (tracker.uniqueActivatedCount / totalRuns) * 100 : 0;
+	const uniqueScore = uniqueSkillScore(tracker.uniqueLevel);
+	const rare = countDistribution(tracker.rareCounts);
+	const regular = countDistribution(tracker.regularCounts);
+	const skillRates: Record<string, number> = {};
+	tracker.skillRunCounts.forEach((count, id) => {
+		skillRates[id] = totalRuns > 0 ? (count / totalRuns) * 100 : 0;
+	});
+	return {
+		unique: {
+			equipped: tracker.uniqueEquipped,
+			rate: uniqueRate,
+			averageScore: (uniqueRate / 100) * uniqueScore,
+			score: uniqueScore
+		},
+		rare: {
+			equipped: tracker.rareEquipped,
+			...rare,
+			minScore: rare.min * RARE_SKILL_SCORE,
+			maxScore: rare.max * RARE_SKILL_SCORE,
+			meanScore: rare.mean * RARE_SKILL_SCORE,
+			medianScore: rare.median * RARE_SKILL_SCORE
+		},
+		regular: {
+			equipped: tracker.regularEquipped,
+			...regular,
+			minScore: regular.min * REGULAR_SKILL_SCORE,
+			maxScore: regular.max * REGULAR_SKILL_SCORE,
+			meanScore: regular.mean * REGULAR_SKILL_SCORE,
+			medianScore: regular.median * REGULAR_SKILL_SCORE
+		},
+		skillRates
+	};
+}
+
+function summarizeSkillActivationStats(
+	uma1Tracker: ReturnType<typeof createSkillActivationTracker>,
+	uma2Tracker: ReturnType<typeof createSkillActivationTracker>
+) {
+	return {
+		uma1: summarizeSkillActivationUma(uma1Tracker),
+		uma2: summarizeSkillActivationUma(uma2Tracker)
+	};
+}
+
+function mergeSkillActivationFromResult(
+	tracker: ReturnType<typeof createSkillActivationTracker>,
+	summary: any,
+	sampleCount: number = 1
+) {
+	if (!summary) return;
+	if (summary.unique?.equipped) tracker.uniqueEquipped = true;
+	if (summary.unique?.score) tracker.uniqueLevel = tracker.uniqueLevel || 1;
+	if (typeof summary.rare?.equipped === 'number') tracker.rareEquipped = Math.max(tracker.rareEquipped, summary.rare.equipped);
+	if (typeof summary.regular?.equipped === 'number') tracker.regularEquipped = Math.max(tracker.regularEquipped, summary.regular.equipped);
+	const uniqueRate = summary.unique?.rate || 0;
+	tracker.uniqueActivatedCount += Math.round((uniqueRate / 100) * sampleCount);
+	for (let i = 0; i < sampleCount; i++) {
+		tracker.rareCounts.push(summary.rare?.mean || 0);
+		tracker.regularCounts.push(summary.regular?.mean || 0);
+	}
+	if (summary.skillRates) {
+		Object.entries(summary.skillRates).forEach(([id, rate]) => {
+			const add = Math.round(((rate as number) / 100) * sampleCount);
+			if (add > 0) tracker.skillRunCounts.set(id, (tracker.skillRunCounts.get(id) || 0) + add);
+		});
+	}
+}
+
 export function runComparison(nsamples: number, course: CourseData, racedef: RaceParameters, uma1: HorseState, uma2: HorseState, pacer: HorseState, options, onProgress?: (completed: number, total: number, cumulativeResults?: any) => void) {
 	const standard = new RaceSolverBuilder(nsamples)
 		.seed(options.seed)
@@ -24,7 +177,8 @@ export function runComparison(nsamples: number, course: CourseData, racedef: Rac
 		.season(racedef.season)
 		.time(racedef.time)
 		.posKeepMode(options.posKeepMode)
-		.mode(options.mode);
+		.mode(options.mode)
+		.hpConsumption(options.hpConsumption !== false);
 	if (racedef.orderRange != null) {
 		standard
 			.order(racedef.orderRange[0], racedef.orderRange[1])
@@ -33,7 +187,7 @@ export function runComparison(nsamples: number, course: CourseData, racedef: Rac
 	// Fork to share RNG - both horses face the same random events for fair comparison
 	const compare = standard.fork();
 	
-	if (options.mode === 'compare' && !options.syncRng) {
+	if (options.syncRng === false) {
 		standard.desync();
 	}
 	
@@ -215,6 +369,11 @@ export function runComparison(nsamples: number, course: CourseData, racedef: Rac
 		}
 	};
 	
+	const skillActivationTrackers = {
+		uma1: createSkillActivationTracker(skillIdsFromUma(uma1), uma1.uniqueLevel),
+		uma2: createSkillActivationTracker(skillIdsFromUma(uma2), uma2.uniqueLevel)
+	};
+	
 	// Track last spurt 1st place frequency
 	// This is primarily useful for front runners where we want to evaluate how effective
 	// they are at getting angling & scheming
@@ -249,13 +408,16 @@ export function runComparison(nsamples: number, course: CourseData, racedef: Rac
 		// Calculate statistics summaries
 		const calculateStats = (stats) => {
 			if (stats.lengths.length === 0) {
-				return { min: 0, max: 0, mean: 0, frequency: 0 };
+				return { min: 0, max: 0, mean: 0, median: 0, frequency: 0 };
 			}
-			const min = Math.min(...stats.lengths);
-			const max = Math.max(...stats.lengths);
+			const sorted = [...stats.lengths].sort((a, b) => a - b);
+			const min = sorted[0];
+			const max = sorted[sorted.length - 1];
 			const mean = stats.lengths.reduce((a, b) => a + b, 0) / stats.lengths.length;
+			const mid = Math.floor(sorted.length / 2);
+			const median = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 			const frequency = (stats.count / currentSamples) * 100;
-			return { min, max, mean, frequency };
+			return { min, max, mean, median, frequency };
 		};
 		
 		const calculateHpDiedPositionStats = (positions: number[]) => {
@@ -315,6 +477,8 @@ export function runComparison(nsamples: number, course: CourseData, racedef: Rac
 				firstPlaceRate: firstUmaStats.uma2.total > 0 ? (firstUmaStats.uma2.firstPlaceCount / firstUmaStats.uma2.total * 100) : 0
 			}
 		};
+
+		const skillActivationStatsSummary = summarizeSkillActivationStats(skillActivationTrackers.uma1, skillActivationTrackers.uma2);
 		
 		const allRunsData = {
 			sk: [
@@ -324,6 +488,10 @@ export function runComparison(nsamples: number, course: CourseData, racedef: Rac
 			skBasinn: [
 				allSkillActivationBasinn[0],
 				allSkillActivationBasinn[1]
+			],
+			skillRates: [
+				skillActivationStatsSummary.uma1.skillRates,
+				skillActivationStatsSummary.uma2.skillRates
 			],
 			totalRuns: currentSamples,
 			rushed: [
@@ -350,7 +518,8 @@ export function runComparison(nsamples: number, course: CourseData, racedef: Rac
 				allruns: allRunsData
 			},
 			staminaStats: staminaStatsSummary,
-			firstUmaStats: firstUmaStatsSummary
+			firstUmaStats: firstUmaStatsSummary,
+			skillActivationStats: skillActivationStatsSummary
 		};
 	};
 	
@@ -526,6 +695,9 @@ export function runComparison(nsamples: number, course: CourseData, racedef: Rac
 			});
 		});
 		
+		recordRunSkillActivations(skillActivationTrackers.uma1, skillPos1.keys());
+		recordRunSkillActivations(skillActivationTrackers.uma2, skillPos2.keys());
+
 		skillPos2.clear();
 		skillPos1.clear();
 
@@ -641,13 +813,16 @@ export function runComparison(nsamples: number, course: CourseData, racedef: Rac
 	// Calculate rushed statistics
 	const calculateStats = (stats) => {
 		if (stats.lengths.length === 0) {
-			return { min: 0, max: 0, mean: 0, frequency: 0 };
+			return { min: 0, max: 0, mean: 0, median: 0, frequency: 0 };
 		}
-		const min = Math.min(...stats.lengths);
-		const max = Math.max(...stats.lengths);
+		const sorted = [...stats.lengths].sort((a, b) => a - b);
+		const min = sorted[0];
+		const max = sorted[sorted.length - 1];
 		const mean = stats.lengths.reduce((a, b) => a + b, 0) / stats.lengths.length;
+		const mid = Math.floor(sorted.length / 2);
+		const median = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 		const frequency = (stats.count / nsamples) * 100; // percentage
-		return { min, max, mean, frequency };
+		return { min, max, mean, median, frequency };
 	};
 	
 	const rushedStatsSummary = {
@@ -708,6 +883,8 @@ export function runComparison(nsamples: number, course: CourseData, racedef: Rac
 			firstPlaceRate: firstUmaStats.uma2.total > 0 ? (firstUmaStats.uma2.firstPlaceCount / firstUmaStats.uma2.total * 100) : 0
 		}
 	};
+
+	const skillActivationStatsSummary = summarizeSkillActivationStats(skillActivationTrackers.uma1, skillActivationTrackers.uma2);
 	
 	// Each run (min, max, mean, median) already has its own rushed data from its actual simulation
 	// We don't need to overwrite it - just ensure the rushed field is properly formatted
@@ -721,6 +898,10 @@ export function runComparison(nsamples: number, course: CourseData, racedef: Rac
 		skBasinn: [
 			allSkillActivationBasinn[0],
 			allSkillActivationBasinn[1]
+		],
+		skillRates: [
+			skillActivationStatsSummary.uma1.skillRates,
+			skillActivationStatsSummary.uma2.skillRates
 		],
 		totalRuns: nsamples,
 		rushed: [
@@ -747,7 +928,8 @@ export function runComparison(nsamples: number, course: CourseData, racedef: Rac
 			allruns: allRunsData
 		},
 		staminaStats: staminaStatsSummary,
-		firstUmaStats: firstUmaStatsSummary
+		firstUmaStats: firstUmaStatsSummary,
+		skillActivationStats: skillActivationStatsSummary
 	};
 }
 
@@ -864,7 +1046,8 @@ export function runGlobalComparison(
 		firstUmaStats: {
 			uma1: { firstPlaceRate: 0 },
 			uma2: { firstPlaceRate: 0 }
-		}
+		},
+		skillActivationStats: null
 	};
 
 	// Track statistics across all simulations
@@ -907,6 +1090,11 @@ export function runGlobalComparison(
 	const firstUmaStats = {
 		uma1: { firstPlaceCount: 0, total: 0 },
 		uma2: { firstPlaceCount: 0, total: 0 }
+	};
+
+	const skillActivationTrackers = {
+		uma1: createSkillActivationTracker(skillIdsFromUma(uma1), uma1.uniqueLevel),
+		uma2: createSkillActivationTracker(skillIdsFromUma(uma2), uma2.uniqueLevel)
 	};
 
 	let minBasinn = Infinity, maxBasinn = -Infinity;
@@ -1220,6 +1408,11 @@ export function runGlobalComparison(
 			});
 		}
 
+		if (result.skillActivationStats) {
+			mergeSkillActivationFromResult(skillActivationTrackers.uma1, result.skillActivationStats.uma1);
+			mergeSkillActivationFromResult(skillActivationTrackers.uma2, result.skillActivationStats.uma2);
+		}
+
 		// Report progress
 		if (onProgress && ((i + 1) % 20 === 0 || i + 1 === nsamples)) {
 			const sortedDiffs = [...allDiffs].sort((a, b) => a - b);
@@ -1232,13 +1425,16 @@ export function runGlobalComparison(
 			// Calculate aggregated stats summaries
 			const calculateStats = (stats) => {
 				if (stats.lengths.length === 0) {
-					return { min: 0, max: 0, mean: 0, frequency: 0 };
+					return { min: 0, max: 0, mean: 0, median: 0, frequency: 0 };
 				}
-				const min = Math.min(...stats.lengths);
-				const max = Math.max(...stats.lengths);
+				const sorted = [...stats.lengths].sort((a, b) => a - b);
+				const min = sorted[0];
+				const max = sorted[sorted.length - 1];
 				const mean = stats.lengths.reduce((a, b) => a + b, 0) / stats.lengths.length;
+				const mid = Math.floor(sorted.length / 2);
+				const median = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 				const frequency = (stats.count / (i + 1)) * 100;
-				return { min, max, mean, frequency };
+				return { min, max, mean, median, frequency };
 			};
 
 			const calculateHpDiedPositionStats = (positions: number[]) => {
@@ -1258,6 +1454,7 @@ export function runGlobalComparison(
 
 			// Use minrun or maxrun as fallback for meanrun/medianrun if they're not available yet
 			const fallbackRun = minrun || maxrun;
+			const skillActivationStatsSummary = summarizeSkillActivationStats(skillActivationTrackers.uma1, skillActivationTrackers.uma2);
 			const cumulativeResults = {
 				results: sortedDiffs,
 				runData: {
@@ -1268,6 +1465,10 @@ export function runGlobalComparison(
 					allruns: {
 						...aggregatedResults.runData.allruns,
 						totalRuns: i + 1,
+						skillRates: [
+							skillActivationStatsSummary.uma1.skillRates,
+							skillActivationStatsSummary.uma2.skillRates
+						],
 						rushed: [
 							calculateStats(rushedStats.uma1),
 							calculateStats(rushedStats.uma2)
@@ -1308,6 +1509,7 @@ export function runGlobalComparison(
 						firstPlaceRate: firstUmaStats.uma2.total > 0 ? (firstUmaStats.uma2.firstPlaceCount / firstUmaStats.uma2.total * 100) : 0
 					}
 				},
+				skillActivationStats: skillActivationStatsSummary,
 				raceParams: {
 					locations: raceParams.locations,
 					lengths: raceParams.lengths,
@@ -1347,13 +1549,16 @@ export function runGlobalComparison(
 
 	const calculateStats = (stats) => {
 		if (stats.lengths.length === 0) {
-			return { min: 0, max: 0, mean: 0, frequency: 0 };
+			return { min: 0, max: 0, mean: 0, median: 0, frequency: 0 };
 		}
-		const min = Math.min(...stats.lengths);
-		const max = Math.max(...stats.lengths);
+		const sorted = [...stats.lengths].sort((a, b) => a - b);
+		const min = sorted[0];
+		const max = sorted[sorted.length - 1];
 		const mean = stats.lengths.reduce((a, b) => a + b, 0) / stats.lengths.length;
+		const mid = Math.floor(sorted.length / 2);
+		const median = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 		const frequency = (stats.count / nsamples) * 100;
-		return { min, max, mean, frequency };
+		return { min, max, mean, median, frequency };
 	};
 
 	const calculateHpDiedPositionStats = (positions: number[]) => {
@@ -1419,6 +1624,13 @@ export function runGlobalComparison(
 			firstPlaceRate: firstUmaStats.uma2.total > 0 ? (firstUmaStats.uma2.firstPlaceCount / firstUmaStats.uma2.total * 100) : 0
 		}
 	};
+
+	const skillActivationStatsSummary = summarizeSkillActivationStats(skillActivationTrackers.uma1, skillActivationTrackers.uma2);
+	aggregatedResults.skillActivationStats = skillActivationStatsSummary;
+	aggregatedResults.runData.allruns.skillRates = [
+		skillActivationStatsSummary.uma1.skillRates,
+		skillActivationStatsSummary.uma2.skillRates
+	];
 
 	// Store raw data for later processing (we'll group by value and calculate stats in the UI)
 	aggregatedResults.raceParams = {

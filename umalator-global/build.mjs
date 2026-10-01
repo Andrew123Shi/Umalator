@@ -175,16 +175,21 @@ function runServer(ctx, port) {
 			const urlPath = url.startsWith('/') ? url.slice(1) : url;
 			const isUmaToolsAsset = urlPath.startsWith('uma-tools/');
 			const requestPath = isUmaToolsAsset ? urlPath.slice('uma-tools/'.length) : urlPath;
-			const fp = isUmaToolsAsset
-				? path.join(root, requestPath)
-				: path.join(dirname, requestPath);
-			const exists = await fs.promises.access(fp).then(() => true, () => false);
-			if (exists) {
+			const candidates = isUmaToolsAsset
+				? [path.join(root, requestPath)]
+				: [path.join(dirname, requestPath), path.join(root, requestPath)];
+			let served = false;
+			for (const fp of candidates) {
+				const exists = await fs.promises.access(fp).then(() => true, () => false);
+				if (!exists) continue;
 				console.log(`GET ${req.url} 200 OK`);
 				res.writeHead(200, {'Content-type': MIME_TYPES[path.extname(filename)] || 'application/octet-stream'});
 				fs.createReadStream(fp).pipe(res);
-			} else {
-				console.log(`GET ${req.url} 404 Not Found (tried: ${fp})`);
+				served = true;
+				break;
+			}
+			if (!served) {
+				console.log(`GET ${req.url} 404 Not Found (tried: ${candidates.join(' | ')})`);
 				res.writeHead(404).end();
 			}
 		}

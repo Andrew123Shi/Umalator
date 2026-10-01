@@ -47,6 +47,7 @@
       "uma-skill-tools/data/**/*",
       "icons/**/*",
       "fonts/**/*",
+      "icon.ico",
       "package.json"
     ],
     "asar": true,

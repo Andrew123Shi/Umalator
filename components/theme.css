@@ -1,0 +1,364 @@
+/*
+ * Umalator design system: dark navy "glass" theme.
+ * Tokens + shared primitives. Component CSS files consume these variables.
+ */
+
+:root {
+	/* Backgrounds (darkest to lightest) */
+	--app-bg-0: #090d14;
+	--app-bg-1: #0f1724;
+	--app-bg-2: #141d2b;
+	--app-bg-3: #1c2737;
+
+	/* Translucent surfaces layered on top of backgrounds */
+	--app-surface-1: rgba(255, 255, 255, 0.035);
+	--app-surface-2: rgba(255, 255, 255, 0.06);
+	--app-surface-3: rgba(255, 255, 255, 0.09);
+	--app-surface-4: rgba(255, 255, 255, 0.13);
+
+	/* Borders */
+	--app-border: rgba(148, 163, 184, 0.18);
+	--app-border-strong: rgba(148, 163, 184, 0.32);
+	--app-border-accent: rgba(100, 181, 246, 0.42);
+
+	/* Accents */
+	--app-accent: #64b5f6;
+	--app-accent-2: #81c784;
+	--app-accent-3: #ce93d8;
+	--app-accent-4: #ffb74d;
+	--app-success: #81c784;
+	--app-danger: #e57373;
+	--app-warning: #ffb74d;
+
+	/* Text */
+	--app-text-primary: #f8fbff;
+	--app-text-secondary: rgba(232, 240, 255, 0.72);
+	--app-text-muted: rgba(232, 240, 255, 0.48);
+
+	/* Radii / shadows */
+	--app-radius-sm: 6px;
+	--app-radius: 10px;
+	--app-radius-lg: 16px;
+	--app-radius-xl: 22px;
+	--app-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
+	--app-shadow-lg: 0 18px 54px rgba(0, 0, 0, 0.42);
+	--app-glow-blue: 0 0 0 1px rgba(100, 181, 246, 0.22), 0 16px 40px rgba(100, 181, 246, 0.12);
+
+	/* Gradients */
+	--app-gradient-brand: linear-gradient(45deg, #64b5f6, #81c784, #ffb74d);
+	--app-gradient-panel: linear-gradient(145deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025));
+	--app-gradient-page:
+		radial-gradient(circle at 12% 12%, rgba(100, 181, 246, 0.22), transparent 34%),
+		radial-gradient(circle at 88% 8%, rgba(206, 147, 216, 0.16), transparent 32%),
+		radial-gradient(circle at 50% 100%, rgba(129, 199, 132, 0.1), transparent 38%),
+		linear-gradient(180deg, #0a0f18 0%, #090d14 50%, #080b11 100%);
+
+	/* Domain identity colors (dark-theme tuned) */
+	--uma1-color: #6ea8fe;          /* uma 1: blue */
+	--uma1-color-strong: #4d8ef7;
+	--uma2-color: #ef5350;          /* uma 2: red */
+	--uma2-color-strong: #e23c39;
+	--pacer1-color: #34d27b;        /* pacemaker 1: green */
+	--pacer2-color: #c084fc;        /* pacemaker 2: purple */
+	--pacer3-color: #f472b6;        /* pacemaker 3: pink */
+
+	/* Elevated plot surface for the race track. Slightly lighter than the
+	   app background so the colored track bands stay legible while blending
+	   into the dark theme. */
+	--paper-bg: #141c2a;
+	--paper-border: rgba(148, 163, 184, 0.22);
+
+	/* Skill rarity chip colors (Team Umalysis–aligned) */
+	--rarity-white: rgba(226, 232, 240, 0.85);
+	--rarity-gold: #ffe08a;
+	--rarity-pink: #d7a6e3;
+	--rarity-unique: #ffe8a6;
+	--rarity-unique-2: #ba68c8;
+	--rarity-evo: #7ce7d8;
+
+	/* Document zoom set by components/uiScale.ts. CSS zoom does not rescale
+	   viewport units, so anything sized in vh/vw divides by this. */
+	--ui-zoom: 1;
+
+	color-scheme: dark;
+}
+
+html {
+	background: var(--app-bg-0);
+}
+
+body {
+	background:
+		linear-gradient(rgba(9, 13, 20, 0.9), rgba(9, 13, 20, 0.94)),
+		var(--app-gradient-page);
+	background-attachment: fixed;
+	color: var(--app-text-primary);
+	margin: 0;
+}
+
+/* ---------- Scrollbars ---------- */
+
+* {
+	scrollbar-width: thin;
+	scrollbar-color: rgba(100, 181, 246, 0.35) rgba(255, 255, 255, 0.04);
+}
+
+*::-webkit-scrollbar {
+	width: 9px;
+	height: 9px;
+}
+
+*::-webkit-scrollbar-track {
+	background: rgba(255, 255, 255, 0.04);
+	border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb {
+	background: rgba(100, 181, 246, 0.35);
+	border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+	background: rgba(100, 181, 246, 0.55);
+}
+
+/* ---------- Form controls (global defaults) ---------- */
+
+input[type="text"],
+input[type="number"],
+input[type="search"],
+textarea,
+select {
+	background: var(--app-bg-3);
+	border: 1px solid var(--app-border-strong);
+	border-radius: var(--app-radius-sm);
+	color: var(--app-text-primary);
+	/* Explicit stack: Windows Chromium often ignores `inherit` on native <select>. */
+	font-family: Inter, "Noto Sans JP", sans-serif;
+	font-size: 0.9em;
+	font-weight: 550;
+	padding: 6px 9px;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="search"]:focus,
+textarea:focus,
+select:focus {
+	border-color: var(--app-border-accent);
+	box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.18);
+	outline: none;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+select {
+	appearance: none;
+	-webkit-appearance: none;
+	background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23aebfd6' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+	background-position: right 9px center;
+	background-repeat: no-repeat;
+	padding-right: 26px;
+}
+
+select option {
+	background: var(--app-bg-2);
+	color: var(--app-text-primary);
+	font-family: Inter, "Noto Sans JP", sans-serif;
+	font-weight: 550;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+	accent-color: var(--app-accent);
+	cursor: pointer;
+}
+
+input[type="range"] {
+	accent-color: var(--app-accent);
+	cursor: pointer;
+}
+
+label {
+	color: var(--app-text-secondary);
+}
+
+fieldset {
+	background: var(--app-surface-1);
+	border: 1px solid var(--app-border);
+	border-radius: var(--app-radius);
+	margin: 6px 0;
+	padding: 10px 12px;
+}
+
+fieldset legend {
+	color: var(--app-text-muted);
+	font-size: 0.78em;
+	font-weight: 700;
+	letter-spacing: 0.07em;
+	padding: 0 6px;
+	text-transform: uppercase;
+}
+
+a {
+	color: var(--app-accent);
+	text-decoration: none;
+	transition: color 0.15s ease;
+}
+
+a:hover {
+	color: #90caf9;
+	text-decoration: underline;
+}
+
+hr {
+	border: none;
+	border-top: 1px solid var(--app-border);
+}
+
+/* ---------- Shared primitives ---------- */
+
+.app-card {
+	background: var(--app-gradient-panel);
+	backdrop-filter: blur(12px);
+	border: 1px solid var(--app-border);
+	border-radius: var(--app-radius-lg);
+	box-shadow: var(--app-shadow);
+	transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.app-card:hover {
+	border-color: rgba(100, 181, 246, 0.3);
+}
+
+.app-card-title {
+	align-items: center;
+	color: var(--app-text-primary);
+	display: flex;
+	font-size: 0.95em;
+	font-weight: 800;
+	gap: 8px;
+	letter-spacing: 0.01em;
+}
+
+.app-card-title::before {
+	background: linear-gradient(180deg, var(--app-accent), var(--app-accent-2));
+	border-radius: 999px;
+	content: '';
+	display: inline-block;
+	height: 1.05em;
+	width: 0.25rem;
+}
+
+.app-btn {
+	align-items: center;
+	background: var(--app-surface-2);
+	border: 1px solid var(--app-border-strong);
+	border-radius: var(--app-radius-sm);
+	color: var(--app-text-secondary);
+	cursor: pointer;
+	display: inline-flex;
+	font-family: inherit;
+	font-size: 0.86em;
+	font-weight: 600;
+	gap: 6px;
+	justify-content: center;
+	padding: 6px 12px;
+	transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.app-btn:hover {
+	background: rgba(100, 181, 246, 0.16);
+	border-color: var(--app-border-accent);
+	color: var(--app-text-primary);
+}
+
+.app-btn:active {
+	background: rgba(100, 181, 246, 0.24);
+}
+
+.app-btn:disabled {
+	cursor: not-allowed;
+	opacity: 0.5;
+}
+
+.app-btn-primary {
+	background: #377fe5;
+	border-color: #64b5f6;
+	color: #fff;
+}
+
+.app-btn-primary:hover {
+	background: #4c97f1;
+	border-color: #90caf9;
+	color: #fff;
+}
+
+.app-btn-danger {
+	background: rgba(229, 115, 115, 0.16);
+	border-color: rgba(229, 115, 115, 0.45);
+	color: #ef9a9a;
+}
+
+.app-btn-danger:hover {
+	background: rgba(229, 115, 115, 0.28);
+	border-color: #e57373;
+	color: #ffcdd2;
+}
+
+.app-pill {
+	border-radius: 999px !important;
+}
+
+/* Modal primitives */
+.app-modal-overlay {
+	align-items: center;
+	backdrop-filter: blur(4px);
+	background: rgba(4, 7, 12, 0.62);
+	bottom: 0;
+	display: flex;
+	justify-content: center;
+	left: 0;
+	position: fixed;
+	right: 0;
+	top: 0;
+	z-index: 1000;
+}
+
+.app-modal {
+	background: linear-gradient(160deg, #182233, #111a28);
+	border: 1px solid var(--app-border-strong);
+	border-radius: var(--app-radius-lg);
+	box-shadow: var(--app-shadow-lg);
+	color: var(--app-text-primary);
+	max-height: calc(90vh / var(--ui-zoom));
+	overflow-y: auto;
+	padding: 22px 24px;
+}
+
+.app-modal h2 {
+	font-size: 1.15em;
+	font-weight: 800;
+	margin: 0 0 18px 0;
+}
+
+/* Frosted tooltip look */
+.app-tooltip-surface {
+	backdrop-filter: blur(10px);
+	background: rgba(9, 13, 20, 0.94);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 0.55rem;
+	box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
+	color: var(--app-text-secondary);
+}
+
+/* Numeric alignment for stats */
+.tabular-nums {
+	font-variant-numeric: tabular-nums;
+}

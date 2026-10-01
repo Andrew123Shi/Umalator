@@ -1,7 +1,10 @@
-import { h, Fragment } from 'preact';
+import { h } from 'preact';
+import { createPortal } from 'preact/compat';
 import { useEffect, useRef } from 'preact/hooks';
-import { LengthDifferenceChart, ActivationFrequencyChart, VelocityChart } from '../umalator/app';
-import { CourseHelpers } from '../uma-skill-tools/CourseData';
+import { computePosition, flip, shift } from '@floating-ui/dom';
+import { SkillChartSidePlots } from '../umalator/app';
+import skillnames from '../uma-skill-tools/data/skillnames.json';
+import { visualScale } from './uiScale';
 
 function extractSkillRunData(compareRunData: any, umaIndex: number): any {
 	if (!compareRunData?.allruns) {
@@ -34,41 +37,54 @@ interface SkillProcDataDialogProps {
 	compareRunData: any;
 	courseDistance: number;
 	umaIndex: number;
+	anchor: HTMLElement;
 	displaying?: string;
 	onClose: () => void;
 }
 
 export function SkillProcDataDialog(props: SkillProcDataDialogProps) {
-	const { skillId, compareRunData, courseDistance, umaIndex, displaying = 'meanrun', onClose } = props;
-	const dialogRef = useRef<HTMLDivElement>(null);
-
+	const { skillId, compareRunData, courseDistance, umaIndex, anchor, displaying = 'meanrun', onClose } = props;
+	const popoverRef = useRef<HTMLDivElement>(null);
 	const runData = extractSkillRunData(compareRunData, umaIndex);
+
+	useEffect(() => {
+		if (!anchor || !popoverRef.current) return;
+		const popover = popoverRef.current;
+		popover.style.visibility = 'hidden';
+		computePosition(anchor, popover, {
+			placement: 'right-start',
+			middleware: [flip(), shift({ padding: 8 })],
+		}).then(({ x, y }) => {
+			if (!popoverRef.current) return;
+			const scale = visualScale(popoverRef.current);
+			popoverRef.current.style.transform = `translate(${x / scale}px, ${y / scale}px)`;
+			popoverRef.current.style.visibility = 'visible';
+		});
+
+		function onDocPointerDown(ev: MouseEvent) {
+			const target = ev.target as HTMLElement;
+			if (popover.contains(target)) return;
+			if (anchor.contains(target)) return;
+			onClose();
+		}
+		function onKeyDown(ev: KeyboardEvent) {
+			if (ev.key === 'Escape') onClose();
+		}
+		document.addEventListener('mousedown', onDocPointerDown);
+		document.addEventListener('keydown', onKeyDown);
+		return () => {
+			document.removeEventListener('mousedown', onDocPointerDown);
+			document.removeEventListener('keydown', onKeyDown);
+		};
+	}, [anchor, onClose]);
+
 	if (!runData) {
 		return null;
 	}
 
-	useEffect(() => {
-		const handleEscape = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') {
-				onClose();
-			}
-		};
-		document.addEventListener('keydown', handleEscape);
-		return () => document.removeEventListener('keydown', handleEscape);
-	}, [onClose]);
-
-	useEffect(() => {
-		if (dialogRef.current) {
-			dialogRef.current.focus();
-		}
-	}, []);
-
 	let effectivenessRate = 0;
 	const totalCount = runData?.allruns?.totalRuns || 0;
 	let skillProcs = 0;
-
-	const phase2Start = CourseHelpers.phaseStart(courseDistance, 1);
-	const phase2End = CourseHelpers.phaseStart(courseDistance, 2);
 
 	if (runData?.allruns?.skBasinn && Array.isArray(runData.allruns.skBasinn)) {
 		const allBasinnActivations: Array<[number, number]> = [];
@@ -84,7 +100,7 @@ export function SkillProcDataDialog(props: SkillProcDataDialogProps) {
 			}
 			if (activations && Array.isArray(activations)) {
 				activations.forEach((activation: any) => {
-					if (Array.isArray(activation) && activation.length === 2 && 
+					if (Array.isArray(activation) && activation.length === 2 &&
 					    typeof activation[0] === 'number' && typeof activation[1] === 'number') {
 						allBasinnActivations.push([activation[0], activation[1]]);
 					}
@@ -96,48 +112,47 @@ export function SkillProcDataDialog(props: SkillProcDataDialogProps) {
 		effectivenessRate = totalCount > 0 ? (positiveCount / totalCount) * 100 : 0;
 	}
 
-	return (
-		<>
-			<div class="skillProcDataOverlay" onClick={onClose} />
-			<div class="skillProcDataDialog" ref={dialogRef} tabIndex={-1}>
-				<div class="skillProcDataHeader">
-					<h3>Skill Proc Data</h3>
-					<button class="skillProcDataClose" onClick={onClose}>✕</button>
-				</div>
-				<div class="skillProcDataContent">
-					<div style="margin-bottom: 8px; width: 300px;">
-						<div style="font-size: 9px; margin-bottom: 2px; display: flex; align-items: center; gap: 8px;">
-							<span>Total samples: {totalCount} ({skillProcs} skill procs)</span>
+	const skillName = skillnames[skillId]?.[0] || skillId;
+
+	return createPortal(
+		<div class="skillProcDataPopover" ref={popoverRef} style="visibility:hidden" tabIndex={-1}>
+			<div class="skillProcDataHeader">
+				<h3 class="skillProcDataTitle">
+					<span class="skillProcDataTitleName">{skillName}</span>
+					<span class="skillProcDataTitleSuffix">Detailed Activation Data</span>
+				</h3>
+				<button type="button" class="skillProcDataClose" onClick={onClose}>✕</button>
+			</div>
+			<div class="skillProcDataContent">
+				<div class="skillChartExpandedResult skillProcDataExpandedResult">
+					<div class="skillChartExpandedSummary">
+						<div class="skillChartExpandedSamples">
+							<div class="skillChartExpandedSamplesText">
+								<span class="skillDetailsLabel">Total samples</span>
+								<span class="skillChartExpandedSampleValue">{totalCount} ({skillProcs} activations)</span>
+							</div>
 						</div>
-						<div style="font-size: 9px; margin-bottom: 2px;">Effectiveness rate: {effectivenessRate.toFixed(1)}%</div>
-						<div style="display: flex; width: 100%; height: 8px; border: 1px solid #ccc; overflow: hidden; margin-bottom: 8px;">
-							<div style={`width: ${effectivenessRate}%; background-color: #4caf50; height: 100%;`}></div>
-							<div style={`width: ${100 - effectivenessRate}%; background-color: #f44336; height: 100%;`}></div>
+						<div class="skillChartEffectivenessLabel">
+							<span class="skillDetailsLabel">Effectiveness rate</span>
+							<strong>{effectivenessRate.toFixed(1)}%</strong>
+						</div>
+						<div class="effectivenessBar">
+							<div style={`width: ${effectivenessRate}%;`}></div>
+							<div style={`width: ${100 - effectivenessRate}%;`}></div>
 						</div>
 					</div>
-					<div style="display: flex; gap: 20px; align-items: flex-start;">
-						<div>
-							<LengthDifferenceChart 
-								skillId={skillId} 
-								runData={runData} 
-								courseDistance={courseDistance}
-							/>
-							<ActivationFrequencyChart 
-								skillId={skillId} 
-								runData={runData} 
-								courseDistance={courseDistance}
-							/>
-						</div>
-						<VelocityChart 
-							skillId={skillId} 
-							runData={runData}
-							courseDistance={courseDistance}
-							displaying={displaying}
-						/>
-					</div>
+					<SkillChartSidePlots
+						skillId={skillId}
+						runData={runData}
+						courseDistance={courseDistance}
+						displaying={displaying}
+						orientation="horizontal"
+						velocityVariant="procHighlight"
+						umaIndex={umaIndex}
+					/>
 				</div>
 			</div>
-		</>
+		</div>,
+		document.body
 	);
 }
-

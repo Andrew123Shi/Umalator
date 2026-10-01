@@ -2,6 +2,10 @@ import { Record, Map as ImmMap } from 'immutable';
 
 import skills from '../uma-skill-tools/data/skill_data.json';
 import skillmeta from '../umalator/skill_meta.json';
+import { RUNAWAY_STYLE_SKILL_ID } from '../uma-skill-tools/SkillConstants';
+
+export { RUNAWAY_STYLE_SKILL_ID };
+export const RUNAWAY_SKILL_GROUP_ID = skillmeta[RUNAWAY_STYLE_SKILL_ID].groupId;
 
 export const RANDOM_MOOD = 99;
 
@@ -35,11 +39,11 @@ export function SkillSet(ids): ImmMap<(typeof skill_meta)['groupId'], keyof type
 
 export class HorseState extends Record({
 	outfitId: '',
-	speed:   CC_GLOBAL ? 1200 : 1850,
-	stamina: CC_GLOBAL ? 1200 : 1700,
-	power:   CC_GLOBAL ? 800 : 1700,
-	guts:    CC_GLOBAL ? 400 : 1200,
-	wisdom:  CC_GLOBAL ? 400 : 1300,
+	speed:   CC_GLOBAL ? 1600 : 1850,
+	stamina: CC_GLOBAL ? 1000 : 1700,
+	power:   CC_GLOBAL ? 1200 : 1700,
+	guts:    CC_GLOBAL ? 600 : 1200,
+	wisdom:  CC_GLOBAL ? 600 : 1300,
 	strategy: 'Senkou',
 	distanceAptitude: 'S',
 	surfaceAptitude: 'A',
@@ -50,5 +54,10 @@ export class HorseState extends Record({
 	forcedSkillPositions: ImmMap(),
 	// Career rating related fields
 	starLevel: 3 as number,
-	uniqueLevel: 0 as number
+	uniqueLevel: 4 as number
 }) {}
+
+/** Skills map is keyed by groupId, not skill id — use this to test for Runaway. */
+export function hasRunawaySkill(skills: HorseState['skills']): boolean {
+	return skills.get(RUNAWAY_SKILL_GROUP_ID) === RUNAWAY_STYLE_SKILL_ID;
+}

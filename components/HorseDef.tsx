@@ -1,16 +1,16 @@
 import { h, Fragment } from 'preact';
+import { createPortal } from 'preact/compat';
 import { useState, useReducer, useMemo, useEffect, useRef } from 'preact/hooks';
 import { IntlProvider, Text, Localizer } from 'preact-i18n';
-import { Set as ImmSet } from 'immutable';
+import { computePosition, flip, shift } from '@floating-ui/dom';
 
 import { SkillList, Skill, ExpandedSkillDetails } from '../components/SkillList';
-import { SkillProcDataDialog } from './SkillProcDataDialog';
 import { ProfileScreenshotImportDialog } from './ProfileScreenshotImportDialog';
 import { ProfileImportDraft } from './ProfileScreenshotImportV3';
 
 import { HorseParameters } from '../uma-skill-tools/HorseTypes';
 
-import { SkillSet, HorseState, RANDOM_MOOD } from './HorseDefTypes';
+import { SkillSet, HorseState, RANDOM_MOOD, RUNAWAY_STYLE_SKILL_ID, RUNAWAY_SKILL_GROUP_ID, hasRunawaySkill } from './HorseDefTypes';
 
 import './HorseDef.css';
 
@@ -19,6 +19,7 @@ import icons from '../icons.json';
 import skilldata from '../uma-skill-tools/data/skill_data.json';
 import skillmeta from '../umalator/skill_meta.json';
 import { umaToolsAsset, withBasePath } from './assetPaths';
+import { visualScale } from './uiScale';
 
 import { getAllSavedProfiles, saveUmaProfile, loadUmaProfile, deleteUmaProfile, renameUmaProfile, selectAnotherProfilesDatabase, createNewProfilesDatabase } from '../umalator/app';
 
@@ -58,6 +59,42 @@ function strategyAptitudeFromOutfitData(outfitData: any, strategy: HorseState['s
 	const raw = outfitData.aptitudes[4 + strategyIndex];
 	if (typeof raw !== 'number' || raw < 0 || raw > 7) return null;
 	return ' GFEDCBA'[raw] || null;
+}
+
+function defaultStrategyForOutfit(outfitId: string): HorseState['strategy'] {
+	if (!outfitId) return 'Senkou';
+	const outfitData = getOutfitData(outfitId.slice(0, 4), outfitId);
+	return strategyFromOutfitData(outfitData) || 'Senkou';
+}
+
+function applySkillsChange(state: HorseState, newSkills: HorseState['skills']): HorseState {
+	const hadRunaway = hasRunawaySkill(state.skills);
+	const hasRunaway = hasRunawaySkill(newSkills);
+	let next = state.set('skills', newSkills);
+	if (hasRunaway && !hadRunaway) {
+		return next.set('strategy', 'Oonige');
+	}
+	if (!hasRunaway && hadRunaway) {
+		next = next.set('forcedSkillPositions', next.forcedSkillPositions.delete(RUNAWAY_STYLE_SKILL_ID));
+		if (next.strategy === 'Oonige') {
+			next = next.set('strategy', defaultStrategyForOutfit(next.outfitId));
+		}
+	}
+	return next;
+}
+
+function applyStrategyChange(state: HorseState, newStrategy: HorseState['strategy']): HorseState {
+	let next = state.set('strategy', newStrategy);
+	if (newStrategy === 'Oonige') {
+		if (!hasRunawaySkill(next.skills)) {
+			next = next.set('skills', next.skills.set(RUNAWAY_SKILL_GROUP_ID, RUNAWAY_STYLE_SKILL_ID));
+		}
+	} else if (hasRunawaySkill(next.skills)) {
+		next = next
+			.set('skills', next.skills.delete(RUNAWAY_SKILL_GROUP_ID))
+			.set('forcedSkillPositions', next.forcedSkillPositions.delete(RUNAWAY_STYLE_SKILL_ID));
+	}
+	return next;
 }
 
 umaAltIds.forEach(id => {
@@ -283,7 +320,7 @@ export function UmaProfileManager(props) {
 		return new Date(timestamp).toLocaleDateString();
 	}
 
-	return (
+	return createPortal(
 		<>
 			<div class="umaProfileManagerOverlay" onClick={onClose} />
 			<div class="umaProfileManagerDialog">
@@ -362,7 +399,7 @@ export function UmaProfileManager(props) {
 												</>
 											) : (
 												<>
-													<button class="umaProfileManagerActionButton" onClick={() => handleLoad(profile.id)} title="Load">Load</button>
+													<button class="umaProfileManagerActionButton umaProfileManagerLoadButton" onClick={() => handleLoad(profile.id)} title="Load">Load</button>
 													<button class="umaProfileManagerActionButton" onClick={() => startRename(profile.id, profile.name)} title="Rename">Rename</button>
 													<button class="umaProfileManagerActionButton" onClick={() => handleDelete(profile.id)} title="Delete">Delete</button>
 												</>
@@ -375,7 +412,8 @@ export function UmaProfileManager(props) {
 					)}
 				</div>
 			</div>
-		</>
+		</>,
+		document.body
 	);
 }
 
@@ -406,8 +444,18 @@ export function UmaSelector(props) {
 		}
 	}
 
-	function focus() {
-		input.current && input.current.select();
+	function focusAndSelect() {
+		if (!input.current) return;
+		input.current.focus();
+		input.current.select();
+		setOpen(true);
+	}
+
+	function clearAndFocus() {
+		search('');
+		setActiveIdx(-1);
+		setOpen(true);
+		input.current?.focus();
 	}
 
 	function setActiveAndScroll(idx) {
@@ -451,7 +499,10 @@ export function UmaSelector(props) {
 	}
 
 	function handleBlur(e) {
-		if (e.target.value.length == 0) props.select('');
+		if (e.target.value.length == 0) {
+			const currentName = (u && u.name && u.name[1]) || '';
+			search(currentName);
+		}
 		setOpen(false);
 	}
 
@@ -484,7 +535,7 @@ export function UmaSelector(props) {
 		if (draft.stats.wisdom != null) nextState = nextState.set('wisdom', draft.stats.wisdom);
 		if (draft.uniqueLevel != null) nextState = nextState.set('uniqueLevel', draft.uniqueLevel);
 		if (draft.skillIds.length > 0) {
-			nextState = nextState.set('skills', SkillSet(draft.skillIds));
+			nextState = applySkillsChange(nextState, SkillSet(draft.skillIds));
 		}
 		if (props.onLoadProfile) {
 			props.onLoadProfile(nextState);
@@ -498,11 +549,9 @@ export function UmaSelector(props) {
 	return (
 		<>
 			<div class="umaSelector">
-				<div class="umaSelectorIconsBox" onClick={focus}>
-					<img src={props.value ? withBasePath(icons[props.value]) : randomMob} />
-					<img src={umaToolsAsset('icons/utx_ico_umamusume_00.png')} />
+				<div class="umaSelectorIconsBox">
+					<img src={props.value ? withBasePath(icons[props.value]) : randomMob} onClick={focusAndSelect} title="Select uma" />
 				</div>
-				<div class="umaEpithet"><span>{props.value && getOutfitEpithet(props.value.slice(0,4), props.value)}</span></div>
 				<div class="profileButtons">
 					{props.currentState && <button type="button" className="resetUmaButton importButton" onClick={handleOpenImport} title="Import from screenshot">📷 Import</button>}
 					<div class="profileButtonsRow">
@@ -514,18 +563,31 @@ export function UmaSelector(props) {
 					{props.onReset && <button className="resetUmaButton" onClick={props.onReset} title="Reset this horse to default stats and skills">Reset</button>}
 					{props.onResetAll && <button className="resetUmaButton" onClick={props.onResetAll} title="Reset all horses to default stats and skills">Reset All</button>}
 				</div>
-				<div class="umaSelectWrapper">
-					<input type="text" class="umaSelectInput" value={query.input} tabindex={props.tabindex} onInput={handleInput} onKeyDown={handleKeyDown} onFocus={() => setOpen(true)} onBlur={handleBlur} ref={input} />
-					<ul class={`umaSuggestions ${open ? 'open' : ''}`} onMouseDown={handleClick} ref={suggestionsContainer}>
-						{query.suggestions.map((oid, i) => {
-							const uid = oid.slice(0,4);
-							return (
-								<li key={oid} data-uma-id={oid} class={`umaSuggestion ${i == activeIdx ? 'selected' : ''}`}>
-									<img src={withBasePath(icons[oid])} loading="lazy" /><span>{getOutfitEpithet(uid, oid)} {umas[uid].name[1]}</span>
-								</li>
-							);
-						})}
-					</ul>
+				<div class="umaNameStack">
+					<div class="umaEpithet"><span>{props.value && getOutfitEpithet(props.value.slice(0,4), props.value)}</span></div>
+					<div class="umaSelectWrapper">
+						<div class="umaSelectField">
+							<input type="text" class="umaSelectInput" value={query.input} tabindex={props.tabindex} onInput={handleInput} onKeyDown={handleKeyDown} onFocus={(e) => { setOpen(true); e.currentTarget.select(); }} onClick={(e) => e.currentTarget.select()} onBlur={handleBlur} ref={input} />
+							<button type="button" class="umaSwitchButton" onClick={clearAndFocus} title="Switch uma">
+								<img src={umaToolsAsset('icons/utx_ico_umamusume_00.png')} alt="" />
+							</button>
+						</div>
+						<ul class={`umaSuggestions ${open ? 'open' : ''}`} onMouseDown={handleClick} ref={suggestionsContainer}>
+							{query.suggestions.map((oid, i) => {
+								const uid = oid.slice(0,4);
+								const outfitName = getOutfitEpithet(uid, oid);
+								return (
+									<li key={oid} data-uma-id={oid} class={`umaSuggestion ${i == activeIdx ? 'selected' : ''}`}>
+										<img src={withBasePath(icons[oid])} loading="lazy" />
+										<span class="umaSuggestionText">
+											{outfitName && <span class="umaSuggestionOutfit">{outfitName}</span>}
+											<span class="umaSuggestionName">{umas[uid].name[1]}</span>
+										</span>
+									</li>
+								);
+							})}
+						</ul>
+					</div>
 				</div>
 			</div>
 			{profileManagerOpen && (
@@ -645,25 +707,95 @@ export function MoodSelect(props){
 
 export function StrategySelect(props) {
 	const disabled = props.disabled || false;
-	if (CC_GLOBAL) {
-		return (
-			<select class="horseStrategySelect" value={props.s} tabindex={props.tabindex} disabled={disabled} onInput={(e) => props.setS(e.currentTarget.value)}>
-				<option value="Oonige">Runaway</option>
-				<option value="Nige">Front Runner</option>
-				<option value="Senkou">Pace Chaser</option>
-				<option value="Sasi">Late Surger</option>
-				<option value="Oikomi">End Closer</option>
-			</select>
-		);
+	const [open, setOpen] = useState(false);
+	const options = CC_GLOBAL
+		? [
+			{ value: 'Oonige', label: 'Runaway' },
+			{ value: 'Nige', label: 'Front Runner' },
+			{ value: 'Senkou', label: 'Pace Chaser' },
+			{ value: 'Sasi', label: 'Late Surger' },
+			{ value: 'Oikomi', label: 'End Closer' },
+		]
+		: [
+			{ value: 'Nige', label: '逃げ' },
+			{ value: 'Senkou', label: '先行' },
+			{ value: 'Sasi', label: '差し' },
+			{ value: 'Oikomi', label: '追込' },
+			{ value: 'Oonige', label: '大逃げ' },
+		];
+	const current = options.find(o => o.value === props.s) || options[0];
+
+	function choose(value: string) {
+		if (disabled) return;
+		props.setS(value);
+		setOpen(false);
+	}
+
+	return (
+		<div
+			class="horseStrategySelect"
+			tabindex={props.tabindex}
+			aria-disabled={disabled ? 'true' : 'false'}
+			onClick={() => { if (!disabled) setOpen(!open); }}
+			onBlur={() => setOpen(false)}
+		>
+			<span><em>{current.label}</em></span>
+			<ul style={open ? 'display:block' : 'display:none'}>
+				{options.map(o => (
+					<li
+						key={o.value}
+						aria-selected={o.value === props.s ? 'true' : 'false'}
+						onClick={(e) => { e.stopPropagation(); choose(o.value); }}
+					>
+						{o.label}
+					</li>
+				))}
+			</ul>
+		</div>
+	);
+}
+
+export function StarLevelSelect(props) {
+	const [hovered, setHovered] = useState(0);
+	const levels = [1, 2, 3, 4, 5];
+	const filled = hovered || props.value;
+	function onKeyDown(e) {
+		if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+			e.preventDefault();
+			props.onChange(Math.min(5, props.value + 1));
+		} else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+			e.preventDefault();
+			props.onChange(Math.max(1, props.value - 1));
+		} else if (e.key >= '1' && e.key <= '5') {
+			props.onChange(+e.key);
+		}
 	}
 	return (
-		<select class="horseStrategySelect" value={props.s} tabindex={props.tabindex} disabled={disabled} onInput={(e) => props.setS(e.currentTarget.value)}>
-			<option value="Nige">逃げ</option>
-			<option value="Senkou">先行</option>
-			<option value="Sasi">差し</option>
-			<option value="Oikomi">追込</option>
-			<option value="Oonige">大逃げ</option>
-		</select>
+		<div
+			class="horseStarLevelSelect"
+			tabindex={props.tabindex}
+			role="radiogroup"
+			aria-label="Star Level"
+			onMouseLeave={() => setHovered(0)}
+			onKeyDown={onKeyDown}
+		>
+			{levels.map(lvl => (
+				<button
+					type="button"
+					key={lvl}
+					class={`horseStar${lvl <= filled ? ' is-filled' : ''}`}
+					role="radio"
+					aria-checked={lvl === props.value ? 'true' : 'false'}
+					aria-label={`${lvl} star${lvl === 1 ? '' : 's'}`}
+					tabindex={-1}
+					onMouseEnter={() => setHovered(lvl)}
+					onClick={(e) => {
+						e.stopPropagation();
+						props.onChange(lvl);
+					}}
+				>★</button>
+			))}
+		</div>
 	);
 }
 
@@ -698,8 +830,9 @@ export function horseDefTabs() {
 export function HorseDef(props) {
 	const {state, setState} = props;
 	const [skillPickerOpen, setSkillPickerOpen] = useState(false);
-	const [expanded, setExpanded] = useState(() => ImmSet());
-	const [procDataSkillId, setProcDataSkillId] = useState<string | null>(null);
+	const [detailSkillId, setDetailSkillId] = useState<string | null>(null);
+	const [detailAnchor, setDetailAnchor] = useState<HTMLElement | null>(null);
+	const skillDetailPopoverRef = useRef<HTMLDivElement>(null);
 
 	const tabstart = props.tabstart();
 	let tabi = 0;
@@ -714,7 +847,28 @@ export function HorseDef(props) {
 	function setter(prop: keyof HorseState) {
 		return (x) => setState(state.set(prop, x));
 	}
-	const setSkills = setter('skills');
+	function setStrategy(strategy: HorseState['strategy']) {
+		setState(state => applyStrategyChange(state, strategy));
+	}
+	function setSkills(newSkills: HorseState['skills']) {
+		setState(state => applySkillsChange(state, newSkills));
+	}
+	function loadProfile(loaded: HorseState) {
+		let next = loaded;
+		if (hasRunawaySkill(next.skills)) {
+			// A loaded/imported state already contains its final skill set, so there
+			// is no before/after transition for applySkillsChange to detect.
+			next = next.set('strategy', 'Oonige');
+		} else if (next.strategy === 'Oonige') {
+			next = applyStrategyChange(next, 'Oonige');
+		}
+		setState(next);
+	}
+
+	function closeSkillDetail() {
+		setDetailSkillId(null);
+		setDetailAnchor(null);
+	}
 
 	function setUma(id) {
 		let newSkills = state.skills.filter(isGeneralSkill);
@@ -740,11 +894,11 @@ export function HorseDef(props) {
 			newForcedPositions = newForcedPositions.delete(skillId);
 		});
 
-		setState(
+		setState(applySkillsChange(
 			nextState.set('outfitId', id)
-				.set('skills', newSkills)
-				.set('forcedSkillPositions', newForcedPositions)
-		);
+				.set('forcedSkillPositions', newForcedPositions),
+			newSkills
+		));
 	}
 
 	function resetThisHorse() {
@@ -763,44 +917,70 @@ export function HorseDef(props) {
 
 	function handleSkillClick(e) {
 		e.stopPropagation();
-		// Don't toggle expansion if clicking on position input
-		if (e.target.classList.contains('forcedPositionInput')) {
+		if (e.target.classList.contains('forcedPositionInput') || e.target.closest('.uniqueSkillLevelSelect')) {
 			return;
 		}
-		const se = e.target.closest('.skill, .expandedSkill');
-		if (se == null) return;
+		const se = e.target.closest('.skill');
+		if (se == null || se.classList.contains('addSkillButton')) return;
+		const skillId = se.dataset.skillid;
 		if (e.target.classList.contains('skillDismiss')) {
-			// can't just remove skillmeta[skillid].groupId because debuffs will have a fake groupId
-			const skillId = se.dataset.skillid;
-			setState(
-				state.set('skills', state.skills.delete(state.skills.findKey(id => id == skillId)))
-					.set('forcedSkillPositions', state.forcedSkillPositions.delete(skillId))
-			);
-		} else if (se.classList.contains('expandedSkill')) {
-			setExpanded(expanded.delete(se.dataset.skillid));
-		} else {
-			setExpanded(expanded.add(se.dataset.skillid));
+			const newSkills = state.skills.delete(state.skills.findKey(id => id == skillId));
+			setState(applySkillsChange(
+				state.set('forcedSkillPositions', state.forcedSkillPositions.delete(skillId)),
+				newSkills
+			));
+			if (detailSkillId === skillId) closeSkillDetail();
+			return;
 		}
+		if (detailSkillId === skillId) {
+			closeSkillDetail();
+			return;
+		}
+		setDetailSkillId(skillId);
+		setDetailAnchor(se as HTMLElement);
 	}
 
 	function handlePositionChange(skillId: string, value: string) {
 		const numValue = parseFloat(value);
 		if (value === '' || isNaN(numValue)) {
-			// Clear the forced position
 			setState(state.set('forcedSkillPositions', state.forcedSkillPositions.delete(skillId)));
 		} else {
-			// Set the forced position
 			setState(state.set('forcedSkillPositions', state.forcedSkillPositions.set(skillId, numValue)));
 		}
 	}
 
 	useEffect(function () {
-		window.requestAnimationFrame(() =>
-			document.querySelectorAll('.horseExpandedSkill').forEach(e => {
-				(e as HTMLElement).style.gridRow = 'span ' + Math.ceil((e.firstChild as HTMLElement).offsetHeight / 64);
-			})
-		);
-	}, [expanded]);
+		if (!detailSkillId || !detailAnchor || !skillDetailPopoverRef.current) return;
+		const popover = skillDetailPopoverRef.current;
+		popover.style.visibility = 'hidden';
+		computePosition(detailAnchor, popover, {
+			placement: 'right-start',
+			middleware: [flip(), shift({ padding: 8 })],
+		}).then(({ x, y }) => {
+			if (!skillDetailPopoverRef.current) return;
+			const scale = visualScale(skillDetailPopoverRef.current);
+			skillDetailPopoverRef.current.style.transform = `translate(${x / scale}px, ${y / scale}px)`;
+			skillDetailPopoverRef.current.style.visibility = 'visible';
+		});
+
+		function onDocPointerDown(ev: MouseEvent) {
+			const target = ev.target as HTMLElement;
+			if (popover.contains(target)) return;
+			if (detailAnchor.contains(target)) return;
+			/* Skill chips toggle via handleSkillClick; don't race-close here. */
+			if (target.closest('.horseSkillListWrapper')) return;
+			closeSkillDetail();
+		}
+		function onKeyDown(ev: KeyboardEvent) {
+			if (ev.key === 'Escape') closeSkillDetail();
+		}
+		document.addEventListener('mousedown', onDocPointerDown);
+		document.addEventListener('keydown', onKeyDown);
+		return () => {
+			document.removeEventListener('mousedown', onDocPointerDown);
+			document.removeEventListener('keydown', onKeyDown);
+		};
+	}, [detailSkillId, detailAnchor]);
 
 	useEffect(function () {
 		const currentSkillIds = state.skills.valueSeq().toSet();
@@ -813,67 +993,51 @@ export function HorseDef(props) {
 			});
 			setState(state.set('forcedSkillPositions', newForcedPositions));
 		}
-	}, [state.skills]);
-
-	const hasRunawaySkill = state.skills.has('202051');
-	useEffect(function () {
-		if (hasRunawaySkill && state.strategy !== 'Oonige') {
-			setState(state.set('strategy', 'Oonige'));
+		if (detailSkillId && !currentSkillIds.has(detailSkillId)) {
+			closeSkillDetail();
 		}
-	}, [hasRunawaySkill, state.strategy]);
+	}, [state.skills]);
 
 	const u = uniqueSkillForUma(umaId);
 	const aptitudeVector = useMemo(
 		() => buildAptitudeVector(state.distanceAptitude, state.strategyAptitude, state.surfaceAptitude),
 		[state.distanceAptitude, state.strategyAptitude, state.surfaceAptitude]
 	);
-	
+
 	const skillList = useMemo(function () {
-		const hasRunData = props.runData != null && props.umaIndex != null;
 		return Array.from(state.skills.values()).sort(skillOrder).map(id => {
 			const isUnique = id == u;
-			return expanded.has(id)
-				? <li key={id} class="horseExpandedSkill">
-					  <ExpandedSkillDetails 
-						  id={id} 
-						  distanceFactor={props.courseDistance} 
-						  dismissable={id != u}
-						  starLevel={state.starLevel || 3}
-						  forcedPosition={state.forcedSkillPositions.get(id) || ''}
-						  onPositionChange={(value: string) => handlePositionChange(id, value)}
-						  runData={hasRunData ? props.runData : null}
-						  umaIndex={hasRunData ? props.umaIndex : null}
-						  onViewProcData={hasRunData ? () => setProcDataSkillId(id) : null}
-						  aptitudes={aptitudeVector}
-						  uniqueLevel={isUnique ? (state.uniqueLevel || 0) : undefined}
-						  onUniqueLevelChange={isUnique ? ((level: number) => setState(prev => prev.set('uniqueLevel', level))) : undefined}
-					  />
-				  </li>
-				: <li key={id} style="">
-					  <div style="display: flex; align-items: center; gap: 8px; position: relative;">
-						  <div style={isUnique ? "position: relative; flex: 1;" : ""}>
-							  <Skill id={id} selected={false} dismissable={id != u} />
-							  {isUnique && (
-								  <select 
-									  class="uniqueSkillLevelSelect"
-									  value={state.uniqueLevel || 0} 
-								  onChange={(e) => setState(prev => prev.set('uniqueLevel', parseInt((e.target as HTMLSelectElement).value, 10)))}
-									  onClick={(e) => e.stopPropagation()}
-								  >
-									  <option value={0}>Lv 0</option>
-									  {[1, 2, 3, 4, 5, 6].map(lvl => <option key={lvl} value={lvl}>Lv {lvl}</option>)}
-								  </select>
-							  )}
-						  </div>
-						  {state.forcedSkillPositions.has(id) && (
-							  <span class="forcedPositionLabel inline">
-								  @{state.forcedSkillPositions.get(id)}m
-							  </span>
-						  )}
-					  </div>
-				  </li>
+			return (
+				<li key={id}>
+					<div class="horseSkillItem">
+						<div class="horseSkillItemMain">
+							<Skill
+								id={id}
+								selected={false}
+								dismissable={id != u}
+								trailing={isUnique ? (
+									<select
+										class="uniqueSkillLevelSelect"
+										value={state.uniqueLevel || 0}
+										onChange={(e) => setState(prev => prev.set('uniqueLevel', parseInt((e.target as HTMLSelectElement).value, 10)))}
+										onClick={(e) => e.stopPropagation()}
+									>
+										<option value={0}>Lv 0</option>
+										{[1, 2, 3, 4, 5, 6].map(lvl => <option key={lvl} value={lvl}>Lv {lvl}</option>)}
+									</select>
+								) : null}
+							/>
+						</div>
+						{state.forcedSkillPositions.has(id) && (
+							<span class="forcedPositionLabel inline">
+								@{state.forcedSkillPositions.get(id)}m
+							</span>
+						)}
+					</div>
+				</li>
+			);
 		});
-	}, [state.skills, umaId, expanded, props.courseDistance, state.forcedSkillPositions, state.uniqueLevel, props.runData, props.umaIndex, aptitudeVector]);
+	}, [state.skills, umaId, state.forcedSkillPositions, state.uniqueLevel]);
 
 	// Calculate career rating with async skill score
 	const [skillScore, setSkillScore] = useState(0);
@@ -909,7 +1073,7 @@ export function HorseDef(props) {
 	return (
 		<div class="horseDef">
 			<div class="horseDefHeader">{props.children}</div>
-			<UmaSelector value={umaId} select={setUma} tabindex={tabnext()} onReset={resetThisHorse} onResetAll={props.onResetAll} currentState={state} onLoadProfile={setState} />
+			<UmaSelector value={umaId} select={setUma} tabindex={tabnext()} onReset={resetThisHorse} onResetAll={props.onResetAll} currentState={state} onLoadProfile={loadProfile} />
 			<div class="horseParams">
 				<div class="horseParamHeader"><img src={umaToolsAsset('icons/status_00.png')} /><span>Speed</span></div>
 				<div class="horseParamHeader"><img src={umaToolsAsset('icons/status_01.png')} /><span>Stamina</span></div>
@@ -937,7 +1101,7 @@ export function HorseDef(props) {
 				</div>
 				<div>
 					<span>{CC_GLOBAL ? 'Style:' : 'Strategy:'}</span>
-					<StrategySelect s={state.strategy} setS={setter('strategy')} disabled={hasRunawaySkill} tabindex={tabnext()} />
+					<StrategySelect s={state.strategy} setS={setStrategy} tabindex={tabnext()} />
 				</div>
 				<div>
 					<span>{CC_GLOBAL ? 'Style aptitude:' : 'Strategy aptitude:'}</span>
@@ -945,53 +1109,48 @@ export function HorseDef(props) {
 				</div>
 				<div>
 					<span>Star Level:</span>
-					<select 
-						class="horseStrategySelect"
-						value={state.starLevel || 3} 
-						onChange={(e) => setState(state.set('starLevel', parseInt((e.target as HTMLSelectElement).value, 10)))}
-						tabIndex={tabnext()}
-					>
-						{[1, 2, 3, 4, 5].map(lvl => <option key={lvl} value={lvl}>{lvl}★</option>)}
-					</select>
+					<StarLevelSelect
+						value={state.starLevel || 3}
+						onChange={(lvl: number) => setState(state.set('starLevel', lvl))}
+						tabindex={tabnext()}
+					/>
 				</div>
 			</div>
 			<div class="careerRatingDisplay">
-				<div class="careerRatingLeftSpacer"></div>
 				<div class="careerRatingMain">
-					<span class="careerRatingLabel">Career Rating: </span>
 					<div 
 						class="careerRatingBadge" 
 						style={{
 							backgroundImage: `url(${umaToolsAsset('icons/rank_badges.png')})`,
-							backgroundSize: '576px 576px',
-							backgroundPosition: `-${ratingBadge.sprite.col * 96}px -${ratingBadge.sprite.row * 96}px`,
-							width: '96px',
-							height: '96px',
+							backgroundSize: '432px 432px',
+							backgroundPosition: `-${ratingBadge.sprite.col * 72}px -${ratingBadge.sprite.row * 72}px`,
+							width: '72px',
+							height: '72px',
 							display: 'inline-block',
-							verticalAlign: 'middle',
-							marginLeft: '8px',
-							marginRight: '8px'
+							verticalAlign: 'middle'
 						}}
 						title={ratingBadge.label}
 					/>
-					<span class="careerRatingNumber">{ratingBreakdown.total.toLocaleString()}</span>
+					<span class="careerRatingTotal">
+						<span class="careerRatingBreakdownLabel">Career Rating</span>
+						<strong class="careerRatingNumber">{ratingBreakdown.total.toLocaleString()}</strong>
+					</span>
 				</div>
 				<div class="careerRatingBreakdown">
 					<span class="careerRatingBreakdownRow">
-						<span class="careerRatingBreakdownLabel">Stat Rating:</span>
+						<span class="careerRatingBreakdownLabel">Stat Rating</span>
 						<strong class="careerRatingBreakdownValue">{ratingBreakdown.statsScore.toLocaleString()}</strong>
 					</span>
 					<span class="careerRatingBreakdownRow">
-						<span class="careerRatingBreakdownLabel">Skill Contribution:</span>
+						<span class="careerRatingBreakdownLabel">Skill Contribution</span>
 						<strong class="careerRatingBreakdownValue">{ratingBreakdown.skillScore.toLocaleString()}</strong>
 					</span>
 					<span class="careerRatingBreakdownRow">
-						<span class="careerRatingBreakdownLabel">Unique Bonus:</span>
+						<span class="careerRatingBreakdownLabel">Unique Bonus</span>
 						<strong class="careerRatingBreakdownValue">{ratingBreakdown.uniqueBonus.toLocaleString()}</strong>
 					</span>
 				</div>
 			</div>
-			<div class="horseSkillHeader">Skills</div>
 			<div class="horseSkillListWrapper" onClick={handleSkillClick}>
 				<ul class="horseSkillList">
 					{skillList}
@@ -1002,18 +1161,48 @@ export function HorseDef(props) {
 					</li>
 				</ul>
 			</div>
-			<div class={`horseSkillPickerOverlay ${skillPickerOpen ? "open" : ""}`} onClick={setSkillPickerOpen.bind(null, false)} />
-			<div class={`horseSkillPickerWrapper ${skillPickerOpen ? "open" : ""}`}>
-				<SkillList ids={selectableSkills} selected={state.skills} setSelected={setSkillsAndClose} isOpen={skillPickerOpen} />
-			</div>
-			{procDataSkillId && props.runData != null && props.umaIndex != null && (
-				<SkillProcDataDialog
-					skillId={procDataSkillId}
-					compareRunData={props.runData}
-					courseDistance={props.courseDistance}
-					umaIndex={props.umaIndex}
-					onClose={() => setProcDataSkillId(null)}
-				/>
+			{createPortal(
+				<>
+					<div class={`horseSkillPickerOverlay ${skillPickerOpen ? "open" : ""}`} onClick={setSkillPickerOpen.bind(null, false)} />
+					<div
+						class={`horseSkillPickerWrapper ${skillPickerOpen ? "open" : ""}`}
+						onMouseDown={(e) => e.stopPropagation()}
+						onClick={(e) => e.stopPropagation()}
+					>
+						<SkillList ids={selectableSkills} selected={state.skills} setSelected={setSkillsAndClose} isOpen={skillPickerOpen} />
+					</div>
+				</>,
+				document.body
+			)}
+			{detailSkillId && createPortal(
+				<div
+					class="horseSkillDetailPopover"
+					style="visibility:hidden"
+					ref={skillDetailPopoverRef}
+					onClick={(e) => {
+						const dismiss = (e.target as HTMLElement).closest('.skillDismiss');
+						if (!dismiss) return;
+						e.stopPropagation();
+						closeSkillDetail();
+					}}
+				>
+					<ExpandedSkillDetails
+						id={detailSkillId}
+						distanceFactor={props.courseDistance}
+						raceContext={{
+							...(props.raceContext || {}),
+							runningStyle: ({Nige: 1, Senkou: 2, Sasi: 3, Oikomi: 4, Oonige: 1} as const)[state.strategy]
+						}}
+						dismissable={detailSkillId != u}
+						starLevel={state.starLevel || 3}
+						forcedPosition={state.forcedSkillPositions.get(detailSkillId) || ''}
+						onPositionChange={(value: string) => handlePositionChange(detailSkillId, value)}
+						aptitudes={aptitudeVector}
+						uniqueLevel={detailSkillId == u ? (state.uniqueLevel || 0) : undefined}
+						onUniqueLevelChange={detailSkillId == u ? ((level: number) => setState(prev => prev.set('uniqueLevel', level))) : undefined}
+					/>
+				</div>,
+				document.body
 			)}
 		</div>
 	);

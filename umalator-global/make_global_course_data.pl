@@ -31,6 +31,16 @@ sub distance_type {
 	}
 }
 
+# Only include tracks that have localized names (category 31).
+# Unreleased venues like Longchamp may exist in race_course_set / race_track
+# but are omitted from text_data until they actually ship.
+my $get_track_names = $db->prepare('SELECT [index] FROM text_data WHERE category = 31;');
+$get_track_names->execute;
+my %allowed_tracks;
+while (my ($track_id) = $get_track_names->fetchrow_array) {
+	$allowed_tracks{$track_id} = 1;
+}
+
 my $get_course_set_statuses = $db->prepare('SELECT course_set_status_id, target_status_1, target_status_2 FROM race_course_set_status;');
 
 $get_course_set_statuses->execute;
@@ -64,11 +74,23 @@ $get_courses->bind_columns(\($id, $race_track_id, $distance, $ground, $inout, $t
 
 my $courses = {};
 while ($get_courses->fetch) {
-	if ($id == 11201 || $id == 11202) {  # Longchamp 1000m course is incomplete and data for id 11202 doesn't exist
+	# Skip incomplete Longchamp rows even if that track somehow gains a name entry.
+	if ($id == 11201 || $id == 11202) {
 		next;
 	}
 
-	my $events = decode_json(do { local(@ARGV, $/) = "$course_event_params/$id.json"; <> })->{courseParams};
+	unless ($allowed_tracks{$race_track_id}) {
+		warn "Skipping course $id (track $race_track_id): track has no text_data category 31 name yet\n";
+		next;
+	}
+
+	my $param_path = "$course_event_params/$id.json";
+	unless (-f $param_path) {
+		warn "Skipping course $id (track $race_track_id): missing courseeventparams/$id.json\n";
+		next;
+	}
+
+	my $events = decode_json(do { local(@ARGV, $/) = $param_path; <> })->{courseParams};
 	my @corners;
 	my @straights;
 	my @slopes;
@@ -121,4 +143,3 @@ while ($get_courses->fetch) {
 my $json = JSON::PP->new;
 $json->canonical(1);
 say $json->encode($courses);
-

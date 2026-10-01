@@ -1,8 +1,8 @@
-import { h, Fragment, cloneElement } from 'preact';
+import { h, Fragment, cloneElement, toChildArray, createContext } from 'preact';
 import { useState, useContext, useMemo, useEffect, useRef } from 'preact/hooks';
 import { IntlProvider, Text, Localizer } from 'preact-i18n';
 
-import { getParser } from '../uma-skill-tools/ConditionParser';
+import { getParser, NodeType } from '../uma-skill-tools/ConditionParser';
 import * as Matcher from '../uma-skill-tools/tools/ConditionMatcher';
 import { SkillRarity } from '../uma-skill-tools/RaceSolver.ts';
 
@@ -23,6 +23,8 @@ const Parser = getParser(Matcher.mockConditions);
 export const STRINGS_ja = Object.freeze({
 	'skillfilters': Object.freeze({
 		'search': '',  // TODO translate
+		'reset': 'リセット',
+		'addAllVisible': '表示中をすべて追加',
 		'white': '白スキル',
 		'gold': '金スキル',
 		'pink': '進化スキル',
@@ -32,6 +34,11 @@ export const STRINGS_ja = Object.freeze({
 		'senkou': '先行',
 		'sasi': '差し',
 		'oikomi': '追込',
+		'passive': '常時（緑）',
+		'stamina': '回復（青）',
+		'movement': '加速（黄）',
+		'debuffer': 'デバフ（赤）',
+		'debuffed': 'デバフ付与（紫）',
 		'short': '短距離',
 		'mile': 'マイル',
 		'medium': '中距離',
@@ -46,23 +53,64 @@ export const STRINGS_ja = Object.freeze({
 		'finalstraight': '最終直線'
 	}),
 	'skilleffecttypes': Object.freeze({
-		'1': 'スピードアップ',
-		'2': 'スタミナアップ',
-		'3': 'パワーアップ',
-		'4': '根性アップ',
-		'5': '賢さアップ',
-		'9': '体力回復',
+		'1': 'スピードステータスアップ',
+		'2': 'スタミナステータスアップ',
+		'3': 'パワーステータスアップ',
+		'4': '根性ステータスアップ',
+		'5': '賢さステータスアップ',
+		'6': '作戦変更',
+		'8': '視野拡大',
+		'9': 'スタミナ回復',
+		'10': 'スタート反応改善',
+		'13': '掛かり時間延長',
+		'14': 'スタート遅延追加',
 		'21': '現在速度（減速なし）',
 		'22': '現在速度',
 		'27': '目標速度',
 		'28': 'レーン移動速度',
+		'29': '掛かり確率低下',
 		'31': '加速',
-		'37': 'Activate random gold skill',
-		'42': 'スキルの効果時間上がり'
+		'32': '全ステータスアップ',
+		'35': 'レーン移動',
+		'37': 'ランダム金スキル発動',
+		'41': '全シンパシー発動',
+		'42': 'スキル効果時間延長'
 	}),
 	'skilldetails': Object.freeze({
 		'accel': '{{n}}m/s²',
 		'basinn': '{{n}}バ身',
+		'changestrategy': Object.freeze({
+			'runaway': '大逃げ'
+		}),
+		'effectvalue': Object.freeze({
+			'true': '有効',
+			'trackpercent': 'コース幅の{{n}}%'
+		}),
+		'target': '対象',
+		'skilltarget': Object.freeze({
+			'1': '自分',
+			'2': 'シンパシー全体',
+			'4': '視野内の全体',
+			'7': '{{position}}位より前の全体',
+			'7fallback': '順位より前の全体',
+			'9': '前方の全体',
+			'10': '後方の全体',
+			'11': '味方全体',
+			'18': '全{{strategy}}',
+			'18fallback': '敵全体（作戦）',
+			'19': '前方の掛かりウマ',
+			'20': '後方の掛かりウマ',
+			'21': '掛かり{{strategy}}',
+			'21fallback': '掛かり（作戦）',
+			'22': 'ウマID',
+			'23': '回復スキル発動済み',
+			'strategy': Object.freeze({
+				'nige': '逃げ',
+				'senko': '先行',
+				'sashi': '差し',
+				'oikomi': '追込'
+			})
+		}),
 		'conditions': '発動条件',
 		'distance_type': Object.freeze(['', '短距離', 'マイル', '中距離', '長距離']),
 		'baseduration': '基準持続時間',
@@ -75,8 +123,12 @@ export const STRINGS_ja = Object.freeze({
 		'id': 'ID: ',
 		'meters': '{{n}}m',
 		'motivation': Object.freeze(['', '絶不調', '不調', '普通', '好調', '絶好調']),
-		'order_rate': 'チャンミ：{{cm}}、リグヒ：{{loh}}',
+		'order_rate': 'チャンミ：{{cm}}、TT/リグヒ：{{loh}}',
 		'preconditions': '前提条件',
+		'duration': '持続時間',
+		'rating': '評価',
+		'basecost': '基礎コスト',
+		'scorecontribution': 'スコア寄与',
 		'rotation': Object.freeze(['', '右回り', '左回り']),
 		'running_style': Object.freeze(['', '逃げ', '先行', '差し', '追込']),
 		'season': Object.freeze(['', '早春', '夏', '秋', '冬', '春']),
@@ -90,61 +142,111 @@ export const STRINGS_ja = Object.freeze({
 
 export const STRINGS_en = Object.freeze({
 	'skillfilters': Object.freeze({
-		'search': 'Search by skill name or conditions',
-		'white': 'White skills',
-		'gold': 'Gold skills',
-		'pink': 'Evolved skills',
-		'unique': 'Unique skills',
-		'inherit': 'Inherited uniques',
-		'nige': 'Runner',
-		'senkou': 'Leader',
-		'sasi': 'Betweener',
-		'oikomi': 'Chaser',
+		'search': 'Search by name, ID, or condition',
+		'reset': 'Reset Filters',
+		'addAllVisible': 'Add All Shown Skills',
+		'white': 'White Skills',
+		'gold': 'Gold Skills',
+		'inherit': 'Inherited Uniques',
+		'nige': 'Front Runner',
+		'senkou': 'Pace Chaser',
+		'sasi': 'Late Surger',
+		'oikomi': 'End Closer',
+		'passive': 'Passive (Green)',
+		'stamina': 'Stamina (Blue)',
+		'movement': 'Movement (Yellow)',
+		'debuffer': 'Debuffer (Red)',
+		'debuffed': 'Debuffed (Purple)',
 		'short': 'Short',
 		'mile': 'Mile',
 		'medium': 'Medium',
 		'long': 'Long',
 		'turf': 'Turf',
 		'dirt': 'Dirt',
-		'phase0': 'Opening leg',
-		'phase1': 'Middle leg',
-		'phase2': 'Final leg',
-		'phase3': 'Last spurt',
-		'finalcorner': 'Final corner',
-		'finalstraight': 'Final straight'
+		'phase0': 'Opening Leg',
+		'phase1': 'Middle Leg',
+		'phase2': 'Final Leg',
+		'phase3': 'Last Spurt',
+		'finalcorner': 'Final Corner',
+		'finalstraight': 'Final Straight'
 	}),
 	'skilleffecttypes': Object.freeze({
-		'1': 'Speed up',
-		'2': 'Stamina up',
-		'3': 'Power up',
-		'4': 'Guts up',
-		'5': 'Wisdom up',
-		'9': 'Recovery',
-		'21': 'Current speed',
-		'22': 'Current speed with natural deceleration',
-		'27': 'Target speed',
-		'28': 'Lane movement speed',
+		'1': 'Speed Stat Up',
+		'2': 'Stamina Stat Up',
+		'3': 'Power Stat Up',
+		'4': 'Guts Stat Up',
+		'5': 'Wit Stat Up',
+		'6': 'Change Strategy',
+		'8': 'Increase Field Of View',
+		'9': 'Stamina Recovery',
+		'10': 'Improve Start Reaction Time',
+		'13': 'Increase Rushed Duration',
+		'14': 'Add Start Delay',
+		'21': 'Current Speed',
+		'22': 'Current Speed With Natural Deceleration',
+		'27': 'Target Speed',
+		'28': 'Lane Movement Speed',
+		'29': 'Decreased Rush Probability',
 		'31': 'Acceleration',
-		'37': 'Activate random gold skill',
-		'42': 'Increase skill duration'
+		'32': 'All Stats Up',
+		'35': 'Change Lane',
+		'37': 'Activate Random Gold Skill',
+		'41': 'Activate All Other Sympathy',
+		'42': 'Increase Skill Duration'
 	}),
 	'skilldetails': Object.freeze({
 		'accel': '{{n}}m/s²',
 		'basinn': '{{n}} bashin',
-		'conditions': 'Conditions:',
+		'changestrategy': Object.freeze({
+			'runaway': 'Runaway'
+		}),
+		'effectvalue': Object.freeze({
+			'true': 'True',
+			'trackpercent': '{{n}}% of Track'
+		}),
+		'target': 'Target',
+		'skilltarget': Object.freeze({
+			'1': 'Self',
+			'2': 'All with Sympathy',
+			'4': 'All in Field of View',
+			'7': 'Ahead of {{position}} Position',
+			'7fallback': 'Ahead of Position',
+			'9': 'All Ahead',
+			'10': 'All Behind',
+			'11': 'All Teammates',
+			'18': 'All {{strategy}}',
+			'18fallback': 'All Enemies (Strategy)',
+			'19': 'Rushed Opponents Ahead',
+			'20': 'Rushed Opponents Behind',
+			'21': 'Rushed {{strategy}}',
+			'21fallback': 'Rushed (Strategy)',
+			'22': 'Uma ID',
+			'23': 'Activated Any Recovery Skill',
+			'strategy': Object.freeze({
+				'nige': 'Front Runners',
+				'senko': 'Pace Chasers',
+				'sashi': 'Late Surgers',
+				'oikomi': 'End Closers'
+			})
+		}),
+		'conditions': 'Conditions',
 		'distance_type': Object.freeze(['', 'Short', 'Mile', 'Medium', 'Long']),
-		'baseduration': 'Base duration:',
-		'effectiveduration': 'Effective duration ({{distance}}m):',
+		'baseduration': 'Base duration',
+		'effectiveduration': 'Effective duration ({{distance}}m)',
 		'durationincrease': '{{n}}×',
-		'effects': 'Effects:',
+		'effects': 'Effects',
 		'grade': Object.freeze({100: 'G1', 200: 'G2', 300: 'G3', 400: 'OP', 700: 'Pre-OP', 800: 'Maiden', 900: 'Debut', 999: 'Daily races'}),
 		'ground_condition': Object.freeze(['', 'Good', 'Yielding', 'Soft', 'Heavy']),
 		'ground_type': Object.freeze(['', 'Turf', 'Dirt']),
 		'id': 'ID: ',
 		'meters': '{{n}}m',
 		'motivation': Object.freeze(['', 'Terrible', 'Bad', 'Normal', 'Good', 'Perfect']),
-		'order_rate': 'CM: {{cm}}, LOH: {{loh}}',
-		'preconditions': 'Preconditions:',
+		'order_rate': 'CM: {{cm}}, TT/LOH: {{loh}}',
+		'preconditions': 'Preconditions',
+		'duration': 'Duration',
+		'rating': 'Rating',
+		'basecost': 'Base Cost',
+		'scorecontribution': 'Score Contribution',
 		'rotation': Object.freeze(['', 'Clockwise', 'Counterclockwise']),
 		'running_style': Object.freeze(['', 'Runner', 'Leader', 'Betweener', 'Chaser']),
 		'season': Object.freeze(['', 'Early spring', 'Summer', 'Autumn', 'Winter', 'Late spring']),
@@ -209,6 +311,7 @@ export function Skill(props) {
 		<div class={`skill ${classnames[skilldata[props.id].rarity]} ${props.selected ? 'selected' : ''}`} data-skillid={props.id}>
 			<img class="skillIcon" src={umaToolsAsset(`icons/${skillmeta[props.id].iconId}.png`)} /> 
 			<span class="skillName"><Text id={`skillnames.${props.id}`} /></span>
+			{props.trailing}
 			{props.dismissable && <span class="skillDismiss">✕</span>}
 		</div>
 	);
@@ -301,6 +404,80 @@ interface OpFormatter {
 	format(): any
 }
 
+export type RaceConditionContextValue = {
+	distance?: number
+	distanceType?: number
+	surface?: number
+	turn?: number
+	trackId?: number
+	weather?: number
+	season?: number
+	time?: number
+	groundCondition?: number
+	grade?: number
+	runningStyle?: number
+	hasCorners?: boolean
+	hasUphill?: boolean
+	hasDownhill?: boolean
+};
+
+const RaceConditionContext = createContext<RaceConditionContextValue | null>(null);
+
+function cmpNumber(actual: number, op: string, arg: number) {
+	switch (op) {
+	case '==': return actual === arg;
+	case '!=': return actual !== arg;
+	case '<': return actual < arg;
+	case '<=': return actual <= arg;
+	case '>': return actual > arg;
+	case '>=': return actual >= arg;
+	default: return true;
+	}
+}
+
+function rangePossible(min: number, max: number, op: string, arg: number) {
+	switch (op) {
+	case '==': return arg >= min && arg <= max;
+	case '!=': return min !== max || min !== arg;
+	case '<': return min < arg;
+	case '<=': return min <= arg;
+	case '>': return max > arg;
+	case '>=': return max >= arg;
+	default: return true;
+	}
+}
+
+function isConditionInvalid(name: string, op: string, arg: number, race: RaceConditionContextValue | null) {
+	if (race == null) return false;
+	const scalar = (value: number | undefined) => value == null ? false : !cmpNumber(value, op, arg);
+	switch (name) {
+	case 'distance_type': return scalar(race.distanceType);
+	case 'ground_type': return scalar(race.surface);
+	case 'weather': return scalar(race.weather);
+	case 'season': return scalar(race.season);
+	case 'time': return scalar(race.time);
+	case 'ground_condition': return scalar(race.groundCondition);
+	case 'grade': return scalar(race.grade);
+	case 'track_id': return scalar(race.trackId);
+	case 'rotation': return scalar(race.turn);
+	case 'running_style': return scalar(race.runningStyle);
+	case 'course_distance': return scalar(race.distance);
+	case 'is_basis_distance':
+		return race.distance == null ? false : !cmpNumber(race.distance % 400 == 0 ? 1 : 0, op, arg);
+	case 'remain_distance':
+		return race.distance == null ? false : !rangePossible(0, race.distance, op, arg);
+	case 'is_finalcorner':
+		return race.hasCorners === false && ((op == '==' && arg == 1) || (op == '!=' && arg == 0));
+	case 'slope':
+		if (op != '==') return false;
+		if (arg == 1) return race.hasUphill === false;
+		if (arg == 2) return race.hasDownhill === false;
+		return false;
+	default:
+		return false;
+	}
+}
+
 class AndFormatter {
 	constructor(readonly left: OpFormatter, readonly right: OpFormatter) {}
 	
@@ -308,8 +485,10 @@ class AndFormatter {
 		return (
 			<Fragment>
 				{this.left.format()}
-				<span class="operatorAnd">&amp;</span>
-				{this.right.format()}
+				<div class="skillConditionLine">
+					<span class="operatorAnd">&amp;</span>
+					{this.right.format()}
+				</div>
 			</Fragment>
 		);
 	}
@@ -322,11 +501,23 @@ class OrFormatter {
 		return (
 			<Fragment>
 				{this.left.format()}
-				<span class="operatorOr">@<span class="operatorOrText">or</span></span>
+				<div class="skillConditionLine skillConditionLine--or">
+					<span class="operatorOr">@<span class="operatorOrText">or</span></span>
+				</div>
 				{this.right.format()}
 			</Fragment>
 		);
 	}
+}
+
+function ConditionView(props: {name: string, op: string, arg: number, formatArg: (arg: number) => any}) {
+	const race = useContext(RaceConditionContext);
+	const invalid = isConditionInvalid(props.name, props.op, props.arg, race);
+	return (
+		<span class={`condition${invalid ? ' condition--invalid' : ''}`}>
+			<span class="conditionName">{props.name}</span><span class="conditionOp">{props.op}</span><span class="conditionArg">{props.formatArg(props.arg)}</span>
+		</span>
+	);
 }
 
 function CmpFormatter(op: string) {
@@ -335,9 +526,7 @@ function CmpFormatter(op: string) {
 		
 		format() {
 			return (
-				<div class="condition">
-					<span class="conditionName">{this.cond.name}</span><span class="conditionOp">{op}</span><span class="conditionArg">{this.cond.formatArg(this.arg)}</span>
-				</div>
+				<ConditionView name={this.cond.name} op={op} arg={this.arg} formatArg={this.cond.formatArg} />
 			);
 		}
 	};
@@ -356,6 +545,138 @@ const FormatParser = getParser<ConditionFormatter,OpFormatter>(conditionFormatte
 
 function forceSign(n: number) {
 	return n <= 0 ? n.toString() : '+' + n;
+}
+
+function effectValueClass(n: number) {
+	if (n > 0) return 'skillEffectValue--positive';
+	if (n < 0) return 'skillEffectValue--negative';
+	return '';
+}
+
+function effectValueClassForType(effectType: number, value: number) {
+	switch (effectType) {
+	case 6:
+	case 13:
+	case 32:
+	case 35:
+	case 41:
+		return 'skillEffectValue--positive';
+	case 10:
+		if (value < 1) return 'skillEffectValue--positive';
+		if (value > 1) return 'skillEffectValue--negative';
+		return '';
+	case 14:
+		return 'skillEffectValue--negative';
+	case 8:
+		return value >= 0 ? 'skillEffectValue--positive' : 'skillEffectValue--negative';
+	case 29:
+		return value < 0 ? 'skillEffectValue--positive' : 'skillEffectValue--negative';
+	default:
+		return effectValueClass(value);
+	}
+}
+
+function formatPercentSigned(n: number) {
+	return `${forceSign(n * 100)}%`;
+}
+
+function formatRawScaledNumber(n: number) {
+	return forceSign(+formatSigFigs(n));
+}
+
+function formatStartReactionMultiplier(n: number) {
+	const pct = Math.round((n - 1) * 100);
+	const pctStr = pct > 0 ? `+${pct}%` : `${pct}%`;
+	return `${pctStr} (${formatSigFigs(n)})`;
+}
+
+function formatSecondsSigned(n: number) {
+	return `${forceSign(+formatSigFigs(n))}s`;
+}
+
+function formatStrategyChangeValue(_value: number) {
+	return <Text id="skilldetails.changestrategy.runaway">Runaway</Text>;
+}
+
+function formatLaneChangeValue(n: number) {
+	return <Text id="skilldetails.effectvalue.trackpercent" fields={{n: Math.round(n * 100)}} />;
+}
+
+function formatBooleanTrue() {
+	return <Text id="skilldetails.effectvalue.true">True</Text>;
+}
+
+function shouldShowEffectTarget(target: number | undefined, effects: Array<{target?: number}>, skillId: string) {
+	if (target == null) return false;
+	if (target !== 1) return true;
+	const uniqueTargets = new Set(effects.map(ef => ef.target ?? 1));
+	if (uniqueTargets.size <= 1) return false;
+	return !isDebuffSkill(skillId);
+}
+
+function ordinalSuffix(n: number) {
+	const v = n % 100;
+	if (v >= 11 && v <= 13) return 'th';
+	switch (n % 10) {
+	case 1: return 'st';
+	case 2: return 'nd';
+	case 3: return 'rd';
+	default: return 'th';
+	}
+}
+
+function formatOrdinalPosition(n: number) {
+	return `${n}${ordinalSuffix(n)}`;
+}
+
+const TARGET_7_POSITION_BY_SKILL_ID: Record<string, number> = {
+	'100851': 4, // Reign Supreme
+	'900851': 4
+};
+
+function parseOrderPositionFromCondition(condition: string): number | null {
+	const eq = condition.match(/(?:^|[&])order==(\d+)/);
+	if (eq) return parseInt(eq[1], 10);
+	const le = condition.match(/(?:^|[&])order<=(\d+)/);
+	if (le) return parseInt(le[1], 10);
+	const ge = condition.match(/(?:^|[&])order>=(\d+)/);
+	if (ge) return parseInt(ge[1], 10);
+	return null;
+}
+
+function parseEnemyStrategyKeyFromCondition(condition: string): 'nige' | 'senko' | 'sashi' | 'oikomi' | null {
+	if (/nige/.test(condition)) return 'nige';
+	if (/senko/.test(condition)) return 'senko';
+	if (/sashi/.test(condition)) return 'sashi';
+	if (/oikomi/.test(condition)) return 'oikomi';
+	return null;
+}
+
+function formatStrategyEffectTarget(target: 18 | 21, condition: string, precondition: string | undefined, strings: typeof STRINGS_en) {
+	const strategyKey = parseEnemyStrategyKeyFromCondition(condition)
+		?? (precondition ? parseEnemyStrategyKeyFromCondition(precondition) : null);
+	if (strategyKey) {
+		const strategy = strings.skilldetails.skilltarget.strategy[strategyKey];
+		return <Text id={`skilldetails.skilltarget.${target}`} fields={{strategy}} />;
+	}
+	return <Text id={`skilldetails.skilltarget.${target}fallback`} />;
+}
+
+function formatEffectTarget(target: number, condition: string, lang: string, skillId?: string, precondition?: string) {
+	const strings = lang === 'ja' ? STRINGS_ja : STRINGS_en;
+	if (target === 7) {
+		const position = parseOrderPositionFromCondition(condition)
+			?? (precondition ? parseOrderPositionFromCondition(precondition) : null)
+			?? (skillId ? TARGET_7_POSITION_BY_SKILL_ID[skillId] : null);
+		if (position != null) {
+			return <Text id="skilldetails.skilltarget.7" fields={{position: formatOrdinalPosition(position)}} />;
+		}
+		return <Text id="skilldetails.skilltarget.7fallback" />;
+	}
+	if (target === 18 || target === 21) {
+		return formatStrategyEffectTarget(target, condition, precondition, strings);
+	}
+	return <Text id={`skilldetails.skilltarget.${target}`}>{target}</Text>;
 }
 
 const formatStat = forceSign;
@@ -405,6 +726,22 @@ function formatEffectiveEffectValue(effectType: number, value: number) {
 		return `${formatSigFigs(value * 100)}%`;
 	case 42:
 		return `${n}×`;
+	case 6:
+		return 'Runaway';
+	case 8:
+		return formatRawScaledNumber(value);
+	case 10:
+		return formatStartReactionMultiplier(value);
+	case 29:
+	case 32:
+		return formatPercentSigned(value);
+	case 13:
+	case 14:
+		return formatSecondsSigned(value);
+	case 35:
+		return `${Math.round(value * 100)}% of Track`;
+	case 41:
+		return 'True';
 	case 1:
 	case 2:
 	case 3:
@@ -422,11 +759,20 @@ const formatEffect = Object.freeze({
 	3: formatStat,
 	4: formatStat,
 	5: formatStat,
+	6: formatStrategyChangeValue,
+	8: formatRawScaledNumber,
 	9: n => `${(n * 100).toFixed(1)}%`,
-	21: formatSpeed, 
+	10: formatStartReactionMultiplier,
+	13: formatSecondsSigned,
+	14: formatSecondsSigned,
+	21: formatSpeed,
 	22: formatSpeed,
 	27: formatSpeed,
+	29: formatPercentSigned,
 	31: n => <Text id="skilldetails.accel" plural={n} fields={{n: forceSign(n)}} />,
+	32: formatPercentSigned,
+	35: formatLaneChangeValue,
+	41: formatBooleanTrue,
 	42: n => <Text id="skilldetails.durationincrease" plural={n} fields={{n}} />
 });
 
@@ -480,33 +826,56 @@ export function ExpandedSkillDetails(props) {
 		}
 		return scoreContribution;
 	}, [isUnique, starLevel, uniqueLevel, scoreContribution]);
+
+	function renderRatingDetails() {
+		return (
+			<Fragment>
+				<div class="skillDetailsLabel"><Text id="skilldetails.rating" /></div>
+				<div class="skillEffects">
+					{!isUnique && totalBaseCost !== undefined && (
+						<div class="skillEffect">
+							<span class="skillEffectType"><Text id="skilldetails.basecost" /></span>
+							<span class="skillEffectValue">{totalBaseCost}</span>
+						</div>
+					)}
+					<div class="skillEffect">
+						<span class="skillEffectType"><Text id="skilldetails.scorecontribution" /></span>
+						<span class="skillEffectValue">{displayedScoreContribution !== null ? displayedScoreContribution.toLocaleString() : '...'}</span>
+					</div>
+				</div>
+			</Fragment>
+		);
+	}
 	
 	return (
 		<IntlProvider definition={lang == 'ja' ? STRINGS_ja : STRINGS_en}>
+			<RaceConditionContext.Provider value={props.raceContext || null}>
 			<div class={`expandedSkill ${classnames[skill.rarity]}`} data-skillid={props.id}>
 				<div class="expandedSkillHeader">
-					<img class="skillIcon" src={umaToolsAsset(`icons/${skillmeta[props.id].iconId}.png`)} />
-					<span class="skillName"><Text id={`skillnames.${props.id}`} /></span>
+					<div class="expandedSkillTitleRow">
+						<img class="skillIcon" src={umaToolsAsset(`icons/${skillmeta[props.id].iconId}.png`)} />
+						<span class="skillName"><Text id={`skillnames.${props.id}`} /></span>
+					</div>
 					{props.dismissable && <span class="skillDismiss">✕</span>}
 				</div>
 				<div class="skillDetails">
-					<div>
+					<div class="skillMetaLine skillMetaLine--id">
 						<Text id="skilldetails.id" />
 						{props.id}
 					</div>
 					{skill.alternatives.map((alt, altIndex) =>
-						<div class="skillDetailsSection">
+						<div class="skillDetailsSection" key={altIndex}>
 							{alt.precondition.length > 0 && <Fragment>
-								<Text id="skilldetails.preconditions" />
+								<div class="skillDetailsLabel"><Text id="skilldetails.preconditions" /></div>
 								<div class="skillConditions">
 									{FormatParser.parse(FormatParser.tokenize(alt.precondition)).format()}
 								</div>
 							</Fragment>}
-							<Text id="skilldetails.conditions" />
+							<div class="skillDetailsLabel"><Text id="skilldetails.conditions" /></div>
 							<div class="skillConditions">
 								{FormatParser.parse(FormatParser.tokenize(alt.condition)).format()}
 							</div>
-							<Text id="skilldetails.effects" />
+							<div class="skillDetailsLabel"><Text id="skilldetails.effects" /></div>
 							<div class="skillEffects">
 								{alt.effects.map((ef, efIndex) => {
 									const rawValue = ef.modifier / 10000;
@@ -516,75 +885,87 @@ export function ExpandedSkillDetails(props) {
 										<Fragment key={`${altIndex}-${efIndex}-${ef.type}`}>
 											<div class="skillEffect">
 												<span class="skillEffectType"><Text id={`skilleffecttypes.${ef.type}`}>{ef.type}</Text></span>
-												<span class="skillEffectValue">{ef.type in formatEffect ? formatEffect[ef.type](rawValue) : rawValue}</span>
+												<span class={`skillEffectValue ${effectValueClassForType(ef.type, rawValue)}`}>{ef.type in formatEffect ? formatEffect[ef.type](rawValue) : rawValue}</span>
 											</div>
+											{shouldShowEffectTarget(ef.target, alt.effects, props.id) && (
+												<div class="skillEffect skillEffect--effective">
+													<span class="skillEffectType"><Text id="skilldetails.target" /></span>
+													<span class="skillEffectValue">{formatEffectTarget(ef.target, alt.condition, lang, props.id, alt.precondition)}</span>
+												</div>
+											)}
 											{showEffective && (
-												<div class="skillEffect">
+												<div class="skillEffect skillEffect--effective">
 													<span class="skillEffectType">Eff. <Text id={`skilleffecttypes.${ef.type}`}>{ef.type}</Text> (Lv{uniqueLevel})</span>
-													<span class="skillEffectValue">{formatEffectiveEffectValue(ef.type, effectiveValue)}</span>
+													<span class={`skillEffectValue ${effectValueClassForType(ef.type, effectiveValue)}`}>{formatEffectiveEffectValue(ef.type, effectiveValue)}</span>
 												</div>
 											)}
 										</Fragment>
 									);
 								})}
 							</div>
-							{alt.baseDuration > 0 && <span class="skillDuration"><Text id="skilldetails.baseduration" />{' '}<Text id="skilldetails.seconds" fields={{n: alt.baseDuration / 10000}} /></span>}
-							{props.distanceFactor && alt.baseDuration > 0 &&
-								<span class="skillDuration">
-									<Text id="skilldetails.effectiveduration" fields={{distance: props.distanceFactor}} />{' '}
-									<Text id="skilldetails.seconds" fields={{n: +(alt.baseDuration / 10000 * (props.distanceFactor / 1000)).toFixed(2)}} />
-								</span>
-							}
-							{altIndex === skill.alternatives.length - 1 && (
-								<>
-									{!isUnique && totalBaseCost !== undefined && <span class="skillDuration">Base cost: {totalBaseCost}</span>}
-									<span class="skillDuration">Score contribution: {displayedScoreContribution !== null ? displayedScoreContribution.toLocaleString() : '...'}</span>
-								</>
+							{(alt.baseDuration > 0 || (props.distanceFactor && alt.baseDuration > 0)) && (
+								<Fragment>
+									<div class="skillDetailsLabel"><Text id="skilldetails.duration" /></div>
+									<div class="skillEffects">
+										{alt.baseDuration > 0 && (
+											<div class="skillEffect">
+												<span class="skillEffectType"><Text id="skilldetails.baseduration" /></span>
+												<span class="skillEffectValue"><Text id="skilldetails.seconds" fields={{n: alt.baseDuration / 10000}} /></span>
+											</div>
+										)}
+										{props.distanceFactor && alt.baseDuration > 0 && (
+											<div class="skillEffect skillEffect--effective">
+												<span class="skillEffectType"><Text id="skilldetails.effectiveduration" fields={{distance: props.distanceFactor}} /></span>
+												<span class="skillEffectValue"><Text id="skilldetails.seconds" fields={{n: +(alt.baseDuration / 10000 * (props.distanceFactor / 1000)).toFixed(2)}} /></span>
+											</div>
+										)}
+									</div>
+								</Fragment>
 							)}
+							{skill.alternatives.length === 1 && renderRatingDetails()}
 						</div>
 					)}
-					{props.uniqueLevel !== undefined && props.onUniqueLevelChange && (
-						<div class="skillDetailsSection">
-							<label class="forcedPositionLabel">Unique Level:</label>
-							<select
-								class="forcedPositionInput"
-								value={props.uniqueLevel || 0}
-								onChange={(e) => props.onUniqueLevelChange(parseInt((e.target as HTMLSelectElement).value, 10))}
-								onClick={(e) => e.stopPropagation()}
-							>
-								<option value={0}>0 (None)</option>
-								{[1, 2, 3, 4, 5, 6].map(lvl => <option key={lvl} value={lvl}>{lvl}</option>)}
-							</select>
+					{skill.alternatives.length > 1 && (
+						<div class="skillDetailsSection skillDetailsSection--rating">
+							{renderRatingDetails()}
 						</div>
 					)}
-					{props.onPositionChange && (
-						<div class="skillDetailsSection">
-							<label class="forcedPositionLabel">Force @ position (m):</label>
-							<input
-								type="number"
-								class="forcedPositionInput"
-								placeholder="Optional"
-								value={props.forcedPosition}
-								onInput={(e) => props.onPositionChange((e.target as HTMLInputElement).value)}
-								onClick={(e) => e.stopPropagation()}
-								min="0"
-								step="10"
-							/>
-						</div>
-					)}
-					{props.runData != null && props.umaIndex != null && props.onViewProcData && (
-						<div class="skillDetailsSection">
-							<button 
-								class="runAdditionalSamples"
-								onClick={(e) => { e.stopPropagation(); props.onViewProcData(); }}
-								title="View Proc Data"
-							>
-								View Proc Data
-							</button>
+					{(props.uniqueLevel !== undefined && props.onUniqueLevelChange || props.onPositionChange) && (
+						<div class="skillDetailsSection skillDetailsSection--controls">
+							{props.uniqueLevel !== undefined && props.onUniqueLevelChange && (
+								<div class="skillControlRow">
+									<label class="forcedPositionLabel">Unique Level</label>
+									<select
+										class="forcedPositionInput"
+										value={props.uniqueLevel || 0}
+										onChange={(e) => props.onUniqueLevelChange(parseInt((e.target as HTMLSelectElement).value, 10))}
+										onClick={(e) => e.stopPropagation()}
+									>
+										<option value={0}>0 (None)</option>
+										{[1, 2, 3, 4, 5, 6].map(lvl => <option key={lvl} value={lvl}>{lvl}</option>)}
+									</select>
+								</div>
+							)}
+							{props.onPositionChange && (
+								<div class="skillControlRow">
+									<label class="forcedPositionLabel">Force @ Location (m)</label>
+									<input
+										type="number"
+										class="forcedPositionInput"
+										placeholder="Optional"
+										value={props.forcedPosition}
+										onInput={(e) => props.onPositionChange((e.target as HTMLInputElement).value)}
+										onClick={(e) => e.stopPropagation()}
+										min="0"
+										step="10"
+									/>
+								</div>
+							)}
 						</div>
 					)}
 				</div>
 			</div>
+			</RaceConditionContext.Provider>
 		</IntlProvider>
 	);
 }
@@ -608,51 +989,408 @@ const iconIdPrefixes = Object.freeze({
 	'3004': ['3004'],
 	'3005': ['3005'],
 	'3007': ['3007'],
-	'4001': ['4001']
+	'4001': ['4001'],
+	'10014': ['10014'],
+	'10024': ['10024'],
+	'10034': ['10034'],
+	'10044': ['10044'],
+	'10054': ['10054'],
+	'20014': ['20014'],
+	'20024': ['20024'],
+	'20034': ['20034'],
+	'20044': ['20044'],
+	'20064': ['20064'],
+	'20094': ['20094']
 });
 
+const purpleIconFilters = new Set(['10014', '10024', '10034', '10044', '10054', '20014', '20024', '20034', '20044', '20064', '20094']);
+
+function matchIconTypeFilter(iconId: string, filterKey: string) {
+	const id = String(iconId);
+	const isPurpleIcon = id.length >= 5 && id[id.length - 1] === '4';
+	if (purpleIconFilters.has(filterKey)) {
+		return iconIdPrefixes[filterKey].some(p => id.startsWith(p));
+	}
+	if (isPurpleIcon) return false;
+	return iconIdPrefixes[filterKey].some(p => id.startsWith(p));
+}
+
+/** Skill icon color categories aligned with Team Umalysis skill_icons folders. */
+function getSkillIconColor(iconId: string): 'passive' | 'stamina' | 'movement' | 'debuffer' | 'debuffed' | null {
+	const id = String(iconId);
+	if (!id || id === '0') return null;
+	const last = id[id.length - 1];
+
+	// Purple folder: negative/debuffed icons ending in 4.
+	if (last === '4') return 'debuffed';
+
+	// Green folder: passive stat icons (100xx) and a few specials.
+	if (id.startsWith('100') || id.startsWith('1010')) return 'passive';
+	if (id === '20181' || id.startsWith('4001')) return 'passive';
+
+	// Blue folder: stamina recovery icons.
+	if ((id.startsWith('2002') || id.startsWith('2003')) && (last === '1' || last === '2')) return 'stamina';
+	if (id.startsWith('2011') && (last === '1' || last === '2')) return 'stamina';
+
+	// Red folder: debuff icons applied to opponents (300xx).
+	if (id.startsWith('300')) return 'debuffer';
+
+	// Yellow folder: movement/speed icons (200xx / 201xx scenario variants).
+	if (id.startsWith('200') || id.startsWith('201') || id.startsWith('202') || id.startsWith('203')) return 'movement';
+
+	return null;
+}
+
+function matchSkillColor(id: string, color: string) {
+	return getSkillIconColor(String(skillmeta[id]?.iconId ?? '')) === color;
+}
+
+function iconFilterImage(type: string) {
+	const pngFallbacks = Object.freeze({
+		'20034': '20034.webp',
+		'20094': '20094.webp'
+	});
+	const file = pngFallbacks[type] ?? (type.length >= 5 ? `${type}.png` : `${type}1.png`);
+	return umaToolsAsset(`icons/${file}`);
+}
+
 const groups_filters = Object.freeze({
-	'rarity': ['white', 'gold', 'pink', 'unique', 'inherit'],
-	'icontype': ['1001', '1002', '1003', '1004', '1005', '1006', '4001', '2002', '2001', '2004', '2005', '2006', '2009', '3001', '3002', '3004', '3005', '3007'],
+	'color': ['passive', 'stamina', 'movement', 'debuffer', 'debuffed'],
+	'rarity': ['white', 'gold', 'inherit'],
+	'icontype': ['1001', '1002', '1003', '1004', '1005', '1006', '4001', '2002', '2001', '2004', '2005', '2006', '2009', '3001', '3002', '3004', '3005', '3007', '10014', '10024', '10034', '10044', '10054', '20014', '20024', '20034', '20044', '20064', '20094'],
 	'strategy': ['nige', 'senkou', 'sasi', 'oikomi'],
 	'distance': ['short', 'mile', 'medium', 'long'],
 	'surface': ['turf', 'dirt'],
 	'location': ['phase0', 'phase1', 'phase2', 'phase3', 'finalcorner', 'finalstraight']
 });
 
-function textSearch(id: string, searchText: string, searchConditions: boolean) {
+function parseConditionSearchOp(searchText: string) {
+	try {
+		const op = C(searchText);
+		// Bare integers (e.g. "564") are not valid condition queries and treeMatch throws on them.
+		if (op.type == NodeType.Int) return null;
+		return op;
+	} catch (_) {
+		return null;
+	}
+}
+
+function skillIdMatches(id: string, searchText: string) {
+	const query = searchText.trim();
+	if (!query || !/^\d+$/.test(query)) return false;
+	return id === query || id.includes(query);
+}
+
+function textSearch(id: string, searchText: string, searchConditions: boolean, conditionOp: ReturnType<typeof parseConditionSearchOp>) {
 	const needle = searchText.toUpperCase();
 	if ((skillnames[id] || []).some(s => s.toUpperCase().indexOf(needle) > -1)) {
 		return 1;
-	} else if (searchConditions) {
-		let op = null;
+	}
+	if (skillIdMatches(id, searchText)) {
+		return 1;
+	}
+	if (searchConditions && conditionOp) {
 		try {
-			op = C(searchText);
+			return parsedConditions[id].some(alt => Matcher.treeMatch(conditionOp, alt)) ? 2 : 0;
 		} catch (_) {
 			return 0;
 		}
-		return parsedConditions[id].some(alt => Matcher.treeMatch(op, alt)) ? 2 : 0;
-	} else {
-		return 0;
 	}
+	return 0;
+}
+
+export const SKILL_ICON_TYPE_FILTERS = groups_filters.icontype;
+export const SKILL_RARITY_FILTERS = groups_filters.rarity;
+export const SKILL_RARITY_FILTER_LABELS = Object.freeze({
+	white: 'Regular Skills',
+	gold: 'Gold Skills',
+	inherit: 'Inherited Uniques'
+});
+
+export type SkillIconTypeFilterState = {[key: string]: boolean};
+export type SkillRarityFilterState = {[key: string]: boolean};
+
+export function createInitialIconTypeFilterState(options?: {
+	deselectPurple?: boolean;
+	deselectIcons?: readonly string[];
+}): SkillIconTypeFilterState {
+	const deselected = new Set(options?.deselectIcons || []);
+	if (options?.deselectPurple) {
+		purpleIconFilters.forEach(filter => deselected.add(filter));
+	}
+	const state: SkillIconTypeFilterState = {};
+	SKILL_ICON_TYPE_FILTERS.forEach(filter => {
+		state[filter] = !deselected.has(filter);
+	});
+	return state;
+}
+
+export function createInitialRarityFilterState(): SkillRarityFilterState {
+	const state: SkillRarityFilterState = {};
+	SKILL_RARITY_FILTERS.forEach(filter => {
+		state[filter] = true;
+	});
+	return state;
+}
+
+function filterStatesEqual(a: {[key: string]: boolean}, b: {[key: string]: boolean}, keys: readonly string[]) {
+	return keys.every(f => !!a[f] === !!b[f]);
+}
+
+function toggleMultiFilterState(
+	filterActive: {[key: string]: boolean},
+	keys: readonly string[],
+	filter: string,
+	options?: {
+		soloWhenAllOn?: boolean;
+		soloWhenMatches?: {[key: string]: boolean};
+		emptyFallback?: {[key: string]: boolean};
+	}
+) {
+	const next = { ...filterActive };
+	const soloWhenAllOn = options?.soloWhenAllOn !== false;
+	const isFullSelection = (soloWhenAllOn && keys.every(f => filterActive[f]))
+		|| (options?.soloWhenMatches != null && filterStatesEqual(filterActive, options.soloWhenMatches, keys));
+	if (isFullSelection) {
+		keys.forEach(f => {
+			next[f] = f == filter;
+		});
+		return next;
+	}
+	next[filter] = !filterActive[filter];
+	if (!keys.some(f => next[f])) {
+		if (options?.emptyFallback) {
+			return { ...options.emptyFallback };
+		}
+		keys.forEach(f => {
+			next[f] = true;
+		});
+	}
+	return next;
+}
+
+export function nextIconTypeFilterState(
+	filterActive: SkillIconTypeFilterState,
+	filter: string,
+	options?: {
+		soloWhenAllOn?: boolean;
+		soloWhenMatches?: SkillIconTypeFilterState;
+		emptyFallback?: SkillIconTypeFilterState;
+	}
+): SkillIconTypeFilterState {
+	return toggleMultiFilterState(filterActive, SKILL_ICON_TYPE_FILTERS, filter, options);
+}
+
+export function nextRarityFilterState(
+	filterActive: SkillRarityFilterState,
+	filter: string,
+	options?: {
+		soloWhenAllOn?: boolean;
+		soloWhenMatches?: SkillRarityFilterState;
+		emptyFallback?: SkillRarityFilterState;
+	}
+): SkillRarityFilterState {
+	return toggleMultiFilterState(filterActive, SKILL_RARITY_FILTERS, filter, options);
+}
+
+/** True when the skill matches the selected icon types. All selected = no filter. */
+export function skillPassesIconTypeFilters(id: string, filterActive: SkillIconTypeFilterState) {
+	const selected = SKILL_ICON_TYPE_FILTERS.filter(f => filterActive[f]);
+	if (selected.length == 0 || selected.length == SKILL_ICON_TYPE_FILTERS.length) {
+		return true;
+	}
+	const iconId = String(skillmeta[id]?.iconId ?? '');
+	return selected.some(f => matchIconTypeFilter(iconId, f));
+}
+
+/** True when the skill matches the selected rarities. All selected = no filter. */
+export function skillPassesRarityFilters(id: string, filterActive: SkillRarityFilterState) {
+	const selected = SKILL_RARITY_FILTERS.filter(f => filterActive[f]);
+	if (selected.length == 0 || selected.length == SKILL_RARITY_FILTERS.length) {
+		return true;
+	}
+	return selected.some(f => matchRarity(id, f));
+}
+
+const SKILL_ICON_TYPE_PURPLE_START = SKILL_ICON_TYPE_FILTERS.findIndex(filter => purpleIconFilters.has(filter));
+
+export function SkillIconTypeFilter(props: {
+	value: SkillIconTypeFilterState;
+	onChange: (next: SkillIconTypeFilterState) => void;
+	class?: string;
+	soloWhenAllOn?: boolean;
+	soloWhenMatches?: SkillIconTypeFilterState;
+	emptyFallback?: SkillIconTypeFilterState;
+	groupedWrap?: boolean;
+}) {
+	const previousBeforeSoloRef = useRef<SkillIconTypeFilterState | null>(null);
+	const groupedWrap = props.groupedWrap !== false;
+	const purpleStart = SKILL_ICON_TYPE_PURPLE_START < 0 ? SKILL_ICON_TYPE_FILTERS.length : SKILL_ICON_TYPE_PURPLE_START;
+	const primaryFilters = groupedWrap ? SKILL_ICON_TYPE_FILTERS.slice(0, purpleStart) : SKILL_ICON_TYPE_FILTERS;
+	const purpleFilters = groupedWrap ? SKILL_ICON_TYPE_FILTERS.slice(purpleStart) : [];
+
+	function renderFilterButton(type: string) {
+		return (
+			<button
+				type="button"
+				key={type}
+				data-filter={type}
+				class={`iconFilterButton ${props.value[type] ? 'active' : ''}`}
+				style={`background-image:url(${iconFilterImage(type)})`}
+				title={type}
+				onClick={(e) => {
+					e.stopPropagation();
+					const selected = SKILL_ICON_TYPE_FILTERS.filter(f => props.value[f]);
+					const isFullSelection = (props.soloWhenAllOn !== false && SKILL_ICON_TYPE_FILTERS.every(f => props.value[f]))
+						|| (props.soloWhenMatches != null && filterStatesEqual(props.value, props.soloWhenMatches, SKILL_ICON_TYPE_FILTERS));
+
+					if (selected.length === 1 && props.value[type] && previousBeforeSoloRef.current) {
+						props.onChange({ ...previousBeforeSoloRef.current });
+						previousBeforeSoloRef.current = null;
+						return;
+					}
+
+					if (isFullSelection) {
+						previousBeforeSoloRef.current = { ...props.value };
+					} else if (selected.length === 1) {
+						previousBeforeSoloRef.current = null;
+					}
+
+					props.onChange(nextIconTypeFilterState(props.value, type, {
+						soloWhenAllOn: props.soloWhenAllOn,
+						soloWhenMatches: props.soloWhenMatches,
+						emptyFallback: props.emptyFallback
+					}));
+				}}
+			/>
+		);
+	}
+
+	if (!groupedWrap) {
+		return (
+			<div class={`skillIconTypeFilter${props.class ? ` ${props.class}` : ''}`}>
+				{primaryFilters.map(renderFilterButton)}
+			</div>
+		);
+	}
+
+	return (
+		<div class={`skillIconTypeFilterWrap${props.class ? ` ${props.class}` : ''}`}>
+			<div class="skillIconTypeFilter skillIconTypeFilterGroup skillIconTypeFilterGroup--primary">
+				{primaryFilters.map(renderFilterButton)}
+			</div>
+			{purpleFilters.length > 0 && (
+				<div class="skillIconTypeFilter skillIconTypeFilterGroup skillIconTypeFilterGroup--purple">
+					{purpleFilters.map(renderFilterButton)}
+				</div>
+			)}
+		</div>
+	);
+}
+
+export function SkillRarityFilter(props: {
+	value: SkillRarityFilterState;
+	onChange: (next: SkillRarityFilterState) => void;
+	class?: string;
+	filters?: readonly string[];
+	soloWhenAllOn?: boolean;
+	soloWhenMatches?: SkillRarityFilterState;
+	emptyFallback?: SkillRarityFilterState;
+}) {
+	const filters = props.filters || SKILL_RARITY_FILTERS;
+	return (
+		<div class={`skillRarityFilter filterGroup${props.class ? ` ${props.class}` : ''}`} data-filter-group="rarity">
+			{filters.map(filter => (
+				<button
+					type="button"
+					key={filter}
+					data-filter={filter}
+					class={`filterButton app-pill ${props.value[filter] ? 'active' : ''}`}
+					onClick={(e) => {
+						e.stopPropagation();
+						props.onChange(nextRarityFilterState(props.value, filter, {
+							soloWhenAllOn: props.soloWhenAllOn,
+							soloWhenMatches: props.soloWhenMatches,
+							emptyFallback: props.emptyFallback
+						}));
+					}}
+				>
+					{SKILL_RARITY_FILTER_LABELS[filter]}
+				</button>
+			))}
+		</div>
+	);
+}
+
+function createInitialFilterState() {
+	const state = {};
+	Object.keys(groups_filters).forEach(group => {
+		state[group] = {};
+		groups_filters[group].forEach(filter => {
+			state[group][filter] = group == 'icontype';
+		});
+	});
+	return state;
+}
+
+function skillPassesFilters(id: string, filterActive) {
+	return Object.keys(groups_filters).every(group => {
+		let check = groups_filters[group].filter(f => filterActive[group][f]);
+		// All icon types selected = no icon filter (matches initial unfiltered view).
+		if (group == 'icontype' && check.length == groups_filters.icontype.length) {
+			check = [];
+		}
+		if (check.length == 0) return true;
+		if (group == 'rarity') return check.some(f => matchRarity(id, f));
+		if (group == 'color') return check.some(f => matchSkillColor(id, f));
+		if (group == 'icontype') {
+			return skillPassesIconTypeFilters(id, filterActive.icontype);
+		}
+		return check.some(f => filterOps[f].some(op => parsedConditions[id].some(alt => Matcher.treeMatch(op, alt))));
+	});
+}
+
+function computeVisibleIds(ids: readonly string[], searchText: string, filterActive) {
+	const filtered = new Set<string>();
+	const conditionOp = searchText.length > 0 ? parseConditionSearchOp(searchText) : null;
+	let allowConditionSearch = true;
+	ids.forEach(id => {
+		const passesTextSearch = searchText.length > 0 ? textSearch(id, searchText, allowConditionSearch, conditionOp) : 3;
+		if (allowConditionSearch && passesTextSearch == 1) {
+			allowConditionSearch = false;
+		}
+		if (passesTextSearch && skillPassesFilters(id, filterActive)) {
+			filtered.add(id);
+		}
+	});
+	return filtered;
+}
+
+function nextFilterState(filterActive, group: string, filter: string) {
+	const next = { ...filterActive, [group]: { ...filterActive[group] } };
+	if (group == 'icontype') {
+		next.icontype = nextIconTypeFilterState(filterActive.icontype, filter);
+		return next;
+	}
+	const turnOn = !filterActive[group][filter];
+	Object.keys(next[group]).forEach(k => {
+		next[group][k] = k == filter ? turnOn : false;
+	});
+	return next;
 }
 
 export function SkillList(props) {
 	const lang = useLanguage();
-	const [visible, setVisible] = useState(() => new Set(props.ids));
+	const strings = lang == 'ja' ? STRINGS_ja : STRINGS_en;
 	const allowRelatedSkillCoexistence = props.allowRelatedSkillCoexistence === true;
-	const active = {}, setActive = {};
-	Object.keys(groups_filters).forEach(group => {
-		active[group] = {};
-		setActive[group] = {};
-		groups_filters[group].forEach(filter => {
-			const [active_, setActive_] = useState(group == 'icontype');
-			active[group][filter] = active_;
-			setActive[group][filter] = setActive_;
-		});
-	});
-	const searchInput = useRef(null);
+	const [filterActive, setFilterActive] = useState(createInitialFilterState);
+	const searchInput = useRef<HTMLInputElement>(null);
 	const [searchText, setSearchText] = useState('');
+
+	const visible = useMemo(
+		() => computeVisibleIds(props.ids, searchText, filterActive),
+		[props.ids, searchText, filterActive]
+	);
 
 	useEffect(function () {
 		if (props.isOpen && searchInput.current) {
@@ -684,110 +1422,165 @@ export function SkillList(props) {
 		props.setSelected(newSelected);
 	}
 
-	function updateFilters(e) {
-		if (e.target.tagName != 'BUTTON' && e.target.tagName != 'INPUT') return;
+	function handleSearchInput(e) {
 		e.stopPropagation();
-		const group = e.target.parentElement.dataset.filterGroup;
-		const filter = e.target.dataset.filter;
-		let newSearchText = searchText;
-		if (group == 'search') {
-			newSearchText = e.target.value;
-			setSearchText(newSearchText);
-		} else if (group == 'icontype') {
-			if (groups_filters.icontype.every(f => active.icontype[f])) {
-				groups_filters.icontype.forEach(f => f != filter && setActive.icontype[f](active.icontype[f] = false));
+		setSearchText(e.currentTarget.value);
+	}
+
+	function handleFilterClick(group: string, filter: string) {
+		setFilterActive(prev => nextFilterState(prev, group, filter));
+	}
+
+	function handleResetFilters(e) {
+		e.stopPropagation();
+		setFilterActive(createInitialFilterState());
+		setSearchText('');
+	}
+
+	function handleAddAllVisible(e) {
+		e.stopPropagation();
+		if (visible.size === 0) return;
+		let newSelected = props.selected;
+		let ndebuffs = props.selected.count(isDebuffSkill);
+		visible.forEach(id => {
+			if (allowRelatedSkillCoexistence) {
+				newSelected = newSelected.set(id, id);
+			} else if (isDebuffSkill(id)) {
+				newSelected = newSelected.set(skillmeta[id].groupId + '-' + ndebuffs, id);
+				ndebuffs++;
 			} else {
-				setActive.icontype[filter](active.icontype[filter] = !active.icontype[filter]);
-				if (!groups_filters.icontype.some(f => active.icontype[f])) {
-					groups_filters.icontype.forEach(f => setActive.icontype[f](active.icontype[f] = true));
-				}
-			}
-		} else {
-			setActive[group][filter](active[group][filter]);
-			Object.keys(active[group]).forEach(k => setActive[group][k](active[group][k] = !active[group][k] && k == filter))
-		}
-		const filtered = new Set();
-		let allowConditionSearch = true;
-		props.ids.forEach(id => {
-			// if any names match, don't search conditions
-			const passesTextSearch = newSearchText.length > 0 ? textSearch(id, newSearchText, allowConditionSearch) : 3;
-			if (allowConditionSearch && passesTextSearch == 1) {  // name matches
-				allowConditionSearch = false;
-			}
-			const pass = passesTextSearch && Object.keys(groups_filters).every(group => {
-				const check = groups_filters[group].filter(f => active[group][f]);
-				if (check.length == 0) return true;
-				if (group == 'rarity') return check.some(f => matchRarity(id, f));
-				else if (group == 'icontype') return check.some(f => iconIdPrefixes[f].some(p => skillmeta[id].iconId.startsWith(p)));
-				return check.some(f => filterOps[f].some(op => parsedConditions[id].some(alt => Matcher.treeMatch(op, alt))));
-			});
-			if (pass) {
-				filtered.add(id);
+				newSelected = newSelected.set(skillmeta[id].groupId, id);
 			}
 		});
-		setVisible(filtered);
+		props.setSelected(newSelected);
 	}
 
 	function FilterGroup(props) {
-		return <div data-filter-group={props.group}>{props.children.map(c => cloneElement(c, {group: props.group}))}</div>;
+		return (
+			<div class="filterGroup" data-filter-group={props.group}>
+				{toChildArray(props.children).map(child => cloneElement(child, { group: props.group, onFilterClick: handleFilterClick }))}
+			</div>
+		);
 	}
 
 	function FilterButton(props) {
-		return <button data-filter={props.filter} class={`filterButton ${active[props.group][props.filter] ? 'active' : ''}`}><Text id={`skillfilters.${props.filter}`} /></button>
+		return (
+			<button
+				type="button"
+				data-filter={props.filter}
+				class={`filterButton app-pill ${filterActive[props.group][props.filter] ? 'active' : ''}`}
+				onClick={(e) => { e.stopPropagation(); props.onFilterClick(props.group, props.filter); }}
+			>
+				<Text id={`skillfilters.${props.filter}`} />
+			</button>
+		);
 	}
 	
 	function IconFilterButton(props) {
-		return <button data-filter={props.type} class={`iconFilterButton ${active[props.group][props.type] ? 'active': ''}`} style={`background-image:url(${umaToolsAsset(`icons/${props.type}1.png`)})`}></button>
+		return (
+			<button
+				type="button"
+				data-filter={props.type}
+				class={`iconFilterButton ${filterActive[props.group][props.type] ? 'active' : ''}`}
+				style={`background-image:url(${iconFilterImage(props.type)})`}
+				title={props.type}
+				onClick={(e) => { e.stopPropagation(); props.onFilterClick(props.group, props.type); }}
+			/>
+		);
 	}
 
 	const items = useMemo(() => {
-		return props.ids.map(id => (
-			<li key={id} class={visible.has(id) ? '' : 'hidden'}>
-				<Skill id={id} selected={allowRelatedSkillCoexistence ? props.selected.has(id) : props.selected.get(skillmeta[id].groupId) == id} />
-			</li>
-		));
+		return props.ids
+			.filter(id => visible.has(id))
+			.map(id => (
+				<li key={id}>
+					<Skill id={id} selected={allowRelatedSkillCoexistence ? props.selected.has(id) : props.selected.get(skillmeta[id].groupId) == id} />
+				</li>
+			));
 	}, [props.ids, props.selected, visible, allowRelatedSkillCoexistence]);
 	
 	return (
-		<IntlProvider definition={lang == 'ja' ? STRINGS_ja : STRINGS_en}>
-			<div class="filterGroups" onClick={updateFilters}>
-				<div data-filter-group="search">
-					<Localizer><input type="text" class="filterSearch" value={searchText} placeholder={<Text id="skillfilters.search" />} onInput={updateFilters} ref={searchInput} /></Localizer>
+		<IntlProvider definition={strings}>
+			<div class="filterGroups" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+				<div class="filterSearchRow" data-filter-group="search">
+					<input
+						type="search"
+						class="filterSearch"
+						value={searchText}
+						placeholder={strings.skillfilters.search}
+						onInput={handleSearchInput}
+						ref={searchInput}
+					/>
+					{props.showAddAllVisible && (
+						<button
+							type="button"
+							class="filterAddAllVisibleButton app-pill"
+							disabled={visible.size === 0}
+							onClick={handleAddAllVisible}
+						>
+							{strings.skillfilters.addAllVisible}
+						</button>
+					)}
+					<button
+						type="button"
+						class="filterResetButton app-pill"
+						onClick={handleResetFilters}
+					>
+						{strings.skillfilters.reset}
+					</button>
 				</div>
-				<FilterGroup group="rarity">
-					<FilterButton filter="white" />
-					<FilterButton filter="gold" />
-					<FilterButton filter="pink" />
-					<FilterButton filter="unique" />
-					<FilterButton filter="inherit" />
-				</FilterGroup>
-				<FilterGroup group="icontype">
-					{groups_filters['icontype'].map(t => <IconFilterButton type={t} />)}
-				</FilterGroup>
-				<FilterGroup group="strategy">
-					<FilterButton filter="nige" />
-					<FilterButton filter="senkou" />
-					<FilterButton filter="sasi" />
-					<FilterButton filter="oikomi" />
-				</FilterGroup>
-				<FilterGroup group="distance">
-					<FilterButton filter="short" />
-					<FilterButton filter="mile" />
-					<FilterButton filter="medium" />
-					<FilterButton filter="long" />
-				</FilterGroup>
-				<FilterGroup group="surface">
-					<FilterButton filter="turf" />
-					<FilterButton filter="dirt" />
-				</FilterGroup>
-				<FilterGroup group="location">
-					<FilterButton filter="phase0" />
-					<FilterButton filter="phase1" />
-					<FilterButton filter="phase2" />
-					<FilterButton filter="phase3" />
-					<FilterButton filter="finalcorner" />
-					<FilterButton filter="finalstraight" />
-				</FilterGroup>
+				<div class="filterIconSection">
+					<FilterGroup group="icontype">
+						{groups_filters['icontype'].map(t => <IconFilterButton key={t} type={t} />)}
+					</FilterGroup>
+				</div>
+				<div class="filterPillSection">
+					<div class="filterPillRow">
+						<FilterGroup group="color">
+							<FilterButton filter="passive" />
+							<FilterButton filter="stamina" />
+							<FilterButton filter="movement" />
+							<FilterButton filter="debuffer" />
+							<FilterButton filter="debuffed" />
+						</FilterGroup>
+					</div>
+					<div class="filterPillRow">
+						<FilterGroup group="rarity">
+							<FilterButton filter="white" />
+							<FilterButton filter="gold" />
+							<FilterButton filter="inherit" />
+						</FilterGroup>
+						<span class="filterGroupDivider" aria-hidden="true" />
+						<FilterGroup group="strategy">
+							<FilterButton filter="nige" />
+							<FilterButton filter="senkou" />
+							<FilterButton filter="sasi" />
+							<FilterButton filter="oikomi" />
+						</FilterGroup>
+					</div>
+					<div class="filterPillRow">
+						<FilterGroup group="distance">
+							<FilterButton filter="short" />
+							<FilterButton filter="mile" />
+							<FilterButton filter="medium" />
+							<FilterButton filter="long" />
+						</FilterGroup>
+						<span class="filterGroupDivider" aria-hidden="true" />
+						<FilterGroup group="surface">
+							<FilterButton filter="turf" />
+							<FilterButton filter="dirt" />
+						</FilterGroup>
+						<span class="filterGroupDivider" aria-hidden="true" />
+						<FilterGroup group="location">
+							<FilterButton filter="phase0" />
+							<FilterButton filter="phase1" />
+							<FilterButton filter="phase2" />
+							<FilterButton filter="phase3" />
+							<FilterButton filter="finalcorner" />
+							<FilterButton filter="finalstraight" />
+						</FilterGroup>
+					</div>
+				</div>
 			</div>
 			<ul class="skillList" onClick={toggleSelected}>{items}</ul>
 		</IntlProvider>

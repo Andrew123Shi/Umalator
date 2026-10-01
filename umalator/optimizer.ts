@@ -17,6 +17,24 @@ export interface OptimizerStats {
 }
 
 export type EvaluationMethod = 'mean' | 'median' | 'aggregate';
+export type OptimizerMaxStats = OptimizerStats | number;
+
+function resolveMaxStats(maxStat: OptimizerMaxStats): OptimizerStats {
+	if (typeof maxStat === 'number') {
+		return {speed: maxStat, stamina: maxStat, power: maxStat, guts: maxStat, wisdom: maxStat};
+	}
+	return maxStat;
+}
+
+function clampStat(value: number, minStat: number, maxStat: number) {
+	return Math.max(minStat, Math.min(maxStat, value));
+}
+
+function randomStat(minStat: number, maxStat: number, rng: () => number) {
+	const lo = Math.min(minStat, maxStat);
+	const hi = Math.max(minStat, maxStat);
+	return Math.floor(rng() * (hi - lo + 1)) + lo;
+}
 
 export interface OptimizerIteration {
 	iteration: number;
@@ -57,16 +75,17 @@ function generateRandomStats(
 	uniqueLevel: number,
 	maxCareerRating: number,
 	minStat: number,
-	maxStat: number,
+	maxStat: OptimizerMaxStats,
 	rng: () => number
 ): OptimizerStats | null {
+	const maxStats = resolveMaxStats(maxStat);
 	for (let attempt = 0; attempt < 1000; attempt++) {
 		const stats: OptimizerStats = {
-			speed: Math.floor(rng() * (maxStat - minStat + 1)) + minStat,
-			stamina: Math.floor(rng() * (maxStat - minStat + 1)) + minStat,
-			power: Math.floor(rng() * (maxStat - minStat + 1)) + minStat,
-			guts: Math.floor(rng() * (maxStat - minStat + 1)) + minStat,
-			wisdom: Math.floor(rng() * (maxStat - minStat + 1)) + minStat,
+			speed: randomStat(minStat, maxStats.speed, rng),
+			stamina: randomStat(minStat, maxStats.stamina, rng),
+			power: randomStat(minStat, maxStats.power, rng),
+			guts: randomStat(minStat, maxStats.guts, rng),
+			wisdom: randomStat(minStat, maxStats.wisdom, rng),
 		};
 		
 		const rating = calculateRatingBreakdown(stats, skillScore, starLevel, uniqueLevel);
@@ -87,27 +106,28 @@ function mutateStats(
 	uniqueLevel: number,
 	maxCareerRating: number,
 	minStat: number,
-	maxStat: number,
+	maxStat: OptimizerMaxStats,
 	mutationRate: number,
 	mutationAmount: number,
 	rng: () => number
 ): OptimizerStats | null {
+	const maxStats = resolveMaxStats(maxStat);
 	const mutated = { ...stats };
 	const bigJumpChance = 0.05;
 	
 	// Randomly mutate some stats
-	if (rng() < mutationRate) mutated.speed = Math.max(minStat, Math.min(maxStat, mutated.speed + (rng() < 0.5 ? -mutationAmount : mutationAmount)));
-	if (rng() < mutationRate) mutated.stamina = Math.max(minStat, Math.min(maxStat, mutated.stamina + (rng() < 0.5 ? -mutationAmount : mutationAmount)));
-	if (rng() < mutationRate) mutated.power = Math.max(minStat, Math.min(maxStat, mutated.power + (rng() < 0.5 ? -mutationAmount : mutationAmount)));
-	if (rng() < mutationRate) mutated.guts = Math.max(minStat, Math.min(maxStat, mutated.guts + (rng() < 0.5 ? -mutationAmount : mutationAmount)));
-	if (rng() < mutationRate) mutated.wisdom = Math.max(minStat, Math.min(maxStat, mutated.wisdom + (rng() < 0.5 ? -mutationAmount : mutationAmount)));
+	if (rng() < mutationRate) mutated.speed = clampStat(mutated.speed + (rng() < 0.5 ? -mutationAmount : mutationAmount), minStat, maxStats.speed);
+	if (rng() < mutationRate) mutated.stamina = clampStat(mutated.stamina + (rng() < 0.5 ? -mutationAmount : mutationAmount), minStat, maxStats.stamina);
+	if (rng() < mutationRate) mutated.power = clampStat(mutated.power + (rng() < 0.5 ? -mutationAmount : mutationAmount), minStat, maxStats.power);
+	if (rng() < mutationRate) mutated.guts = clampStat(mutated.guts + (rng() < 0.5 ? -mutationAmount : mutationAmount), minStat, maxStats.guts);
+	if (rng() < mutationRate) mutated.wisdom = clampStat(mutated.wisdom + (rng() < 0.5 ? -mutationAmount : mutationAmount), minStat, maxStats.wisdom);
 
 	// Occasionally apply a larger local jump to escape local minima
 	if (rng() < bigJumpChance) {
 		const statKeys: Array<keyof OptimizerStats> = ['speed', 'stamina', 'power', 'guts', 'wisdom'];
 		const key = statKeys[Math.floor(rng() * statKeys.length)];
 		const jump = Math.floor((rng() * 4 - 2) * mutationAmount);
-		mutated[key] = Math.max(minStat, Math.min(maxStat, mutated[key] + jump));
+		mutated[key] = clampStat(mutated[key] + jump, minStat, maxStats[key]);
 	}
 	
 	const rating = calculateRatingBreakdown(mutated, skillScore, starLevel, uniqueLevel);
@@ -157,7 +177,6 @@ function evaluateStats(
 		wisdom: stats.wisdom,
 	});
 
-	// Ensure we are in compare mode for correct behavior
 	const compareOptions = {...options, mode: 'compare' as const};
 
 	// Use runComparison to get margin of win distribution and chart data
@@ -191,6 +210,8 @@ function evaluateStats(
 		runData: {
 			...(comparisonResult.runData || {}),
 			__diffs: diffs,
+			__staminaStats: comparisonResult.staminaStats || null,
+			__firstUmaStats: comparisonResult.firstUmaStats || null,
 			__marginStats: {
 				min: sorted.length ? sorted[0] : 0,
 				max: sorted.length ? sorted[sorted.length - 1] : 0,
@@ -219,7 +240,7 @@ export async function runOptimization(
 	maxIterations: number = 50,
 	evaluationMethod: EvaluationMethod = 'median',
 	minStat: number = 300,
-	maxStat: number = 1200,
+	maxStat: OptimizerMaxStats = 1200,
 	onInitProgress?: (completed: number, total: number) => void,
 	onProgress?: (iteration: OptimizerIteration) => void,
 	onFinalProgress?: (completed: number, total: number) => void

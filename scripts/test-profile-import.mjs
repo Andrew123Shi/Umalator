@@ -27,7 +27,7 @@ async function loadModule() {
 async function run() {
 	const fixture = JSON.parse(await fs.readFile(fixturePath, 'utf8'));
 	const module = await loadModule();
-	const { parseStatsFromText, getSkillCandidates, outfitIdForUniqueSkill } = module;
+	const { parseStatsFromText, parseStatsFromPositionedTokens, getSkillCandidates, outfitIdForUniqueSkill } = module;
 
 	const stats = parseStatsFromText(fixture.statText);
 	assert.equal(stats.speed, 1200, 'speed should parse from stat line');
@@ -35,6 +35,18 @@ async function run() {
 	assert.equal(stats.power, 1200, 'power should parse from stat line');
 	assert.equal(stats.guts, 500, 'guts should parse from stat line');
 	assert.equal(stats.wisdom, 817, 'wit/wisdom should parse from stat line');
+
+	const statsWithMissingSpeed = parseStatsFromPositionedTokens([
+		{ text: '500', x0: 260, x1: 300 },
+		{ text: '600', x0: 460, x1: 500 },
+		{ text: '700', x0: 660, x1: 700 },
+		{ text: '900', x0: 860, x1: 900 }
+	], { left: 0, width: 1000 });
+	assert.equal(statsWithMissingSpeed.speed, undefined, 'missing speed must not be replaced by stamina');
+	assert.equal(statsWithMissingSpeed.stamina, 500, 'stamina should remain in its horizontal slot');
+	assert.equal(statsWithMissingSpeed.power, 600, 'power should remain in its horizontal slot');
+	assert.equal(statsWithMissingSpeed.guts, 700, 'guts should remain in its horizontal slot');
+	assert.equal(statsWithMissingSpeed.wisdom, 900, 'wisdom should remain in its horizontal slot');
 
 	for (const skillCase of fixture.skills) {
 		const top = getSkillCandidates(skillCase.raw, 1)[0];

@@ -1,9 +1,17 @@
 .langSelect {
-	background: none;
-	border: 1px solid rgb(148, 150, 189);
-	border-radius: 8px;
-	padding: 0.7em;
+	background: var(--app-surface-2);
+	border: 1px solid var(--app-border);
+	border-radius: var(--app-radius-sm);
+	color: var(--app-text-muted);
+	padding: 0.55em 0.75em;
 	position: absolute;
 	right: 10px;
 	top: 10px;
+	transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.langSelect:hover {
+	background: rgba(100, 181, 246, 0.12);
+	border-color: var(--app-border-accent);
+	color: var(--app-accent);
 }

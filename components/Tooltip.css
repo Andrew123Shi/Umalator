@@ -1,14 +1,17 @@
 .hasTooltip {
 	display: inline-block;
 	position: relative;
-	text-decoration: underline dotted;
+	text-decoration: underline dotted var(--app-text-muted);
 }
 
 .tooltip {
-	background: black;
-	border-radius: 6px;
+	backdrop-filter: blur(10px);
+	background: rgba(9, 13, 20, 0.94);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 0.55rem;
 	box-sizing: border-box;
-	color: white;
+	box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
+	color: var(--app-text-secondary);
 	display: none;
 	font: normal 14px sans-serif;
 	left: 50%;
@@ -33,7 +36,7 @@
 	bottom: -6px;
 	border-left: 6px solid transparent;
 	border-right: 6px solid transparent;
-	border-top: 6px solid black; 
+	border-top: 6px solid rgba(9, 13, 20, 0.94);
 	height: 0;
 	left: calc(50% - 6px);
 	position: absolute;

@@ -85,7 +85,10 @@ export interface ProfileImportDraft {
 
 const CANONICAL_WIDTH = 1138;
 const STAT_RECT = Object.freeze({ x: 52, y: 490, w: 1063, h: 72 });
-const STAT_SLOT_INSET_X = 14;
+// Stat values occupy the right-hand portion of each slot; the left side is a
+// colored rank badge that can confuse digit-only OCR (especially Speed's SS).
+const STAT_VALUE_LEFT_INSET_PCT = 0.30;
+const STAT_VALUE_RIGHT_INSET_PCT = 0.04;
 const STAT_SLOT_INSET_Y = 8;
 const SKILL_LEFT_TEXT_RECT = Object.freeze({ x: 112, y: 0, w: 438, h: 0 });
 const SKILL_RIGHT_TEXT_RECT = Object.freeze({ x: 647, y: 0, w: 438, h: 0 });
@@ -287,6 +290,51 @@ export function parseStatsFromText(text: string): ProfileImportDraft['stats'] {
 		if (nums[idx] != null) stats[key] = clampStat(nums[idx]);
 	});
 	return stats;
+}
+
+interface PositionedStatToken {
+	text: string;
+	x0: number;
+	x1: number;
+}
+
+export function parseStatsFromPositionedTokens(
+	tokens: PositionedStatToken[],
+	rowRect: Pick<Rect, 'left' | 'width'>
+): ProfileImportDraft['stats'] {
+	const orderedKeys: StatKey[] = ['speed', 'stamina', 'power', 'guts', 'wisdom'];
+	const valuesBySlot: number[][] = orderedKeys.map(() => []);
+	tokens.forEach(token => {
+		const values = Array.from(String(token.text || '').matchAll(/\b(\d{2,4})\b/g))
+			.map(match => Number(match[1]))
+			.filter(value => value >= 1 && value <= 2000);
+		if (!values.length) return;
+		const centerX = (token.x0 + token.x1) / 2;
+		const slotIndex = Math.floor(((centerX - rowRect.left) / rowRect.width) * orderedKeys.length);
+		if (slotIndex < 0 || slotIndex >= orderedKeys.length) return;
+		valuesBySlot[slotIndex].push(...values);
+	});
+	const stats: ProfileImportDraft['stats'] = {};
+	valuesBySlot.forEach((values, index) => {
+		if (values.length) stats[orderedKeys[index]] = clampStat(Math.max(...values));
+	});
+	return stats;
+}
+
+function extractPositionedStatTokens(result: any): PositionedStatToken[] {
+	const blocks = result?.data?.blocks || [];
+	const words = blocks.flatMap((block: any) =>
+		(block?.paragraphs || []).flatMap((paragraph: any) =>
+			(paragraph?.lines || []).flatMap((line: any) => line?.words || [])
+		)
+	);
+	return words
+		.map((word: any) => ({
+			text: String(word?.text || ''),
+			x0: Number(word?.bbox?.x0),
+			x1: Number(word?.bbox?.x1)
+		}))
+		.filter((word: PositionedStatToken) => Number.isFinite(word.x0) && Number.isFinite(word.x1));
 }
 
 function parseUniqueLevel(text: string): number | null {
@@ -562,10 +610,12 @@ async function extractStatsBySlots(canvas: HTMLCanvasElement, worker: any): Prom
 	const orderedKeys: StatKey[] = ['speed', 'stamina', 'power', 'guts', 'wisdom'];
 	const parsed: Partial<Record<StatKey, number>> = {};
 	for (let i = 0; i < orderedKeys.length; i++) {
+		const leftInset = slotWidth * STAT_VALUE_LEFT_INSET_PCT;
+		const rightInset = slotWidth * STAT_VALUE_RIGHT_INSET_PCT;
 		const slot = {
-			x: STAT_RECT.x + (slotWidth * i) + STAT_SLOT_INSET_X,
+			x: STAT_RECT.x + (slotWidth * i) + leftInset,
 			y: STAT_RECT.y + STAT_SLOT_INSET_Y,
-			w: Math.max(20, slotWidth - (STAT_SLOT_INSET_X * 2)),
+			w: Math.max(20, slotWidth - leftInset - rightInset),
 			h: Math.max(20, STAT_RECT.h - (STAT_SLOT_INSET_Y * 2))
 		};
 		const rect = toScaledRect(canvas, slot);
@@ -704,10 +754,21 @@ export async function importProfileFromScreenshots(screenshots: ImportScreenshot
 				stats = { ...slotStats };
 				if (Object.keys(stats).length < 5) {
 					const statRes = await workers.stat.recognize(pp, { rectangle: statRect }, { blocks: true });
-					const fallbackStats = parseStatsFromText(statRes?.data?.text || '');
+					const positionedStats = parseStatsFromPositionedTokens(extractPositionedStatTokens(statRes), statRect);
 					(['speed', 'stamina', 'power', 'guts', 'wisdom'] as StatKey[]).forEach(k => {
-						if (stats[k] == null && fallbackStats[k] != null) stats[k] = fallbackStats[k];
+						if (stats[k] == null && positionedStats[k] != null) stats[k] = positionedStats[k];
 					});
+					// Text-only fallback is safe only when all five values were recognized.
+					// Otherwise a missing value would shift every later stat into the wrong slot.
+					const fallbackValues = Array.from(String(statRes?.data?.text || '').matchAll(/\b(\d{2,4})\b/g))
+						.map(match => Number(match[1]))
+						.filter(value => value >= 1 && value <= 2000);
+					if (fallbackValues.length === 5) {
+						const fallbackStats = parseStatsFromText(statRes?.data?.text || '');
+						(['speed', 'stamina', 'power', 'guts', 'wisdom'] as StatKey[]).forEach(k => {
+							if (stats[k] == null && fallbackStats[k] != null) stats[k] = fallbackStats[k];
+						});
+					}
 				}
 			}
 

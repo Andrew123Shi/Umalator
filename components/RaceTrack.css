@@ -1,7 +1,7 @@
 .distanceMarker {
 	font-weight: 600;
 	paint-order: stroke;
-	stroke: white;
+	stroke: rgba(13, 19, 30, 0.9);
 	stroke-width: 2px;
 }
 
@@ -15,28 +15,95 @@
 	text-anchor: middle;
 }
 
-.racetrackName {
-	color: rgb(121,64,22);
-	font-family: Inter, "Noto Sans JP", sans-serif;
-	font-size: 22px;
-	font-weight: normal;
+.racetrackHeader {
+	align-items: center;
+	display: flex;
+	justify-content: center;
 	margin-bottom: 0.3em;
+	min-height: 28px;
+	position: relative;
+}
+
+.racetrackName {
+	color: var(--app-text-primary);
+	font-family: Inter, "Noto Sans JP", sans-serif;
+	font-size: 18px;
+	font-weight: 750;
 	text-align: center;
-	text-stroke: 1px rgb(121,64,22);
-	-webkit-text-stroke: 1px rgb(121,64,22);
-	text-shadow: -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white, 1px 1px 0 white;
 }
 
 .racetrackStatThresholds {
-	font-size: 0.8em;
-	text-align: center;
+	align-items: center;
+	cursor: help;
+	display: flex;
+	gap: 3px;
+	position: absolute;
+	right: 8px;
+	top: 50%;
+	transform: translateY(-50%);
+}
+
+.racetrackStatThresholds:focus-visible {
+	outline: 2px solid var(--app-accent);
+	outline-offset: 3px;
+}
+
+.racetrackStatThresholds::after {
+	background: rgba(9, 13, 20, 0.98);
+	border: 1px solid var(--app-border-strong);
+	border-radius: var(--app-radius-sm);
+	box-shadow: var(--app-shadow);
+	color: var(--app-text-primary);
+	content: attr(data-tooltip);
+	font-size: 0.72rem;
+	font-weight: 500;
+	line-height: 1.4;
+	opacity: 0;
+	padding: 7px 9px;
+	pointer-events: none;
+	position: absolute;
+	right: 0;
+	text-align: left;
+	top: calc(100% + 8px);
+	transform: translateY(-3px);
+	transition: opacity 0.1s ease, transform 0.1s ease;
+	visibility: hidden;
+	white-space: nowrap;
+	z-index: 1000;
+}
+
+.racetrackStatThresholds:hover::after,
+.racetrackStatThresholds:focus-visible::after {
+	opacity: 1;
+	transform: translateY(0);
+	visibility: visible;
+}
+
+.racetrackStatThresholds > img {
+	display: block;
+	height: 26px;
+	width: 26px;
+}
+
+.racetrackPlotPanel {
+	background: var(--paper-bg);
+	border: 1px solid var(--paper-border);
+	border-radius: var(--app-radius);
+	box-sizing: border-box;
+	overflow: hidden;
+	padding: 6px;
+	width: 100%;
+}
+
+.racetrackPlotPanel .racetrackView {
+	display: block;
 }
 
 .mouseoverText {
 	font-size: 12px;
 	font-weight: 600;
 	paint-order: stroke;
-	stroke: white;
+	stroke: rgba(13, 19, 30, 0.9);
 	stroke-width: 2px;
 }
 
@@ -62,7 +129,7 @@
 .poskeep-label text {
 	font-weight: bold;
 	paint-order: stroke;
-	stroke: white;
+	stroke: rgba(13, 19, 30, 0.85);
 	stroke-width: 1px;
 	filter: drop-shadow(0.5px 0.5px 1px rgba(0, 0, 0, 0.3)) opacity(1) !important;
 }

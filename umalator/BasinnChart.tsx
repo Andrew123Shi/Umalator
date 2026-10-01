@@ -1,5 +1,5 @@
 import { h, Fragment } from 'preact';
-import { useState, useMemo, useId, useRef } from 'preact/hooks';
+import { useState, useMemo, useRef, useEffect } from 'preact/hooks';
 import { Text, Localizer } from 'preact-i18n';
 
 import {
@@ -14,6 +14,8 @@ import { getParser } from '../uma-skill-tools/ConditionParser';
 import { buildBaseStats, buildSkillData, Perspective } from '../uma-skill-tools/RaceSolverBuilder';
 
 import type { HorseState } from '../components/HorseDef';
+import { useLanguage } from '../components/Language';
+import { visualScale } from '../components/uiScale';
 import { runComparison } from './compare';
 
 import './BasinnChart.css';
@@ -51,12 +53,18 @@ function umaForUniqueSkill(skillId: string): string | null {
 	return null;
 }
 
+import { RUNAWAY_STYLE_SKILL_ID } from '../uma-skill-tools/SkillConstants';
+
+export { RUNAWAY_STYLE_SKILL_ID };
+
 export function getActivateableSkills(skills: string[], horse: HorseState, course: CourseData, racedef: RaceParameters) {
 	const parser = getParser();
 	const h2 = buildBaseStats(horse, horse.mood);
 	const wholeCourse = new RegionList();
 	wholeCourse.push(new Region(0, course.distance));
 	return skills.filter(id => {
+		// Always include Runaway: chart compares style change, not skill activation regions.
+		if (id === RUNAWAY_STYLE_SKILL_ID) return true;
 		let sd;
 		try {
 			sd = buildSkillData(h2, racedef, course, wholeCourse, parser, id, Perspective.Any);
@@ -71,20 +79,78 @@ export function getNullRow(skillid: string) {
 	return {id: skillid, min: 0, max: 0, mean: 0, median: 0, results: [], runData: null};
 }
 
-function formatBasinn(info) {
-	return info.getValue().toFixed(2).replace('-0.00', '0.00') + ' L';
+function formatChartValue(value: number) {
+	if (!Number.isFinite(value)) return '—';
+	return value.toFixed(2).replace('-0.00', '0.00');
+}
+
+function quantile(sorted: number[], p: number) {
+	if (sorted.length == 0) return 0;
+	const index = (sorted.length - 1) * p;
+	const lower = Math.floor(index);
+	const upper = Math.ceil(index);
+	if (lower == upper) return sorted[lower];
+	return sorted[lower] + (sorted[upper] - sorted[lower]) * (index - lower);
+}
+
+function DistributionCell({row, maxAbs}: {row: any, maxAbs: number}) {
+	const values = [...(row.results || [])].filter(Number.isFinite).sort((a, b) => a - b);
+	const min = Number.isFinite(row.min) ? row.min : (values[0] || 0);
+	const max = Number.isFinite(row.max) ? row.max : (values[values.length - 1] || 0);
+	const q1 = quantile(values, 0.25);
+	const q3 = quantile(values, 0.75);
+	const median = Number.isFinite(row.median) ? row.median : quantile(values, 0.5);
+	const mean = Number.isFinite(row.mean) ? row.mean : 0;
+	const position = (value: number) => Math.max(0, Math.min(100, 50 + (value / maxAbs) * 50));
+	const meanWidth = Math.min(50, Math.abs(mean) / maxAbs * 50);
+	const meanLeft = mean < 0 ? 50 - meanWidth : 50;
+	const meanClass = mean < 0 ? 'negativeMean' : mean > 0 ? 'positiveMean' : 'isEven';
+
+	return (
+		<div class="raceContextPlot skillDistributionPlot" aria-label={`Mean ${formatChartValue(mean)}, median ${formatChartValue(median)}, IQR ${formatChartValue(q1)} to ${formatChartValue(q3)}`}>
+			<div
+				class="raceContextRange"
+				style={`left:${position(min)}%;width:${Math.max(1, position(max) - position(min))}%`}
+			/>
+			<div
+				class={`raceContextMean ${meanClass}`}
+				style={`left:${meanLeft}%;width:${meanWidth > 0 ? Math.max(meanWidth, 0.5) : 0}%`}
+			/>
+			<div class="raceContextCenter" />
+			<div class="raceContextQuartile" style={`left:${position(q1)}%`} />
+			<div class="raceContextQuartile" style={`left:${position(q3)}%`} />
+			<div class="raceContextMedian" style={`left:${position(median)}%`} />
+		</div>
+	);
+}
+
+const SKILL_CIRCLE_RE = /([◎○◯●◉〇])/g;
+
+function SkillNameText({id, owned = false}: {id: string, owned?: boolean}) {
+	const lang = useLanguage();
+	// Match app.tsx IntlProvider: English UI uses EN names; ja / en-ja use JP names.
+	const langid = +(lang == 'en');
+	const name = skillnames[id]?.[langid] ?? id;
+	if (!owned) return name;
+	return name.split(SKILL_CIRCLE_RE).map((part, i) => {
+		if (!part) return null;
+		if (/^[◎○◯●◉〇]$/.test(part)) {
+			return <span class="chartSkillCircle" key={i}>{part}</span>;
+		}
+		return <span class="chartSkillNameText" key={i}>{part}</span>;
+	});
 }
 
 function SkillNameCell(props) {
-	const { id, showUmaIcons = false } = props;
+	const { id, showUmaIcons = false, owned = false } = props;
 	
 	if (showUmaIcons) {
 		const umaId = umaForUniqueSkill(id);
 		if (umaId && icons[umaId]) {
 			return (
 				<div class="chartSkillName">
-					<img src={withBasePath(icons[umaId])} />
-					<span><Text id={`skillnames.${id}`} /></span>
+					<img src={withBasePath(icons[umaId])} title="View skill details" />
+					<span class="chartSkillLabel"><SkillNameText id={id} owned={owned} /></span>
 				</div>
 			);
 		}
@@ -92,36 +158,73 @@ function SkillNameCell(props) {
 	
 	return (
 		<div class="chartSkillName">
-			<img src={umaToolsAsset(`icons/${skillmeta[id].iconId}.png`)} />
-			<span><Text id={`skillnames.${id}`} /></span>
+			<img src={umaToolsAsset(`icons/${skillmeta[id].iconId}.png`)} title="View skill details" />
+			<span class="chartSkillLabel"><SkillNameText id={id} owned={owned} /></span>
 		</div>
 	);
 }
 
-function headerRenderer(radioGroup, selectedType, type, text, onClick) {
-	function click(e) {
-		e.stopPropagation();
-		onClick(type);
-	}
-	return (c) => (
-		<div>
-			<input type="radio" name={radioGroup} checked={selectedType == type} title={`Show ${text.toLowerCase()} on chart`} onClick={click} />
-			<span onClick={c.header.column.getToggleSortingHandler()}>{text}</span>
-		</div>
-	);
+const METRIC_COLUMNS = [
+	['min', 'Min'],
+	['max', 'Max'],
+	['mean', 'Mean'],
+	['median', 'Median']
+] as const;
+
+function sortIndicator(sorted: false | 'asc' | 'desc') {
+	return sorted === 'asc' ? ' ▲' : sorted === 'desc' ? ' ▼' : '';
 }
 
 export function BasinnChart(props) {
-	const radioGroup = useId();
 	const [expanded, setExpanded] = useState('');
 	const [selectedType, setSelectedType] = useState('median');
+	const wrapperRef = useRef<HTMLDivElement>(null);
 	const clickTimeoutRef = useRef(null);
 	const lastClickRef = useRef({id: '', time: 0});
+	const [sorting, setSorting] = useState<SortingState>([{id: 'median', desc: true}]);
 
-	function headerClick(type) {
+	useEffect(function () {
+		if (props.selectedSkillId === undefined) return;
+		const next = props.selectedSkillId || '';
+		if (next !== expanded) {
+			setExpanded(next);
+		}
+	}, [props.selectedSkillId]);
+
+	useEffect(function () {
+		if (!props.centerSelectionWhenHidden || !props.selectedSkillId) return;
+		const frame = requestAnimationFrame(() => {
+			const wrapper = wrapperRef.current;
+			const row = wrapper?.querySelector<HTMLTableRowElement>(`tr[data-skillid="${props.selectedSkillId}"]`);
+			if (!wrapper || !row) return;
+			const wrapperRect = wrapper.getBoundingClientRect();
+			const rowRect = row.getBoundingClientRect();
+			const headerBottom = wrapper.querySelector('thead')?.getBoundingClientRect().bottom || wrapperRect.top;
+			const visibleTop = Math.max(wrapperRect.top, headerBottom);
+			const visibleBottom = wrapperRect.bottom;
+			if (rowRect.top >= visibleTop && rowRect.bottom <= visibleBottom) return;
+			const rowCenter = rowRect.top + rowRect.height / 2;
+			const viewportCenter = visibleTop + (visibleBottom - visibleTop) / 2;
+			wrapper.scrollTop += (rowCenter - viewportCenter) / visualScale(wrapper);
+		});
+		return () => cancelAnimationFrame(frame);
+	}, [props.selectedSkillId, props.centerSelectionWhenHidden]);
+
+	function selectMetric(type: string) {
 		setSelectedType(type);
 		props.onRunTypeChange(type + 'run');
 	}
+
+	const distributionScale = useMemo(() => {
+		const values = props.data.flatMap(row => (row.results || []).filter(Number.isFinite));
+		if (values.length == 0) return 0.01;
+		if (values.length == 1) return Math.max(Math.abs(values[0]), 0.01);
+		const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+		const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+		const std = Math.sqrt(variance);
+		if (std == 0) return Math.max(...values.map(Math.abs), 0.01);
+		return Math.max(Math.abs(mean - 3 * std), Math.abs(mean + 3 * std), 0.01);
+	}, [props.data]);
 
 	function toggleExpand(skillId) {
 		if (expanded === skillId) {
@@ -129,40 +232,56 @@ export function BasinnChart(props) {
 			props.onSelectionChange('');
 		} else {
 			setExpanded(skillId);
-			props.onSelectionChange(skillId);
+			props.onSelectionChange(skillId, selectedType + 'run');
 		}
+	}
+
+	function selectSkill(skillId) {
+		setExpanded(skillId);
+		props.onSelectionChange(skillId, selectedType + 'run');
 	}
 
 	const columns = useMemo(() => [{
 		header: ({ column }) => (
-			<span onClick={column.getToggleSortingHandler()}>Skill Name</span>
+			<span onClick={column.getToggleSortingHandler()}>
+				Skill{sortIndicator(column.getIsSorted())}
+			</span>
 		),
 		id: 'skillName',
 		accessorFn: (row) => skillnames[row.id]?.[0] || row.id,
-		cell: (info) => <SkillNameCell id={info.row.original.id} showUmaIcons={props.showUmaIcons} />,
+		cell: (info) => (
+			<SkillNameCell
+				id={info.row.original.id}
+				showUmaIcons={props.showUmaIcons}
+				owned={props.ownedSkills?.has?.(info.row.original.id)}
+			/>
+		),
 		sortingFn: 'alphanumeric'
 	}, {
-		header: headerRenderer(radioGroup, selectedType, 'min', 'Minimum', headerClick),
-		accessorKey: 'min',
-		cell: formatBasinn
-	}, {
-		header: headerRenderer(radioGroup, selectedType, 'max', 'Maximum', headerClick),
-		accessorKey: 'max',
-		cell: formatBasinn,
+		header: () => <span>Finish Margin</span>,
+		id: 'distribution',
+		accessorFn: (row) => row[selectedType],
+		cell: (info) => <DistributionCell row={info.row.original} maxAbs={distributionScale} />,
+		enableSorting: false
+	}, ...METRIC_COLUMNS.map(([type, label]) => ({
+		header: ({column}) => (
+			<span
+				class={`chartMetricHeaderLabel chartMetricHeaderLabel--${type}${selectedType == type ? ' is-selected' : ''}`}
+				onClick={(e) => {
+					e.stopPropagation();
+					selectMetric(type);
+					const handler = column.getToggleSortingHandler();
+					if (handler) handler(e);
+				}}
+			>
+				{label}{sortIndicator(column.getIsSorted())}
+			</span>
+		),
+		id: type,
+		accessorKey: type,
+		cell: (info) => <span class="chartMetricValue">{formatChartValue(info.getValue())}</span>,
 		sortDescFirst: true
-	}, {
-		header: headerRenderer(radioGroup, selectedType, 'mean', 'Mean', headerClick),
-		accessorKey: 'mean',
-		cell: formatBasinn,
-		sortDescFirst: true
-	}, {
-		header: headerRenderer(radioGroup, selectedType, 'median', 'Median', headerClick),
-		accessorKey: 'median',
-		cell: formatBasinn,
-		sortDescFirst: true
-	}], [selectedType, props.showUmaIcons]);
-
-	const [sorting, setSorting] = useState<SortingState>([{id: 'median', desc: true}]);
+	}))], [selectedType, props.showUmaIcons, props.ownedSkills, distributionScale]);
 
 	const table = useTable({
 		_features: tableFeatures({rowSortingFeature}),
@@ -179,14 +298,18 @@ export function BasinnChart(props) {
 		if (tr == null) return;
 		e.stopPropagation();
 		const id = tr.dataset.skillid;
-		if (e.target.tagName == 'IMG') {
+		if (e.target.closest('img')) {
+			selectSkill(id);
 			props.onInfoClick(id);
 			return;
 		}
-		
+		if (e.target.closest('th, .columnHeader')) {
+			return;
+		}
+
 		const now = Date.now();
 		const isDoubleClick = lastClickRef.current.id === id && (now - lastClickRef.current.time) < 300;
-		
+
 		if (clickTimeoutRef.current) {
 			clearTimeout(clickTimeoutRef.current);
 			clickTimeoutRef.current = null;
@@ -195,7 +318,7 @@ export function BasinnChart(props) {
 			}
 			return;
 		}
-		
+
 		lastClickRef.current = {id, time: now};
 		clickTimeoutRef.current = setTimeout(() => {
 			clickTimeoutRef.current = null;
@@ -226,26 +349,15 @@ export function BasinnChart(props) {
 	}
 
 	return (
-		<div class={`basinnChartWrapper${props.dirty ? ' dirty' : ''}`}>
+		<div ref={wrapperRef} class={`basinnChartWrapper${props.dirty ? ' dirty' : ''}${props.wideSkillColumn ? ' wideSkillColumn' : ''}`}>
 			<table class="basinnChart">
 				<thead>
 					{table.getHeaderGroups().map(headerGroup => (
 						<tr key={headerGroup.id}>
 							{headerGroup.headers.map(header => (
-								<th key={header.id} colSpan={header.colSpan}>
+								<th key={header.id} colSpan={header.colSpan} class={`basinnChartHeader basinnChartHeader--${header.column.id}`}>
 									{!header.isPlaceholder && (
-										<div
-											class={`columnHeader ${({
-												'asc': 'basinnChartSortedAsc',
-												'desc': 'basinnChartSortedDesc',
-												'false': ''
-											})[header.column.getIsSorted()]}`}
-											title={header.column.getCanSort() &&
-												({
-													'asc': 'Sort ascending',
-													'desc': 'Sort descending',
-													'false': 'Clear sort'
-												})[header.column.getNextSortingOrder()]}>
+										<div class="columnHeader">
 											{flexRender(header.column.columnDef.header, header.getContext())}
 										</div>
 									)}
@@ -258,22 +370,18 @@ export function BasinnChart(props) {
 					{table.getRowModel().rows.map(row => {
 						const id = row.original.id;
 						const isExpanded = expanded === id;
-						const rowData = props.data.find(d => d.id === id);
 						return (
-							<Fragment key={row.id}>
-								<tr data-skillid={id} class={isExpanded ? 'expanded' : ''} style={props.hidden.has(id) && 'display:none'}>
-									{row.getAllCells().map(cell => (
-										<td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-									))}
-								</tr>
-								{isExpanded && rowData && rowData.runData && props.expandedContent && (
-									<tr class="expanded-content-row" data-skillid={id}>
-										<td colSpan={row.getAllCells().length}>
-											{props.expandedContent(id, rowData.runData, props.courseDistance)}
-										</td>
-									</tr>
-								)}
-							</Fragment>
+							<tr
+								key={row.id}
+								data-skillid={id}
+								class={`basinnChartRow basinnChartRow--rarity-${skilldata[id]?.rarity || 1}${isExpanded ? ' expanded' : ''}${props.ownedSkills?.has?.(id) ? ' is-owned' : ''}`}
+							>
+								{row.getAllCells().map(cell => (
+									<td key={cell.id} class={`basinnChartCell basinnChartCell--${cell.column.id}`}>
+										{flexRender(cell.column.columnDef.cell, cell.getContext())}
+									</td>
+								))}
+							</tr>
 						);
 					})}
 				</tbody>

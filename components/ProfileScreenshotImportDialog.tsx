@@ -1,4 +1,5 @@
 import { h, Fragment } from 'preact';
+import { createPortal } from 'preact/compat';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Map as ImmMap } from 'immutable';
 
@@ -8,7 +9,8 @@ import skilldata from '../uma-skill-tools/data/skill_data.json';
 import skillmeta from '../umalator/skill_meta.json';
 import skillnames from '../umalator-global/skillnames.json';
 import umas from '../umalator/umas.json';
-import { umaToolsAsset } from './assetPaths';
+import icons from '../icons.json';
+import { umaToolsAsset, withBasePath } from './assetPaths';
 
 interface ScreenshotItem {
 	id: string;
@@ -73,6 +75,7 @@ export function ProfileScreenshotImportDialog(props: ProfileScreenshotImportDial
 	const [otherPickerOpenFor, setOtherPickerOpenFor] = useState<string | null>(null);
 	const [exampleImageFailed, setExampleImageFailed] = useState(false);
 	const inputRef = useRef<HTMLInputElement | null>(null);
+	const suppressResolvedAutoAdvanceRef = useRef(false);
 
 	const unresolved = draft?.unknownSkills || [];
 	const hasUnknowns = unresolved.length > 0;
@@ -218,6 +221,11 @@ export function ProfileScreenshotImportDialog(props: ProfileScreenshotImportDial
 		setOtherPickerOpenFor(activeUnknown.id);
 	}
 
+	function goToPreviousUnknown() {
+		suppressResolvedAutoAdvanceRef.current = true;
+		setUnknownIndex(prev => Math.max(0, prev - 1));
+	}
+
 	function pickOtherSkillFromPicker(selected: any) {
 		if (!otherPickerOpenFor || selected == null) return;
 		const pickedIds = selected.valueSeq().toArray();
@@ -252,6 +260,10 @@ export function ProfileScreenshotImportDialog(props: ProfileScreenshotImportDial
 	const traineeLabel = traineeLabelForOutfit(resolvedDraft?.outfitId || null);
 
 	useEffect(() => {
+		if (suppressResolvedAutoAdvanceRef.current) {
+			suppressResolvedAutoAdvanceRef.current = false;
+			return;
+		}
 		if (allUnknownResolved) return;
 		if (!hasUnknowns || unknownIndex >= unresolved.length) return;
 		const current = unresolved[unknownIndex];
@@ -261,7 +273,7 @@ export function ProfileScreenshotImportDialog(props: ProfileScreenshotImportDial
 		if (next !== unknownIndex) setUnknownIndex(next);
 	}, [allUnknownResolved, hasUnknowns, unknownIndex, unresolved, unknownSelections]);
 
-	return (
+	return createPortal(
 		<>
 			<div class={`profileImportOverlay ${isOpen ? 'open' : ''}`} onClick={onClose} />
 			<div class={`profileImportDialog ${isOpen ? 'open' : ''}`} onPaste={handlePaste as any} tabIndex={0} onClick={(e) => e.stopPropagation()}>
@@ -393,7 +405,6 @@ export function ProfileScreenshotImportDialog(props: ProfileScreenshotImportDial
 											) : (
 												<div class="profileImportUnknownNoCrop">No crop available for this guess; use text + candidates below.</div>
 											)}
-											<div class="profileImportUnknownText">OCR read <strong>"{activeUnknown.rawText || '(empty)'}"</strong></div>
 											<div class="profileImportUnknownCandidates">
 												{activeUnknown.candidates.map(candidate => (
 													<button
@@ -408,10 +419,13 @@ export function ProfileScreenshotImportDialog(props: ProfileScreenshotImportDial
 												))}
 												<button
 													type="button"
-													class={`profileImportSkillCandidateButton skill addSkillButton profileImportOtherOption ${unknownSelections[activeUnknown.id] === OTHER_SELECTION ? 'selected' : ''}`}
+													class={`profileImportSkillCandidateButton ${unknownSelections[activeUnknown.id] === OTHER_SELECTION ? 'selected' : ''}`}
 													onClick={openOtherPicker}
 												>
-													<span>+</span> Other
+													<span class="skill addSkillButton profileImportOtherOption">
+														<span class="profileImportOtherIcon"><span>+</span></span>
+														<span class="skillName">Other</span>
+													</span>
 												</button>
 											</div>
 										</Fragment>
@@ -419,7 +433,7 @@ export function ProfileScreenshotImportDialog(props: ProfileScreenshotImportDial
 									<div class="profileImportUnknownNav">
 										<button
 											class="resetUmaButton"
-											onClick={() => setUnknownIndex(Math.max(0, unknownIndex - 1))}
+											onClick={goToPreviousUnknown}
 											disabled={unknownIndex === 0}
 										>
 											Previous
@@ -442,30 +456,60 @@ export function ProfileScreenshotImportDialog(props: ProfileScreenshotImportDial
 
 							{resolvedDraft && (
 								<div class="profileImportReview">
-									<h4>Review Imported Profile</h4>
-									<div class="profileImportSummaryRow">
-										Trainee:{' '}
+									<div class="profileImportReviewHeader">
+										<h4>Import Summary</h4>
+										<p>Review the detected details before applying.</p>
+									</div>
+									<div class="profileImportTraineeRow">
+										{traineeLabel && (icons as any)[traineeLabel.id] && (
+											<img src={withBasePath((icons as any)[traineeLabel.id])} alt="" />
+										)}
 										<strong>{traineeLabel?.nameWithOutfit || 'Not resolved'}</strong>
-										<span>{traineeLabel ? `(${traineeLabel.id})` : ''}</span>
+										{traineeLabel && <span class="profileImportReviewId">{traineeLabel.id}</span>}
 									</div>
-									<div class="profileImportSummaryRow">
-										Stats:
-										<span>
-											SPD <strong>{resolvedDraft.stats.speed ?? '-'}</strong> / STA <strong>{resolvedDraft.stats.stamina ?? '-'}</strong> / PWR <strong>{resolvedDraft.stats.power ?? '-'}</strong> / GUT <strong>{resolvedDraft.stats.guts ?? '-'}</strong> / WIT <strong>{resolvedDraft.stats.wisdom ?? '-'}</strong>
-										</span>
+									<div class="profileImportReviewSection">
+										<span class="profileImportReviewLabel">Stats</span>
+										<div class="profileImportStatsGrid">
+											{[
+												['speed', 'Speed', resolvedDraft.stats.speed],
+												['stamina', 'Stamina', resolvedDraft.stats.stamina],
+												['power', 'Power', resolvedDraft.stats.power],
+												['guts', 'Guts', resolvedDraft.stats.guts],
+												['wit', 'Wit', resolvedDraft.stats.wisdom]
+											].map(([icon, label, value]) => (
+												<div class="profileImportStatCard" key={icon as string} title={label as string}>
+													<img src={umaToolsAsset(`icons/${icon}.webp`)} alt={label as string} />
+													<strong>{value ?? '-'}</strong>
+												</div>
+											))}
+										</div>
 									</div>
-									<div class="profileImportSummaryRow">Unique Level: <strong>{resolvedDraft.uniqueLevel ?? 'Not detected'}</strong></div>
-									<div class="profileImportSummaryRow">Total Resolved Skills: <strong>{resolvedDraft.skillIds.length}</strong></div>
-									<div class="profileImportSkillPreview">
-										{resolvedDraft.skillIds.map(skillId => (
-											<span key={skillId} class="profileImportSkillPreviewBubble">
-												{skillId}
-												<span class="profileImportSkillHoverCard">
-													<img src={umaToolsAsset(`icons/${(skillmeta as any)[skillId]?.iconId}.png`)} alt="" />
-													<span>{((skillnames as any)[skillId] || [skillId])[0]}</span>
-												</span>
-											</span>
-										))}
+									<div class="profileImportReviewMetaGrid">
+										<div class="profileImportReviewMetaCard">
+											<span>Unique Skill Level Detected</span>
+											<strong>{resolvedDraft.uniqueLevel ?? '—'}</strong>
+										</div>
+										<div class="profileImportReviewMetaCard">
+											<span>Resolved Skills</span>
+											<strong>{resolvedDraft.skillIds.length}</strong>
+										</div>
+									</div>
+									<div class="profileImportReviewSection">
+										<span class="profileImportReviewLabel">Detected Skills</span>
+										<div class="profileImportSkillPreview">
+											{resolvedDraft.skillIds.map(skillId => {
+												const names = (skillnames as any)[skillId] || [];
+												return (
+													<div key={skillId} class="profileImportSkillPreviewCard">
+														<img src={umaToolsAsset(`icons/${(skillmeta as any)[skillId]?.iconId}.png`)} alt="" />
+														<span>
+															<strong>{names[1] || names[0] || skillId}</strong>
+															<small>{skillId}</small>
+														</span>
+													</div>
+												);
+											})}
+										</div>
 									</div>
 								</div>
 							)}
@@ -491,6 +535,7 @@ export function ProfileScreenshotImportDialog(props: ProfileScreenshotImportDial
 					</div>
 				</Fragment>
 			)}
-		</>
+		</>,
+		document.body
 	);
 }

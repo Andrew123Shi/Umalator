@@ -32,6 +32,14 @@ export function umaToolsAsset(relativePath: string): string {
 	return withBasePath(`uma-tools/${normalized}`);
 }
 
+/** App favicon / header icon. Prefer a same-directory relative URL so local
+ *  servers that host umalator/ or umalator-global/ as the document root still
+ *  resolve the file; fall back to withBasePath for GitHub Pages. */
+export function appIconUrl(): string {
+	if (BASE_PATH) return withBasePath('icon.ico');
+	return 'icon.ico';
+}
+
 export function applyAssetCssVars(): void {
 	if (typeof document === 'undefined') return;
 	const rootStyle = document.documentElement.style;

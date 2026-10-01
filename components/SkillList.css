@@ -1,66 +1,451 @@
-.filterButton {
-	background: rgb(214,207,231);
-	border: none;
-	box-shadow: 0 3px 0 rgb(180,178,192);
-	color: rgb(121,64,22);
-	padding: 0.8em;
-	margin: 10px 5px;
-	text-stroke: 1px rgb(121,64,22);
-	-webkit-text-stroke: 1px rgb(121,64,22);
+.filterGroups {
+	background: var(--app-gradient-panel);
+	border: 1px solid var(--app-border);
+	border-radius: var(--app-radius-lg);
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	margin-bottom: 12px;
+	padding: 12px 14px;
 }
 
-.filterButton.active {
-	background: rgb(86,171,51);
-	box-shadow: 0 3px 0 rgb(86,171,51);
-	color: white;
-	text-stroke: 1px white;
-	-webkit-text-stroke: 1px white;
-}
-
-.iconFilterButton {
-	all: unset;
-	background-size: contain;
-	filter: grayscale(1);
-	height: 40px;
-	margin: 5px;
-	width: 40px;
-}
-
-.iconFilterButton.active {
-	filter: none;
+.filterSearchRow {
+	align-items: center;
+	display: flex;
+	gap: 8px;
+	width: 100%;
 }
 
 .filterSearch {
-	margin: 3px 5px;
-	padding: 0.8em;
-	width: calc(100% - 26px);
+	box-sizing: border-box;
+	flex: 1 1 auto;
+	font-size: 0.92em;
+	margin: 0;
+	min-width: 0;
+	padding: 8px 11px;
+	width: auto;
+}
+
+.filterResetButton {
+	background: rgba(247, 124, 124, 0.12);
+	border: 1px solid rgba(247, 124, 124, 0.42);
+	border-radius: 999px;
+	color: #f77c7c;
+	cursor: pointer;
+	flex: 0 0 auto;
+	font: inherit;
+	font-size: 0.82em;
+	font-weight: 650;
+	line-height: 1.15;
+	margin: 0;
+	min-height: 34px;
+	padding: 7px 13px;
+	transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+	white-space: nowrap;
+}
+
+.filterResetButton:hover {
+	background: rgba(247, 124, 124, 0.2);
+	border-color: rgba(247, 124, 124, 0.58);
+	color: #ff9a9a;
+}
+
+.filterAddAllVisibleButton {
+	background: rgba(100, 181, 246, 0.12);
+	border: 1px solid rgba(100, 181, 246, 0.42);
+	border-radius: 999px;
+	color: var(--app-accent);
+	cursor: pointer;
+	flex: 0 0 auto;
+	font: inherit;
+	font-size: 0.82em;
+	font-weight: 650;
+	line-height: 1.15;
+	margin: 0;
+	min-height: 34px;
+	padding: 7px 13px;
+	transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+	white-space: nowrap;
+}
+
+.filterAddAllVisibleButton:hover:not(:disabled) {
+	background: rgba(100, 181, 246, 0.2);
+	border-color: rgba(100, 181, 246, 0.58);
+	color: #90caf9;
+}
+
+.filterAddAllVisibleButton:disabled {
+	cursor: not-allowed;
+	opacity: 0.45;
+}
+
+.filterAddAllVisibleButton:focus-visible {
+	box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.18);
+	outline: none;
+}
+
+.filterResetButton:active {
+	background: rgba(247, 124, 124, 0.28);
+}
+
+.filterResetButton:focus-visible {
+	box-shadow: 0 0 0 3px rgba(247, 124, 124, 0.22);
+	outline: none;
+}
+
+.filterIconSection {
+	border-bottom: 1px solid var(--app-border);
+	padding-bottom: 10px;
+}
+
+.filterIconSection .filterGroup {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.filterPillSection {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.filterPillRow {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 10px;
+}
+
+.filterGroupDivider {
+	align-self: stretch;
+	background: var(--app-border-strong);
+	flex: 0 0 1px;
+	margin: 3px 2px;
+	min-height: 26px;
+	opacity: 0.85;
+	width: 1px;
+}
+
+.filterGroup {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.filterButton {
+	align-items: center;
+	background: var(--app-surface-2);
+	border: 1px solid var(--app-border-strong);
+	border-radius: 999px;
+	color: var(--app-text-secondary);
+	cursor: pointer;
+	display: inline-flex;
+	font: inherit;
+	font-size: 0.84em;
+	font-weight: 650;
+	justify-content: center;
+	line-height: 1.15;
+	margin: 0;
+	min-height: 30px;
+	padding: 6px 12px;
+	transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.filterButton.active {
+	background: rgba(100, 181, 246, 0.14);
+	border-color: var(--app-border-accent);
+	box-shadow: inset 0 0 0 1px rgba(100, 181, 246, 0.28);
+	color: var(--app-accent);
+}
+
+.filterButton:hover {
+	background: rgba(100, 181, 246, 0.1);
+	border-color: var(--app-border-accent);
+	color: var(--app-text-primary);
+}
+
+.filterButton:active {
+	background: rgba(100, 181, 246, 0.2);
+}
+
+.filterButton:focus-visible {
+	box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.18);
+	outline: none;
+}
+
+.filterButton.active:focus-visible {
+	box-shadow: inset 0 0 0 1px rgba(100, 181, 246, 0.28), 0 0 0 3px rgba(100, 181, 246, 0.18);
+}
+
+.filterGroup[data-filter-group="color"] .filterButton[data-filter="passive"].active {
+	background: rgba(135, 210, 57, 0.14);
+	border-color: rgba(135, 210, 57, 0.5);
+	box-shadow: inset 0 0 0 1px rgba(135, 210, 57, 0.26);
+	color: #87d239;
+}
+
+.filterGroup[data-filter-group="color"] .filterButton[data-filter="stamina"].active {
+	background: rgba(24, 208, 252, 0.14);
+	border-color: rgba(24, 208, 252, 0.5);
+	box-shadow: inset 0 0 0 1px rgba(24, 208, 252, 0.26);
+	color: #18d0fc;
+}
+
+.filterGroup[data-filter-group="color"] .filterButton[data-filter="movement"].active {
+	background: rgba(255, 192, 31, 0.15);
+	border-color: rgba(255, 192, 31, 0.52);
+	box-shadow: inset 0 0 0 1px rgba(255, 192, 31, 0.28);
+	color: #ffc01f;
+}
+
+.filterGroup[data-filter-group="color"] .filterButton[data-filter="debuffer"].active {
+	background: rgba(247, 124, 124, 0.14);
+	border-color: rgba(247, 124, 124, 0.5);
+	box-shadow: inset 0 0 0 1px rgba(247, 124, 124, 0.26);
+	color: #f77c7c;
+}
+
+.filterGroup[data-filter-group="color"] .filterButton[data-filter="debuffed"].active {
+	background: rgba(186, 121, 251, 0.14);
+	border-color: rgba(186, 121, 251, 0.5);
+	box-shadow: inset 0 0 0 1px rgba(186, 121, 251, 0.26);
+	color: #ba79fb;
+}
+
+.filterGroup[data-filter-group="rarity"] .filterButton[data-filter="white"].active {
+	background: rgba(255, 255, 255, 0.1);
+	border-color: rgba(255, 255, 255, 0.38);
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+	color: rgba(255, 255, 255, 0.92);
+}
+
+.filterGroup[data-filter-group="rarity"] .filterButton[data-filter="gold"].active {
+	background: rgba(255, 170, 32, 0.16);
+	border-color: rgba(255, 193, 7, 0.48);
+	box-shadow: inset 0 0 0 1px rgba(255, 193, 7, 0.28);
+	color: #ffe08a;
+}
+
+.filterGroup[data-filter-group="rarity"] .filterButton[data-filter="inherit"].active {
+	background:
+		linear-gradient(rgba(34, 28, 14, 0.9), rgba(34, 28, 14, 0.9)) padding-box,
+		linear-gradient(135deg, #ff8a65, #ffd166 30%, #5eead4 58%, #64b5f6 76%, #ce93d8) border-box;
+	border: 1px solid transparent;
+	box-shadow: none;
+	color: #ffe8a6;
+}
+
+.filterGroup[data-filter-group="rarity"] .filterButton[data-filter="inherit"].active:focus-visible {
+	box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.18);
+}
+
+.filterGroup[data-filter-group="strategy"] .filterButton[data-filter="nige"].active {
+	background: rgba(103, 168, 244, 0.16);
+	border-color: rgba(103, 168, 244, 0.48);
+	box-shadow: inset 0 0 0 1px rgba(103, 168, 244, 0.28);
+	color: #67a8f4;
+}
+
+.filterGroup[data-filter-group="strategy"] .filterButton[data-filter="senkou"].active {
+	background: rgba(117, 183, 152, 0.16);
+	border-color: rgba(117, 183, 152, 0.48);
+	box-shadow: inset 0 0 0 1px rgba(117, 183, 152, 0.28);
+	color: #75b798;
+}
+
+.filterGroup[data-filter-group="strategy"] .filterButton[data-filter="sasi"].active {
+	background: rgba(255, 193, 7, 0.16);
+	border-color: rgba(255, 193, 7, 0.48);
+	box-shadow: inset 0 0 0 1px rgba(255, 193, 7, 0.28);
+	color: #ffc107;
+}
+
+.filterGroup[data-filter-group="strategy"] .filterButton[data-filter="oikomi"].active {
+	background: rgba(242, 126, 20, 0.16);
+	border-color: rgba(242, 126, 20, 0.48);
+	box-shadow: inset 0 0 0 1px rgba(242, 126, 20, 0.28);
+	color: #f27e14;
+}
+
+.filterGroup[data-filter-group="distance"] .filterButton[data-filter="short"].active {
+	background: rgba(239, 122, 175, 0.16);
+	border-color: rgba(239, 122, 175, 0.44);
+	box-shadow: inset 0 0 0 1px rgba(239, 122, 175, 0.28);
+	color: #ef7aaf;
+}
+
+.filterGroup[data-filter-group="distance"] .filterButton[data-filter="mile"].active {
+	background: rgba(198, 235, 108, 0.15);
+	border-color: rgba(198, 235, 108, 0.42);
+	box-shadow: inset 0 0 0 1px rgba(198, 235, 108, 0.26);
+	color: #c6eb6c;
+}
+
+.filterGroup[data-filter-group="distance"] .filterButton[data-filter="medium"].active {
+	background: rgba(244, 189, 62, 0.14);
+	border-color: rgba(244, 189, 62, 0.44);
+	box-shadow: inset 0 0 0 1px rgba(244, 189, 62, 0.28);
+	color: #f4bd3e;
+}
+
+.filterGroup[data-filter-group="distance"] .filterButton[data-filter="long"].active {
+	background: rgba(64, 109, 180, 0.18);
+	border-color: rgba(64, 109, 180, 0.46);
+	box-shadow: inset 0 0 0 1px rgba(64, 109, 180, 0.28);
+	color: #6b9fd4;
+}
+
+.filterGroup[data-filter-group="surface"] .filterButton[data-filter="turf"].active {
+	background: rgba(21, 128, 61, 0.22);
+	border-color: rgba(52, 210, 123, 0.38);
+	box-shadow: inset 0 0 0 1px rgba(52, 210, 123, 0.26);
+	color: #34d27b;
+}
+
+.filterGroup[data-filter-group="surface"] .filterButton[data-filter="dirt"].active {
+	background: rgba(120, 78, 48, 0.24);
+	border-color: rgba(176, 120, 72, 0.44);
+	box-shadow: inset 0 0 0 1px rgba(176, 120, 72, 0.28);
+	color: #b07848;
+}
+
+.skillIconTypeFilter {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.skillIconTypeFilterWrap {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	min-width: 0;
+}
+
+.skillIconTypeFilterGroup--primary {
+	flex: 0 0 auto;
+	min-width: 0;
+}
+
+.skillIconTypeFilterGroup--purple {
+	flex: 0 0 auto;
+	flex-wrap: nowrap;
+}
+
+.skillRarityFilter {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.iconFilterButton {
+	appearance: none;
+	background-color: var(--app-surface-2);
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: 28px 28px;
+	border: 1px solid var(--app-border-strong);
+	border-radius: var(--app-radius-sm);
+	cursor: pointer;
+	filter: grayscale(1);
+	flex: 0 0 auto;
+	height: 38px;
+	margin: 0;
+	opacity: 0.68;
+	transition: background-color 0.15s ease, border-color 0.15s ease, filter 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+	width: 38px;
+}
+
+.iconFilterButton.active {
+	background-color: rgba(100, 181, 246, 0.14);
+	border-color: var(--app-border-accent);
+	box-shadow: inset 0 0 0 1px rgba(100, 181, 246, 0.28);
+	filter: none;
+	opacity: 1;
+}
+
+.iconFilterButton:hover {
+	background-color: rgba(100, 181, 246, 0.1);
+	border-color: var(--app-border-accent);
+	filter: none;
+	opacity: 1;
+}
+
+.iconFilterButton:focus-visible {
+	box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.18);
+	outline: none;
 }
 
 .skillList {
+	background: var(--app-surface-1);
+	border: 1px solid var(--app-border);
+	border-radius: var(--app-radius);
 	display: grid;
-	font-size: 16px;
-	gap: 16px 0;
-	grid-template-columns: repeat(auto-fit, 300px);
+	font-size: 15px;
+	gap: 8px;
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
 	list-style-type: none;
-	padding: 0;
+	max-height: 460px;
+	overflow-y: auto;
+	padding: 10px;
+}
+
+.skillList > li {
+	display: block;
+	min-width: 0;
+	width: auto;
+}
+
+.skillList > li.hidden {
+	display: none;
+}
+
+.skillList .skill {
+	box-sizing: border-box;
+	display: flex;
+	max-width: none;
+	min-width: 0;
+	width: 100% !important;
 }
 
 .skill {
+	--skill-border-color: rgba(255, 255, 255, 0.12);
 	align-items: center;
-	border-radius: 8px;
-	border: 2px solid transparent;
-	box-shadow: 0 3px 0 rgb(180,178,192);
+	background: rgba(255, 255, 255, 0.055);
+	border: 1px solid var(--skill-border-color);
+	border-radius: 6px;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
 	box-sizing: border-box;
+	color: rgba(255, 255, 255, 0.78);
+	cursor: pointer;
 	display: flex;
-	height: 3em;
+	font-size: 0.8em;
+	font-weight: 600;
+	gap: 5px;
+	height: 2.35em;
+	line-height: 1;
+	max-width: none;
+	min-width: 0;
 	overflow: hidden;
-	padding: 5px;
-	width: 18em;
+	padding: 0 6px 0 0;
+	transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+	width: 100%;
+}
+
+.skill:hover {
+	/* Rarity classes supply their own hover; this is the white/default fallback. */
+	background: rgba(255, 255, 255, 0.09);
+	border-color: rgba(255, 255, 255, 0.22);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .skill:active {
-	box-shadow: none;
-	filter: brightness(0.95);
+	background: rgba(255, 255, 255, 0.12);
 }
 
 .hidden, .skill.selected {
@@ -68,46 +453,93 @@
 }
 
 .skillName {
-	color: rgb(121,64,22);
+	color: inherit;
 	display: flex;
 	flex: 1;
+	line-height: 1.25;
+	min-width: 0;
 	overflow: hidden;
-	text-stroke: 1px rgb(121,64,22);
-	-webkit-text-stroke: 1px rgb(121,64,22);
-	text-shadow: -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white, 1px 1px 0 white;
+	padding: 0.1em 0;
+	text-overflow: ellipsis;
 	text-wrap: nowrap;
 }
 
 .skillIcon {
-	height: 2.2em;
-	margin: 0 8px 0 0;
-	width: 2.2em;
+	align-self: stretch;
+	flex-shrink: 0;
+	height: 100%;
+	margin: 0;
+	object-fit: contain;
+	width: 2.1em;
 }
 
 .skillDismiss {
-	color: rgb(121,64,22);
+	align-items: center;
+	border-radius: 50%;
+	box-sizing: border-box;
+	color: rgba(255, 255, 255, 0.45);
 	cursor: default;
-	padding: 0 7px;
+	display: inline-flex;
+	flex-shrink: 0;
+	height: 20px;
+	justify-content: center;
+	padding: 0;
+	width: 20px;
 }
 
+.skillDismiss:hover {
+	background: rgba(229, 115, 115, 0.18);
+	color: #ef9a9a;
+}
+
+/* Team Umalysis skill-chip rarity treatments */
 .skill-white {
-	background: linear-gradient(90deg, rgb(255,243,247), rgb(181,178,198)) padding-box,
-							linear-gradient(90deg, rgb(214,207,231), rgb(148,150,189)) border-box;
+	background: rgba(255, 255, 255, 0.055);
+	border-color: rgba(255, 255, 255, 0.12);
+	color: rgba(255, 255, 255, 0.78);
+}
+
+.skill-white:hover {
+	background: rgba(255, 255, 255, 0.09);
+	border-color: rgba(255, 255, 255, 0.22);
 }
 
 .skill-gold {
-	background: linear-gradient(90deg, rgb(255,255,239), rgb(255,190,40)) padding-box,
-							linear-gradient(90deg, rgb(255,223,115), rgb(255,166,16)) border-box;
+	background: rgba(255, 170, 32, 0.13);
+	border-color: rgba(255, 193, 7, 0.38);
+	color: #ffe08a;
 }
 
+.skill-gold:hover {
+	background: rgba(255, 170, 32, 0.2);
+	border-color: rgba(255, 193, 7, 0.55);
+}
+
+/* Inherited unique → Team Umalysis rarity-unique-inherited */
 .skill-pink {
-	background: linear-gradient(90deg, rgb(255,238,239), rgb(255,155,211)) padding-box,
-							linear-gradient(90deg, rgb(255,142,198), rgb(255,89,173)) border-box;
+	background: linear-gradient(135deg, rgba(126, 87, 194, 0.26), rgba(171, 71, 188, 0.2));
+	border-color: rgba(186, 104, 200, 0.42);
+	color: #d7a6e3;
 }
 
+.skill-pink:hover {
+	background: linear-gradient(135deg, rgba(126, 87, 194, 0.34), rgba(171, 71, 188, 0.28));
+	border-color: rgba(186, 104, 200, 0.58);
+}
+
+/* Main unique → Team Umalysis rarity-unique-main (rainbow border) */
 .skill-unique {
-	background: linear-gradient(90deg, rgb(239,255,214), rgb(161,201,248), rgb(170,170,255), rgb(255,186,231)) padding-box,
-							linear-gradient(90deg, rgb(197,255,190), rgb(189,235,255), rgb(195,208,255), rgb(255,138,222)) border-box;
+	background:
+		linear-gradient(rgba(34, 28, 14, 0.9), rgba(34, 28, 14, 0.9)) padding-box,
+		linear-gradient(135deg, #ff8a65, #ffd166 30%, #5eead4 58%, #64b5f6 76%, #ce93d8) border-box;
+	border: 1px solid transparent;
+	color: #ffe8a6;
+}
+
+.skill-unique:hover {
+	background:
+		linear-gradient(rgba(44, 36, 18, 0.95), rgba(44, 36, 18, 0.95)) padding-box,
+		linear-gradient(135deg, #ff8a65, #ffd166 30%, #5eead4 58%, #64b5f6 76%, #ce93d8) border-box;
 }
 
 .skillDetailsList {
@@ -121,107 +553,263 @@
 }
 
 .expandedSkill {
-	border-radius: 8px;
-	border: 2px solid transparent;
+	background: var(--app-gradient-panel);
+	backdrop-filter: blur(12px);
+	border: 1px solid var(--app-border-strong);
+	border-radius: var(--app-radius-lg);
+	box-shadow: var(--app-shadow-lg);
 	box-sizing: border-box;
+	color: var(--app-text-primary);
+	font-size: 0.92em;
+	max-width: 420px;
 	overflow: hidden;
-	padding: 5px;
+	padding: 0;
 }
 
 .expandedSkillHeader {
+	align-items: flex-start;
+	background: rgba(255, 255, 255, 0.025);
+	border-bottom: 1px solid var(--app-border);
+	display: flex;
+	gap: 8px;
+	padding: 10px 36px 10px 12px;
+	position: relative;
+}
+
+.expandedSkillTitleRow {
 	align-items: center;
 	display: flex;
-	height: 2.1em;
-	margin-bottom: 5px;
+	flex: 1 1 auto;
+	gap: 8px;
+	min-width: 0;
 }
 
-.skillDetails {
-	border-style: solid;
-	border-width: 2px 0 0 0;
-	color: rgb(121,64,22);
-}
-
-.skillDetailsSection {
-	border-style: solid;
-	border-width: 0 0 1px 0; 
-	margin-bottom: 8px;
-	padding-bottom: 8px;
-}
-
-.skillDetailsSection:last-child {
-	border: none;
+.expandedSkillHeader .skillIcon {
+	flex-shrink: 0;
+	height: 2em;
 	margin: 0;
-	padding: 0;
+	object-fit: contain;
+	width: 2em;
 }
 
-.skillDetailsSection:first-child {
-	border-width: 0;
+.expandedSkillHeader .skillName {
+	color: inherit;
+	flex: 1 1 auto;
+	font-size: 1.02em;
+	font-weight: 750;
+	line-height: 1.25;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.expandedSkillHeader .skillDismiss {
+	align-items: center;
+	border-radius: 50%;
+	box-sizing: border-box;
+	color: rgba(255, 255, 255, 0.45);
+	cursor: pointer;
+	display: inline-flex;
+	flex-shrink: 0;
+	height: 22px;
+	justify-content: center;
+	padding: 0;
+	position: absolute;
+	right: 8px;
+	top: 8px;
+	width: 22px;
+}
+
+.expandedSkillHeader .skillDismiss:hover {
+	background: rgba(229, 115, 115, 0.18);
+	color: #ef9a9a;
+}
+
+.expandedSkill h3 {
+	font-size: 1.05em;
+	font-weight: 800;
+	margin: 0 0 10px 0;
+}
+
+.expandedSkill .skillDetails {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 10px 12px 12px;
+}
+
+.expandedSkill .skillDetails > div {
+	color: var(--app-text-secondary);
+	line-height: 1.45;
+}
+
+.expandedSkill .skillDetails strong {
+	color: var(--app-text-primary);
+}
+
+.expandedSkill .skillDetailsSection {
+	background: var(--app-surface-1);
+	border: 1px solid var(--app-border);
+	border-radius: var(--app-radius-sm);
 	margin: 0;
-	padding: 0;
+	padding: 8px 10px;
 }
 
-.skill-white .skillDetails, .skill-white .skillDetailsSection {
-	border-image: linear-gradient(rgb(172,172,182), rgb(169,169,181)) 90;
+.expandedSkill .skillDetailsSection + .skillDetailsSection {
+	margin-top: 8px;
 }
 
-.skill-gold .skillDetails, .skill-gold .skillDetailsSection {
-	border-image: linear-gradient(rgb(203,172,89), rgb(230,161,58)) 90;
+.expandedSkill .skillDetailsSection--controls {
+	margin-top: 4px;
+	padding: 6px 10px;
 }
 
-.skill-pink .skillDetails, .skill-pink .skillDetailsSection {
-	border-image: linear-gradient(rgb(230,173,202), rgb(228,43,161)) 90;
+.expandedSkill .skillDetailsLabel {
+	color: var(--app-text-primary);
+	font-size: 0.78em;
+	font-weight: 800;
+	letter-spacing: 0.04em;
+	margin: 8px 0 4px;
+	text-transform: uppercase;
 }
 
-.skill-unique .skillDetails, .skill-unique .skillDetailsSection {
-	border-image: linear-gradient(rgb(121,64,22), rgb(121,64,22)) 90;
+.expandedSkill .skillDetailsSection .skillDetailsLabel:first-child {
+	margin-top: 0;
 }
 
-.skillConditions {
-	font-family: monospace;
-	margin: 0 0 0.5em 0.5em;
+.expandedSkill .skillConditions {
+	color: var(--app-text-secondary);
+	display: flex;
+	flex-direction: column;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 0.88em;
+	gap: 3px;
+	line-height: 1.45;
+	margin: 0 0 8px;
 }
 
-.condition {
-	margin-left: 0.7em;
+.expandedSkill .skillConditionLine,
+.expandedSkill .skillConditions > .condition {
+	align-items: baseline;
+	display: flex;
+	gap: 0.4em;
+	min-width: 0;
 }
 
-.conditionOp {
-	margin: 0 2px;
+.expandedSkill .condition {
+	align-items: baseline;
+	display: inline-flex;
+	flex: 1 1 auto;
+	gap: 2px;
+	min-width: 0;
 }
 
-.conditionOp {
-	opacity: 0.6;
+.expandedSkill .conditionOp {
+	margin: 0 1px;
+	opacity: 0.65;
 }
 
-.operatorAnd {
-	float: left;
+.expandedSkill .condition--invalid,
+.expandedSkill .condition--invalid .conditionName,
+.expandedSkill .condition--invalid .conditionOp,
+.expandedSkill .condition--invalid .conditionArg {
+	color: #f77c7c;
+	opacity: 1;
 }
 
-.operatorOrText {
-	font-style: italic;
-	margin-left: 10px;
+.expandedSkill .skillConditionLine .operatorAnd {
+	color: var(--app-text-muted);
+	flex: 0 0 auto;
+	font-weight: 700;
 	opacity: 0.8;
 }
 
-.skillEffects {
-	display: table;
-	margin-left: 0.5em;
+.expandedSkill .skillConditionLine .operatorOr {
+	color: var(--app-text-primary);
+	flex: 0 0 auto;
+	font-weight: 700;
+	opacity: 1;
 }
 
-.skillEffect {
-	display: table-row;
-}
-
-.skillEffectType {
-	display: table-cell;
-}
-
-.skillEffectValue {
-	display: table-cell;
-	padding-left: 1em;
-}
-
-.skillDuration {
+.expandedSkill .skillConditionLine--or {
 	display: block;
-	margin-top: 0.5em;
+	margin: 4px 0 2px;
+}
+
+.expandedSkill .operatorOrText {
+	color: var(--app-text-primary);
+	font-style: italic;
+	margin-left: 0.1em;
+	opacity: 1;
+}
+
+.expandedSkill .skillEffects {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin: 0 0 8px;
+}
+
+.expandedSkill .skillEffects:last-child {
+	margin-bottom: 0;
+}
+
+.expandedSkill .skillEffect {
+	align-items: baseline;
+	display: flex;
+	gap: 0.55em;
+	justify-content: space-between;
+}
+
+.expandedSkill .skillEffect--effective {
+	font-style: italic;
+	opacity: 0.92;
+}
+
+.expandedSkill .skillEffect--effective .skillEffectType {
+	padding-left: 20px;
+	position: relative;
+}
+
+.expandedSkill .skillEffect--effective .skillEffectType::before {
+	color: var(--app-text-muted);
+	content: "↳";
+	font-style: normal;
+	left: 0;
+	position: absolute;
+}
+
+.expandedSkill .skillEffectType {
+	color: var(--app-text-secondary);
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.expandedSkill .skillEffectValue {
+	color: var(--app-accent);
+	flex: 0 0 auto;
+	font-variant-numeric: tabular-nums;
+	text-align: right;
+	white-space: nowrap;
+}
+
+.expandedSkill .skillEffectValue--positive {
+	color: #87d239;
+}
+
+.expandedSkill .skillEffectValue--negative {
+	color: #f77c7c;
+}
+
+.expandedSkill .skillMetaLine--id {
+	color: var(--app-text-secondary);
+	display: block;
+	font-size: 0.84em;
+	line-height: 1.45;
+	margin-top: 0;
+	opacity: 0.85;
+}
+
+.skillDismissable .skillDismiss {
+	cursor: pointer;
 }

@@ -24,7 +24,7 @@
   {
     "id": 18,
     "type": "CM",
-    "name": "Libra Cup",
+    "name": "Libra Cup 2",
     "date": "2026-08-25",
     "courseId": 10903,
     "season": "Autumn",
@@ -35,7 +35,7 @@
   {
     "id": 17,
     "type": "CM",
-    "name": "Virgo Cup",
+    "name": "Virgo Cup 2",
     "date": "2026-08-05",
     "courseId": 11103,
     "season": "Autumn",
@@ -46,7 +46,7 @@
   {
     "id": 16,
     "type": "CM",
-    "name": "Leo Cup",
+    "name": "Leo Cup 2",
     "date": "2026-07-12",
     "courseId": 10501,
     "season": "Summer",
@@ -57,7 +57,7 @@
   {
     "id": 15,
     "type": "CM",
-    "name": "Cancer Cup",
+    "name": "Cancer Cup 2",
     "date": "2026-06-21",
     "courseId": 10906,
     "season": "Summer",
@@ -68,7 +68,7 @@
   {
     "id": 14,
     "type": "CM",
-    "name": "Gemini Cup",
+    "name": "Gemini Cup 2",
     "date": "2026-05-31",
     "courseId": 10602,
     "season": "Spring",
@@ -79,7 +79,7 @@
   {
     "id": 13,
     "type": "CM",
-    "name": "Taurus Cup",
+    "name": "Taurus Cup 2",
     "date": "2026-05-10",
     "courseId": 10606,
     "season": "Spring",

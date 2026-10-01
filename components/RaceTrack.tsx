@@ -6,6 +6,8 @@ import { CourseData, CourseHelpers, Surface, Orientation } from '../uma-skill-to
 import { Region, RegionList } from '../uma-skill-tools/Region';
 
 import { useLanguage } from './Language';
+import { umaToolsAsset } from './assetPaths';
+import { visualScale } from './uiScale';
 import { TRACKNAMES_ja, TRACKNAMES_en } from '../strings/common';
 
 import courses from '../uma-skill-tools/data/course_data.json';
@@ -17,6 +19,7 @@ export const enum RegionDisplayType { Immediate, Regions, Textbox, Marker };
 
 const STRINGS_ja = Object.freeze({
 	'racetrack': Object.freeze({
+		'threshold': '補正ステータス：',
 		'thresholds': '補正ステータス：',
 		'none': '​',
 		'inner': ' （内）',
@@ -46,7 +49,8 @@ const STRINGS_ja = Object.freeze({
 
 const STRINGS_en = Object.freeze({
 	'racetrack': Object.freeze({
-		'thresholds': 'Stat thresholds: ',
+		'threshold': 'Stat Threshold: ',
+		'thresholds': 'Stat Thresholds: ',
 		'none': '​',
 		'inner': ' (inner)',
 		'outer': ' (outer)',
@@ -134,14 +138,14 @@ function DistanceMarker(props) {
 	);*/
 	return (
 		<Fragment>
-			<text class="distanceMarker" x={`${props.x}%`} y={`${y - (props.up ? -0.8 : 0.8)}%`} font-size="10px" text-anchor="middle" dominant-baseline={props.up ? "hanging" : "auto"} fill="rgb(121,64,22)">{`${props.d}m`}</text>
-			<line x1={`${props.x}%`} y1={`${y}%`} x2={`${props.x}%`} y2={`${y + (props.up ? -2.5 : 2.5)}%`} stroke="rgb(121,64,22)" />
+			<text class="distanceMarker" x={`${props.x}%`} y={`${y - (props.up ? -0.8 : 0.8)}%`} font-size="10px" text-anchor="middle" dominant-baseline={props.up ? "hanging" : "auto"} fill="#b9c9de">{`${props.d}m`}</text>
+			<line x1={`${props.x}%`} y1={`${y}%`} x2={`${props.x}%`} y2={`${y + (props.up ? -2.5 : 2.5)}%`} stroke="#7f95b0" />
 		</Fragment>
 	);
 }
 
 function SectionText(props) {
-	return <text class="sectionText" x="50%" y="50%" height="40%" width="100%" fill="rgb(121,64,22)"><Text id={`racetrack${props.w < 0.085 ? '.short' : ''}.${props.id}`} fields={props.fields} /></text>;
+	return <text class="sectionText" x="50%" y="50%" height="40%" width="100%" fill="#242c3b"><Text id={`racetrack${props.w < 0.085 ? '.short' : ''}.${props.id}`} fields={props.fields} /></text>;
 }
 
 export function RaceTrack(props) {
@@ -158,12 +162,14 @@ export function RaceTrack(props) {
 
 	function doMouseMove(e) {
 		const svg = e.currentTarget;
-		if (e.offsetX < xOffset) return;
+		const scale = visualScale(svg);
+		const offsetX = e.offsetX / scale;
+		if (offsetX < xOffset) return;
 		const line = svg.querySelector('.mouseoverLine');
 		const text = svg.querySelector('.mouseoverText');
-		const w = svg.getBoundingClientRect().width - xOffset;
-		const x = e.offsetX - xOffset;
-		const y = e.offsetY - yOffset;
+		const w = svg.getBoundingClientRect().width / scale - xOffset;
+		const x = offsetX - xOffset;
+		const y = e.offsetY / scale - yOffset;
 		line.setAttribute('x1', x);
 		line.setAttribute('x2', x);
 		text.setAttribute('x', x > w - 45 ? x - 45 : x + 5);
@@ -175,8 +181,8 @@ export function RaceTrack(props) {
 		if (draggedSkill) {
 			// Use the same coordinate calculation as the mouse down handler
 			const rect = svg.getBoundingClientRect();
-			const w = rect.width - xOffset;
-			const x = e.clientX - rect.left - xOffset;
+			const w = rect.width / scale - xOffset;
+			const x = (e.clientX - rect.left) / scale - xOffset;
 			
 			const newStart = Math.round(Math.max(0, Math.min(course.distance, x / w * course.distance - dragOffset.x)));
 			const skillLength = Math.max(50, draggedSkill.originalEnd - draggedSkill.originalStart); // Ensure minimum length of 50m
@@ -214,8 +220,9 @@ export function RaceTrack(props) {
 		// Get the main SVG element (the one with the race track)
 		const mainSvg = e.currentTarget.closest('.racetrackView');
 		const rect = mainSvg.getBoundingClientRect();
-		const w = rect.width - xOffset;
-		const x = e.clientX - rect.left - xOffset;
+		const scale = visualScale(mainSvg);
+		const w = rect.width / scale - xOffset;
+		const x = (e.clientX - rect.left) / scale - xOffset;
 		const dragX = x / w * course.distance;
 
 		console.log('Starting drag:', {skillId, umaIndex, start, end, dragX, x, w, rect});
@@ -224,15 +231,31 @@ export function RaceTrack(props) {
 		setDragOffset({x: dragX - start, y: 0});
 	}
 
+	const statStrings = useText({1: 'ui.stats.1', 2: 'ui.stats.2', 3: 'ui.stats.3', 4: 'ui.stats.4', 5: 'ui.stats.5'});
+	const {joiner} = useText('ui.joiner');
+	const statThresholds = course.courseSetStatus.map(s => statStrings[s]).join(joiner);
+	const statThresholdStrings = (lang == 'ja' ? STRINGS_ja : STRINGS_en).racetrack;
+	const statThresholdLabel = statThresholdStrings[course.courseSetStatus.length == 1 ? 'threshold' : 'thresholds'];
+	const thresholdIconNames = ['', 'speed', 'stamina', 'power', 'guts', 'wit'];
+
 	const trackNameHeader = useMemo(() =>
-		<div class="racetrackName">
-			<Text id={`tracknames.${course.raceTrackId}`} />{' '}<Text id="coursedesc" plural={course.surface} fields={{
-				'distance': course.distance,
-				'inout': <Text id={`racetrack.${inoutKey[courses[props.courseid].course]}`} />,
-				'surface': <Text id={course.surface == Surface.Turf ? 'racetrack.turf' : 'racetrack.dirt'} />
-			}} />{' '}<Text id={`racetrack.orientation.${course.turn}`} />
+		<div class="racetrackHeader">
+			<div class="racetrackName">
+				<Text id={`tracknames.${course.raceTrackId}`} />{' '}<Text id="coursedesc" plural={course.surface} fields={{
+					'distance': course.distance,
+					'inout': <Text id={`racetrack.${inoutKey[courses[props.courseid].course]}`} />,
+					'surface': <Text id={course.surface == Surface.Turf ? 'racetrack.turf' : 'racetrack.dirt'} />
+				}} />{' '}<Text id={`racetrack.orientation.${course.turn}`} />
+			</div>
+			{course.courseSetStatus.length > 0 &&
+				<div class="racetrackStatThresholds" data-tooltip={`${statThresholdLabel}${statThresholds}`} aria-label={`${statThresholdLabel}${statThresholds}`} tabindex={0}>
+					{course.courseSetStatus.map(stat =>
+						<img src={umaToolsAsset(`icons/${thresholdIconNames[stat]}.webp`)} alt={statStrings[stat]} />
+					)}
+				</div>
+			}
 		</div>
-	, [props.courseid]);
+	, [props.courseid, statThresholdLabel, statThresholds]);
 
 	const almostEverything = useMemo(function () {
 		const flatLevel = 50;
@@ -260,22 +283,13 @@ export function RaceTrack(props) {
 			full.push({start: lastEnd, length: course.distance - lastEnd, slope: 0});
 		}
 		full.sort((a,b) => a.start - b.start);
-		const slopeEndHeights = [50];
-		const slopes = full.reduce((elems,s,i) => {
-			const lastEndHeight = slopeEndHeights[slopeEndHeights.length - 1];
-			const thisEndHeight = lastEndHeight - (s.slope / 10000 * s.length) / range * 40;
-			slopeEndHeights.push(thisEndHeight);
-			if (s.slope == 0) {
-				elems.push(<rect x={`${s.start / course.distance * 100}%`} y={`${lastEndHeight * 0.262}%`} width={`${s.length / course.distance * 100}%`} height="26.2%" fill="rgb(211,243,68)" />);
-			} else {
-				elems.push(
-					<svg class={`hillArea ${s.slope < 0 ? 'downhill' : 'uphill'}`} x={`${s.start / course.distance * 100}%`} y="0" width={`${s.length / course.distance * 100}%`} height="26.2%" viewBox="0 0 100 100" preserveAspectRatio="none">
-						<polygon points={`0,${lastEndHeight} 0,100 100,100 100,${thisEndHeight}`} fill="rgb(211,243,68)" />
-					</svg>
-				);
-			}
-			return elems;
-		}, []);
+		let terrainHeight = flatLevel;
+		const terrainPoints = [`0,${terrainHeight}`];
+		full.forEach(s => {
+			terrainHeight -= (s.slope / 10000 * s.length) / range * 40;
+			terrainPoints.push(`${(s.start + s.length) / course.distance * 100},${terrainHeight}`);
+		});
+		terrainPoints.push('100,100', '0,100');
 
 		const sections = course.straights.concat(course.corners.map(c => ({start: c.start, end: c.start + c.length, frontType: 0}))).sort((a,b) => a.start - b.start);
 
@@ -285,11 +299,13 @@ export function RaceTrack(props) {
 		let upi = 0, downi = 0;
 		return (
 			<Fragment>
-				{slopes}
+				<svg class="hillArea" x="0" y="0" width="100%" height="26.2%" viewBox="0 0 100 100" preserveAspectRatio="none">
+					<polygon points={terrainPoints.join(' ')} fill="rgb(164,204,74)" />
+				</svg>
 				<rect x="0" y="26.2%" width="100%" height="1.8%" fill="rgb(140,170,10)" />
 				<svg class="sectionsBg" x="0" y="28%" width="100%" height="18%">
-					<rect x="0" y="0" height="90%" width="100%" fill="rgb(239,229,241)" />
-					<rect x="0" y="90%" height="10%" width="100%" fill="rgb(163,106,175)" />
+					<rect x="0" y="0" height="90%" width="100%" fill="#6e5a82" />
+					<rect x="0" y="90%" height="10%" width="100%" fill="#9a80b4" />
 				</svg>
 				{course.slopes.map(s =>
 					<svg class="slope" x={`${s.start / course.distance * 100}%`} y="28%" width={`${s.length / course.distance * 100}%`} height="18%">
@@ -311,8 +327,8 @@ export function RaceTrack(props) {
 					return <Fragment>{nodes}</Fragment>;
 				})}
 				<svg class="sectionsBg" x="0" y="46%" width="100%" height="18%">
-					<rect x="0" y="0" height="90%" width="100%" fill="rgb(232,232,232)" />
-					<rect x="0" y="90%" height="10%" width="100%" fill="rgb(139,139,139)" />
+					<rect x="0" y="0" height="90%" width="100%" fill="#5c6678" />
+					<rect x="0" y="90%" height="10%" width="100%" fill="#8a96a8" />
 				</svg>
 				{course.straights.map((s,i) =>
 					<svg class="straight" x={`${s.start / course.distance * 100}%`} y="46%" width={`${(s.end - s.start) / course.distance * 100}%`} height="18%">
@@ -363,10 +379,10 @@ export function RaceTrack(props) {
 				<DistanceMarker d={phase1Start} x="16.67" y={78} />
 				<DistanceMarker d={phase2Start} x="66.67" y={78} />
 				<DistanceMarker d={phase3Start} x="83.33" y={78} />
-				<rect x="0" y="82%" height="18%" width="100%" fill="rgb(228,235,240)" />
+				<rect x="0" y="82%" height="18%" width="100%" fill="#1a2231" />
 				{Array.from({length: 25}, (_,i) => i).map(i => <line x1={`${i / 24 * 100}%`} y1="96%" x2={`${i / 24 * 100}%`} y2="100%" stroke="rgb(107,145,173)" stroke-width={i == 0 || i == 24 ? "4" : "2"} />)}
-				{Array.from({length: 24}, (_,i) => i + 1).map(i => <text x={`${(1/48 + (i-1)/24) * 100}%`} y="91%" font-size="10px" text-anchor="middle" dominant-baseline="central" fill="rgb(107,145,173)">{i}</text>)}
-				<rect x="0" y="98.2%" height="1.8%" width="100%" fill="rgb(107,145,173)" />
+				{Array.from({length: 24}, (_,i) => i + 1).map(i => <text x={`${(1/48 + (i-1)/24) * 100}%`} y="91%" font-size="10px" text-anchor="middle" dominant-baseline="central" fill="#8fa6c1">{i}</text>)}
+				<rect x="0" y="98.2%" height="1.8%" width="100%" fill="#56718f" />
 			</Fragment>
 		);
 	}, [props.courseid]);
@@ -472,47 +488,44 @@ export function RaceTrack(props) {
 		}, {seen: new Set(), rungs: Array(10).fill(0).map(_ => []), elem: []}).elem;
 	}, [props.regions, course.distance, props.uma1, props.uma2, props.pacer]);
 
-	const statStrings = useText({1: 'ui.stats.1', 2: 'ui.stats.2', 3: 'ui.stats.3', 4: 'ui.stats.4', 5: 'ui.stats.5'});
-	const {joiner} = useText('ui.joiner');
-	const statThresholds = course.courseSetStatus.map(s => statStrings[s]).join(joiner);
-
 	return (
 		<IntlProvider definition={lang == 'ja' ? STRINGS_ja : STRINGS_en}>
 			<div class="racetrackWrapper" style={`width:${props.width + xOffset + xExtra}px`}>
 				{trackNameHeader}
-				<svg version="1.1" width={props.width + xOffset + xExtra} height={props.height + yOffset + yExtra} xmlns="http://www.w3.org/2000/svg" class="racetrackView" data-courseid={props.courseid} onMouseMove={doMouseMove} onMouseLeave={doMouseLeave} 				onMouseUp={() => setDraggedSkill(null)}>
-					<svg x={props.xOffset} y={props.yOffset} width={props.width} height={props.height}>
-						{almostEverything}
-						{regions}
-						{props.posKeepLabels && props.posKeepLabels.map((label, index) => (
-							<g key={index} class="poskeep-label">
-								<text 
-									x={label.x + label.width / 2} 
-									y={5 + label.yOffset} 
-									fill={label.color.stroke}
-									font-size="10px"
-									font-weight="bold"
-									text-anchor="middle"
-									dominant-baseline="hanging"
-								>
-									{label.text}
-								</text>
-								<line 
-									x1={label.x} 
-									y1={5 + label.yOffset + 12} 
-									x2={label.x + label.width} 
-									y2={5 + label.yOffset + 12} 
-									stroke={label.color.stroke} 
-									stroke-width="2"
-								/>
-							</g>
-						))}
-						<line class="mouseoverLine" x1="-5" y1="0" x2="-5" y2="100%" stroke="rgb(121,64,22)" stroke-width="2" />
-						<text class="mouseoverText" x="-5" y="-5" fill="rgb(121,64,22)"></text>
+				<div class="racetrackPlotPanel">
+					<svg version="1.1" width={props.width + xOffset + xExtra} height={props.height + yOffset + yExtra} xmlns="http://www.w3.org/2000/svg" class="racetrackView" data-courseid={props.courseid} onMouseMove={doMouseMove} onMouseLeave={doMouseLeave} 				onMouseUp={() => setDraggedSkill(null)}>
+						<svg x={props.xOffset} y={props.yOffset} width={props.width} height={props.height}>
+							{almostEverything}
+							{regions}
+							{props.posKeepLabels && props.posKeepLabels.map((label, index) => (
+								<g key={index} class="poskeep-label">
+									<text 
+										x={label.x + label.width / 2} 
+										y={5 + label.yOffset} 
+										fill={label.color.stroke}
+										font-size="10px"
+										font-weight="bold"
+										text-anchor="middle"
+										dominant-baseline="hanging"
+									>
+										{label.text}
+									</text>
+									<line 
+										x1={label.x} 
+										y1={5 + label.yOffset + 12} 
+										x2={label.x + label.width} 
+										y2={5 + label.yOffset + 12} 
+										stroke={label.color.stroke} 
+										stroke-width="2"
+									/>
+								</g>
+							))}
+							<line class="mouseoverLine" x1="-5" y1="0" x2="-5" y2="100%" stroke="#90caf9" stroke-width="2" />
+							<text class="mouseoverText" x="-5" y="-5" fill="#e8f0ff"></text>
+						</svg>
+						{props.children}
 					</svg>
-					{props.children}
-				</svg>
-				{course.courseSetStatus.length > 0 && <div class="racetrackStatThresholds"><Text id="racetrack.thresholds" />{statThresholds}</div>}
+				</div>
 			</div>
 		</IntlProvider>
 	);

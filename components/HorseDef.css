@@ -1,39 +1,57 @@
 .horseDef {
-	background: rgb(248, 248, 248);
-	border: 2px solid rgb(170, 221, 154);
-	border-radius: 12px;
+	background: transparent;
+	border: 1px solid var(--app-border);
+	border-radius: var(--app-radius-lg);
 	box-sizing: border-box;
+	color: var(--app-text-primary);
 	display: flex;
 	flex-direction: column;
 	height: 100%;
+	min-height: 0;
+	overflow: hidden;
+	width: 100%;
+}
+
+/* The expanded overlay lays HorseDefs out in a flex row; give them a fixed
+   comfortable width there. */
+#umaOverlay .horseDef {
 	width: 700px;
 }
 
+.horseDefHeader,
+.horseSkillHeader {
+	align-items: center;
+	background: var(--app-gradient-panel);
+	border-bottom: 1px solid var(--app-border);
+	color: var(--app-text-primary);
+	display: flex;
+	font-weight: 800;
+	justify-content: center;
+	letter-spacing: 0.01em;
+}
+
 .horseDefHeader {
-	background: linear-gradient(rgb(153, 219, 68), rgb(112, 190, 18));
-	border-bottom: 2px solid rgb(170, 221, 154);
-	border-radius: 10px 10px 0 0;
-	color: white;
-	font-size: 2em;
-	font-weight: bold;
-	padding: 6px 0;
-	text-align: center;
+	font-size: 1.35em;
+	min-height: 46px;
+	padding: 6px 16px;
 }
 
 .umaSelector {
 	display: grid;
-	grid-template-columns: 120px 360px;
-	grid-template-rows: repeat(2, 60px);
-	padding: 0 50px 10px 50px;
+	flex-shrink: 0;
+	grid-template-columns: 120px minmax(0, 1fr);
+	align-items: center;
+	gap: 0 8px;
+	padding: 0 24px 6px;
 	position: relative;
 }
 
 .umaSelectorIconsBox {
+	align-self: stretch;
 	display: flex;
-	grid-row: 1 / 3;
 }
 
-.umaSelectorIconsBox > img:first-child {
+.umaSelectorIconsBox > img {
 	cursor: pointer;
 	position: relative;
 	top: 5px;
@@ -42,55 +60,132 @@
 	width: 120px;
 }
 
-.umaSelectorIconsBox > img:last-child {
-	align-self: flex-start;
-	cursor: pointer;
-	width: 56px;
-	z-index: 1;
+.umaNameStack {
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+	justify-content: center;
+	min-width: 0;
+	padding-right: 150px;
 }
 
 .umaEpithet {
-	align-items: flex-end;
+	align-items: center;
 	display: flex;
+	min-height: 0;
+	padding-right: 0;
 }
 
 .umaEpithet > span {
-	color: rgb(121,64,22);
-	font-size: 1.4em;
-	font-weight: bold;
+	color: var(--app-text-muted);
+	font-size: 0.92em;
+	font-weight: 700;
+	letter-spacing: 0.01em;
+	line-height: 1.2;
 	margin: 0 auto;
 }
 
 .umaSelectWrapper {
+	left: 0;
+	margin-top: 0;
+	padding-right: 0;
 	position: relative;
 	top: 0;
-	left: 0;
+	width: 100%;
+	box-sizing: border-box;
 }
 
-.umaSelectInput {
-	background: none;
-	border: none;
+.umaSelectField {
+	position: relative;
+	width: 100%;
+}
+
+.umaSelectWrapper .umaSelectInput,
+input.umaSelectInput {
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: var(--app-radius-sm);
 	box-sizing: border-box;
-	color: rgb(121,64,22);
-	font-size: 1.4em;
-	font-weight: bold;
+	color: var(--app-text-primary);
+	font-size: 1.35em;
+	font-weight: 800;
+	height: 2.15em;
+	letter-spacing: 0.01em;
+	line-height: 1.2;
+	/* Equal L/R padding keeps the typed name optically centered with the switch icon. */
+	padding: 0 44px;
 	text-align: center;
+	transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+	width: 100%;
+}
+
+.umaSelectWrapper .umaSelectInput:hover,
+input.umaSelectInput:hover {
+	background: var(--app-surface-2);
+	border-color: var(--app-border);
+}
+
+.umaSelectWrapper .umaSelectInput:focus,
+input.umaSelectInput:focus {
+	background: var(--app-bg-3);
+	border-color: var(--app-border-accent);
+	box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.18);
+	outline: none;
+}
+
+.umaSwitchButton {
+	align-items: center;
+	background: transparent;
+	border: none;
+	border-radius: var(--app-radius-sm);
+	cursor: pointer;
+	display: inline-flex;
+	height: 2.2em;
+	justify-content: center;
+	left: 4px;
+	padding: 0;
+	position: absolute;
+	right: auto;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 2.2em;
+	z-index: 2;
+}
+
+.umaSwitchButton:hover {
+	background: rgba(100, 181, 246, 0.14);
+}
+
+.umaSwitchButton:focus-visible {
+	box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.18);
+	outline: none;
+}
+
+.umaSwitchButton > img {
+	display: block;
+	height: 100%;
+	object-fit: contain;
+	pointer-events: none;
 	width: 100%;
 }
 
 .umaSuggestions {
-	border: 2px solid rgb(224, 214, 204);
+	backdrop-filter: blur(10px);
+	background: rgba(9, 13, 20, 0.94);
+	border: 1px solid var(--app-border-strong);
+	border-radius: var(--app-radius);
+	box-shadow: var(--app-shadow-lg);
 	cursor: default;
 	display: none;
 	left: -2px;
 	list-style-type: none;
 	max-height: 320px;
 	overflow-y: auto;
-	padding: 0;
+	padding: 4px;
 	position: absolute;
-	top: 1em;
-	width: 420px;
-	z-index: 10;
+	top: 2.2em;
+	width: max(100%, 320px);
+	z-index: 50;
 }
 
 .umaSuggestions.open {
@@ -98,341 +193,697 @@
 }
 
 .umaSuggestion {
-	background: white;
-	padding: 4px;
+	align-items: center;
+	border-radius: var(--app-radius-sm);
+	color: var(--app-text-secondary);
+	display: flex;
+	padding: 5px 7px;
+	transition: background 0.15s ease, color 0.15s ease;
 }
 
-.umaSuggestion:nth-child(even) {
-	background: rgb(242, 242, 242);
-}
-
-.umaSuggestion.selected, .umaSuggestion:hover {
-	background: rgb(0, 120, 215);
+.umaSuggestion.selected,
+.umaSuggestion:hover {
+	background: rgba(100, 181, 246, 0.16);
+	color: var(--app-text-primary);
 }
 
 .umaSuggestion > img {
 	height: 2em;
-	margin-right: 5px;
+	margin-right: 7px;
 	transform: scaleY(1.08);
 	transform-origin: center;
-	vertical-align: middle;
 }
 
-.umaSuggestion > span {
-	display: inline-block;
-	height: 100%;
-	vertical-align: middle;
+.umaSuggestionText {
+	align-items: baseline;
+	display: flex;
+	gap: 6px;
+	line-height: 1.15;
+	min-width: 0;
+}
+
+.umaSuggestionName {
+	color: #fff;
+	font-weight: 700;
+}
+
+.umaSuggestionOutfit {
+	color: var(--app-text-muted);
+	font-size: 0.78em;
 }
 
 .horseParams {
-	background: white;
-	border: 2px solid rgb(163, 221, 111);
-	border-radius: 8px;
+	background: var(--app-surface-1);
+	border: 1px solid var(--app-border);
+	border-radius: var(--app-radius);
 	display: grid;
-	grid-template-columns: repeat(5, 130px);
-	margin: 10px auto;
-	width: 650px;
+	flex-shrink: 0;
+	grid-template-columns: repeat(5, minmax(0, 1fr));
+	margin: 10px 25px;
+	overflow: hidden;
+	width: auto;
 }
 
 .horseParamHeader {
-	background: rgb(121, 216, 35);
-	border-left: 2px dotted rgb(93, 199, 24);
-	color: white;
-	font-weight: bold;
-	text-align: center;
+	align-items: center;
+	background: rgba(100, 181, 246, 0.11);
+	border-left: 1px solid var(--app-border);
+	color: var(--app-text-muted);
+	display: flex;
+	font-size: 0.76em;
+	font-weight: 750;
+	justify-content: center;
+	letter-spacing: 0.07em;
+	min-height: 30px;
+	text-transform: uppercase;
 }
 
-.horseParamHeader:first-child {
-	border: none;
+.horseParamHeader:first-child,
+.horseParam:nth-child(6) {
+	border-left: none;
 }
 
 .horseParamHeader > img {
-	filter: drop-shadow(0 2px 0 rgb(103, 162, 58));
+	filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
 	height: 1.2em;
-	margin-right: 2px;
-	vertical-align: middle;
-}
-
-.horseParamHeader > span {
-	display: inline-block;
-	height: 100%;
-	text-shadow: 0 2px 1px rgb(103, 162, 58);
-	vertical-align: middle;
+	margin-right: 4px;
 }
 
 .horseParam {
 	align-items: center;
-	border-left: 2px dotted rgb(121, 206, 72);
+	border-left: 1px solid var(--app-border);
+	box-sizing: border-box;
 	display: flex;
-	padding: 8px;
-}
-
-.horseParam:nth-child(6) {
-	border: none;
+	min-height: 42px;
+	min-width: 0;
+	overflow: hidden;
+	padding: 6px 5px;
 }
 
 .horseParam > img {
+	flex: 0 0 auto;
+	transform: scaleX(1.1);
+	transform-origin: center;
 	width: 25px;
 }
 
 .horseParam > input {
-	background: inherit;
-	border: none;
-	color: rgb(121,64,22);
-	font-size: 1.2em;
-	font-weight: bold;
-	margin-left: 10px;
-	padding: 0;
-	width: 76px;
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: var(--app-radius-sm);
+	box-sizing: border-box;
+	color: var(--app-text-primary);
+	flex: 1 1 auto;
+	font-size: 1.1em;
+	font-variant-numeric: tabular-nums;
+	font-weight: 750;
+	margin-left: 6px;
+	max-width: none;
+	min-width: 0;
+	padding: 2px 3px;
+	text-align: right;
+	width: auto;
+}
+
+.horseParam > input:hover {
+	background: var(--app-surface-2);
+	border-color: var(--app-border);
+}
+
+.horseParam > input:focus {
+	background: var(--app-bg-3);
+	border-color: var(--app-border-accent);
+	box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.18);
+	outline: none;
 }
 
 .horseAptitudes {
 	display: grid;
-	grid-template-columns: repeat(3, 210px);
 	gap: 8px 12px;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	margin: 0 25px;
+	isolation: isolate;
 	position: relative;
+	z-index: 40;
 }
 
 .horseAptitudes > div {
 	align-items: center;
-	border: 2px solid rgb(224, 214, 204);
-	border-radius: 6px;
-	background: white;
-	color: rgb(121, 64, 22);
+	background: var(--app-surface-1);
+	border: 1px solid var(--app-border);
+	border-radius: var(--app-radius-sm);
+	color: var(--app-text-secondary);
 	display: flex;
-	font-weight: bold;
-	height: 1.8em;
+	font-size: 0.84em;
+	font-weight: 700;
+	height: 2.2em;
+	overflow: visible;
 	padding: 0 8px;
 	position: relative;
+	z-index: 1;
 }
 
-.resetUmaButton {
-	background: linear-gradient(rgb(168, 227, 5), rgb(97, 174, 22)) padding-box, linear-gradient(rgb(173, 219, 60), rgb(85, 143, 24)) border-box;
-	border: 2px solid transparent;
-	border-radius: 20px;
-	box-shadow: 0px 2px 0 rgb(180,178,192);
+.horseAptitudes > div:focus-within {
+	z-index: 100;
+}
+
+.resetUmaButton,
+.umaProfileManagerSaveButton,
+.umaProfileManagerActionButton {
+	background: var(--app-surface-2);
+	border: 1px solid var(--app-border-strong);
+	border-radius: var(--app-radius-sm);
+	box-shadow: none;
 	box-sizing: border-box;
-	color: white;
+	color: var(--app-text-secondary);
 	cursor: pointer;
-	font-size: 0.9em;
-	font-weight: bold;
-	padding: 4px 12px;
-	transition: all 0.2s;
+	font-family: inherit;
+	font-size: 0.86em;
+	font-weight: 650;
+	padding: 6px 12px;
+	transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.resetUmaButton:hover {
-	background: linear-gradient(rgb(178, 237, 15), rgb(107, 184, 32)) padding-box, linear-gradient(rgb(183, 229, 70), rgb(95, 153, 34)) border-box;
-	box-shadow: 0px 3px 0 rgb(180,178,192);
-	transform: translateY(-1px);
+.resetUmaButton:hover,
+.umaProfileManagerSaveButton:hover,
+.umaProfileManagerActionButton:hover {
+	background: rgba(100, 181, 246, 0.16);
+	border-color: var(--app-border-accent);
+	color: var(--app-text-primary);
+	transform: none;
+}
+
+.resetUmaButton:active,
+.umaProfileManagerSaveButton:active,
+.umaProfileManagerActionButton:active {
+	background: rgba(100, 181, 246, 0.24);
+}
+
+.resetUmaButton:focus-visible,
+.umaProfileManagerSaveButton:focus-visible,
+.umaProfileManagerActionButton:focus-visible,
+.profileImportClose:focus-visible,
+.skillProcDataClose:focus-visible,
+.umaProfileManagerClose:focus-visible {
+	box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.18);
+	outline: none;
+}
+
+.resetUmaButton:disabled,
+.umaProfileManagerSaveButton:disabled,
+.umaProfileManagerActionButton:disabled {
+	cursor: not-allowed;
+	opacity: 0.5;
 }
 
 .profileButtons {
-	position: absolute;
+	align-items: flex-end;
 	bottom: 44px;
-	right: 25px;
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
+	position: absolute;
+	right: 25px;
 	z-index: 10;
-	align-items: flex-end;
 }
 
-.profileButtonsRow {
+.profileButtonsRow,
+.resetButtons {
 	display: flex;
 	gap: 8px;
 }
 
 .resetButtons {
-	position: absolute;
 	bottom: 8px;
+	position: absolute;
 	right: 25px;
-	display: flex;
-	gap: 8px;
 	z-index: 10;
 }
 
-
-.horseAptitudeSelect {
-	display: inline-block;
+.horseAptitudeSelect,
+.horseMoodSelect {
+	align-items: center;
+	cursor: pointer;
+	display: inline-flex;
 	position: absolute;
 	right: 10px;
-	top: 4px;
+	top: 0;
+	bottom: 0;
+	z-index: 2;
+}
+
+.horseAptitudeSelect:focus,
+.horseMoodSelect:focus {
+	outline: none;
+}
+
+.horseAptitudeSelect:focus > span,
+.horseMoodSelect:focus > span {
+	box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.18);
+}
+
+/* Fixed icon column + chevron beside it; menu width matches icon column. */
+.horseAptitudeSelect > span {
+	align-items: center;
+	display: inline-grid;
+	gap: 6px;
+	grid-template-columns: 1.3em auto;
+}
+
+.horseAptitudeSelect > span > img {
+	display: block;
+	height: 1.3em;
+	justify-self: center;
+	object-fit: contain;
+	width: 1.3em;
 }
 
 .horseAptitudeSelect > span::after {
-	border-bottom: 1px solid rgb(121,64,22);
-	border-right: 1px solid rgb(121,64,22);
+	border-bottom: 1.5px solid var(--app-text-muted);
+	border-right: 1.5px solid var(--app-text-muted);
 	content: "";
 	display: block;
-	height: 4px;
-	margin-left: 1.6em;
-	margin-top: -1.2em;
-	transform: rotate(45deg);
-	width: 4px;
+	height: 5px;
+	justify-self: start;
+	transform: rotate(45deg) translateY(-1px);
+	width: 5px;
+}
+
+.horseAptitudeSelect > ul,
+.horseMoodSelect > ul {
+	background-color: #0f1724;
+	background-image: none;
+	border: 1px solid var(--app-border-strong);
+	border-radius: var(--app-radius-sm);
+	box-shadow: var(--app-shadow-lg);
+	isolation: isolate;
+	list-style: none;
+	margin: 0;
+	opacity: 1;
+	padding: 4px 0;
+	position: absolute;
+	z-index: 200;
 }
 
 .horseAptitudeSelect > ul {
-	background: white;
-	border: 1px solid rgb(224, 214, 204);
-	list-style-type: none;
-	position: absolute;
-	right: -12px;
-	top: 10px;
-	z-index: 10;
-	width: 20px;
+	/* Wider padded menu; left nudge keeps icons under the selected glyph. */
+	box-sizing: border-box;
+	left: -7px;
+	min-width: calc(1.3em + 14px);
+	padding: 4px 7px;
+	right: auto;
+	top: calc(100% + 4px);
+	width: auto;
 }
 
-/* one day i'll actually learn CSS */
 .horseAptitudeSelect li {
-	margin-left: -22px;
+	border-radius: 4px;
+	cursor: pointer;
+	display: flex;
+	justify-content: center;
+	margin: 0;
+	padding: 3px 0;
 }
 
+.horseAptitudeSelect li:hover,
+.horseMoodSelect > ul > li:hover {
+	background: rgba(100, 181, 246, 0.16);
+}
+
+.horseAptitudeSelect li > img,
 .horseAptitudeSelect img {
-	height: 1.2em;
+	display: block;
+	height: 1.3em;
+	object-fit: contain;
+	width: 1.3em;
 }
 
 .horseMoodSelect {
-	display: inline-block;
-	position: absolute;
-	right: 10px;
-	top: 4px;
+	height: auto;
 	width: 3em;
-	height: 1.2em;
-	cursor: pointer;
 }
 
 .horseMoodSelect > span {
 	display: block;
+	height: 1.2em;
 	width: 100%;
-	height: 100%;
 }
 
-.horseMoodSelect > span > img {
-	width: 100%;
+.horseMoodSelect > span > img,
+.horseMoodSelect > ul > li > img {
 	height: 100%;
 	object-fit: contain;
+	width: 100%;
 }
 
 .horseMoodSelect > ul {
-	position: absolute;
-	top: 100%;
-	right: 0;
-	background: white;
-	border: 1px solid #ccc;
-	border-radius: 4px;
-	box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-	list-style: none;
-	margin: 0;
-	padding: 4px 0;
+	box-sizing: border-box;
 	min-width: 3.5em;
-	z-index: 1000;
+	/* Manual nudge: was ~5px too far left. */
+	right: -9px;
+	top: calc(100% + 4px);
 }
 
 .horseMoodSelect > ul > li {
-	padding: 4px 8px;
+	align-items: center;
 	cursor: pointer;
 	display: flex;
-	align-items: center;
 	justify-content: center;
-}
-
-.horseMoodSelect > ul > li:hover {
-	background: #f0f0f0;
+	padding: 4px 8px;
 }
 
 .horseMoodSelect > ul > li > img {
-	width: 3em;
 	height: 1.2em;
-	object-fit: contain;
+	width: 3em;
 }
 
 .horseStrategySelect {
-	background: inherit;
+	appearance: none;
+	-webkit-appearance: none;
+	background: transparent;
+	background-image: none;
 	border: none;
-	color: inherit;
-	font-weight: inherit;
-	height: 100%;
+	border-radius: 0;
+	color: var(--app-text-primary);
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	bottom: 0;
+	font-size: 0.95em;
+	font-weight: 650;
+	gap: 6px;
+	height: auto;
+	justify-content: flex-end;
+	max-width: calc(100% - 8px);
+	padding: 0;
 	position: absolute;
-	right: 4px;
+	right: 10px;
 	text-align: right;
+	top: 0;
+	z-index: 3;
+}
+
+.horseStrategySelect:hover {
+	background: transparent;
+	border-color: transparent;
+}
+
+.horseStrategySelect:focus {
+	outline: none;
+}
+
+.horseStrategySelect:focus > span {
+	box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.18);
+}
+
+.horseStrategySelect > span {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	max-width: 100%;
+	min-width: 0;
+}
+
+.horseStrategySelect > span > em {
+	font-style: normal;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.horseStrategySelect > span::after {
+	border-bottom: 1.5px solid var(--app-text-muted);
+	border-right: 1.5px solid var(--app-text-muted);
+	content: "";
+	display: block;
+	flex: 0 0 auto;
+	height: 5px;
+	transform: rotate(45deg) translateY(-1px);
+	width: 5px;
+}
+
+.horseStrategySelect > ul {
+	background-color: #0f1724;
+	background-image: none;
+	border: 1px solid var(--app-border-strong);
+	border-radius: var(--app-radius-sm);
+	box-shadow: var(--app-shadow-lg);
+	isolation: isolate;
+	list-style: none;
+	margin: 0;
+	max-height: 220px;
+	min-width: max-content;
+	opacity: 1;
+	overflow-y: auto;
+	padding: 4px;
+	position: absolute;
+	right: 0;
+	top: calc(100% + 4px);
+	width: max-content;
+	z-index: 200;
+}
+
+.horseStrategySelect > ul > li {
+	border-radius: 4px;
+	color: var(--app-text-primary);
+	cursor: pointer;
+	font-size: 0.92em;
+	font-weight: 600;
+	padding: 3px 8px;
+	text-align: left;
+	white-space: nowrap;
+}
+
+.horseStrategySelect > ul > li:hover {
+	background: rgba(100, 181, 246, 0.16);
+}
+
+.horseStrategySelect > ul > li[aria-selected="true"] {
+	background: transparent;
+}
+
+.horseStrategySelect > ul > li[aria-selected="true"]:hover {
+	background: rgba(100, 181, 246, 0.16);
+}
+
+.horseStrategySelect[aria-disabled="true"] {
+	cursor: not-allowed;
+	opacity: 0.5;
+	pointer-events: none;
+}
+
+.horseAptitudes > div:has(> .horseStarLevelSelect) > span {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.horseStarLevelSelect {
+	align-items: center;
+	display: inline-flex;
+	flex-shrink: 0;
+	gap: 0;
+	margin-left: auto;
+	outline: none;
+	user-select: none;
+}
+
+.horseStarLevelSelect:focus-visible {
+	border-radius: 4px;
+	box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.18);
+}
+
+.horseStar {
+	-webkit-appearance: none;
+	appearance: none;
+	background: none;
+	border: 0;
+	color: rgba(255, 255, 255, 0.15);
+	cursor: pointer;
+	font-family: inherit;
+	font-size: 0.98em;
+	line-height: 1;
+	margin: 0;
+	padding: 0 0.5px;
+	transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.horseStar.is-filled {
+	color: #ffd700;
+}
+
+.horseStar:hover {
+	transform: scale(1.12);
+}
+
+.horseStar:focus-visible {
+	border-radius: 3px;
+	box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.18);
+	outline: none;
+}
+
+/* Native <select> arrow: drawn on the parent cell so it can't be wiped by
+   background resets on the select itself. Keep for any leftover natives. */
+.horseAptitudes > div:has(> .horseStrategySelect)::after {
+	display: none;
 }
 
 .horseSkillHeader {
-	background: linear-gradient(rgb(168, 227, 5), rgb(97, 174, 22)) padding-box, linear-gradient(rgb(173, 219, 60), rgb(85, 143, 24)) border-box;
-	border: 2px solid transparent;
-	border-radius: 36px;
-	box-shadow: 0px 3px 0 rgb(180,178,192);
-	box-sizing: border-box;
-	color: white;
-	font-size: 1.2em;
-	font-weight: bold;
-	margin: 16px auto;
-	text-align: center;
-	width: 680px;
+	border: 1px solid var(--app-border);
+	border-radius: 999px;
+	flex-shrink: 0;
+	font-size: 1em;
+	margin: 12px 10px 8px;
+	min-height: 34px;
+	width: auto;
+}
+
+.horseSkillHeader::before {
+	background: var(--app-accent);
+	border-radius: 999px;
+	content: "";
+	height: 1em;
+	margin-right: 8px;
+	width: 4px;
+}
+
+.horseDef > *:not(.horseSkillListWrapper) {
+	flex-shrink: 0;
 }
 
 .horseSkillListWrapper {
-	background: rgb(242, 242, 242);
-	border-radius: 4px;
-	height: 100%;
-	margin: 0 6px 6px 6px;
+	background: transparent;
+	border: 0;
+	border-radius: 0;
+	flex: 1 1 0;
+	height: auto;
+	margin: 4px 0 0;
+	min-height: 0;
+	overflow-x: hidden;
 	overflow-y: auto;
+	scrollbar-gutter: stable both-edges;
 }
 
 .horseSkillList {
+	box-sizing: border-box;
 	display: grid;
-	gap: 16px 10px;
-	grid-template-columns: repeat(2, 288px);
+	gap: 8px;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 	list-style-type: none;
-	margin: 0 auto;
-	padding: 12px;
-	width: 576px;
+	margin: 0;
+	padding: 8px;
+	width: 100%;
 }
 
+.horseSkillList li {
+	min-width: 0;
+	position: relative;
+	width: 100%;
+}
+
+.horseSkillItem {
+	align-items: center;
+	display: flex;
+	gap: 8px;
+	position: relative;
+	width: 100%;
+}
+
+.horseSkillItemMain {
+	align-items: center;
+	display: flex;
+	flex: 1 1 0;
+	min-width: 0;
+	position: relative;
+	width: 100%;
+}
 
 .horseSkillList .skill {
+	box-sizing: border-box;
+	flex: 1 1 0;
+	font-size: 0.78em;
+	height: 2.2em;
 	margin: 0;
-}
-
-.horseSkillPickerWrapper {
-	background: white;
-	bottom: 0;
-	display: none;
-	left: 10%;
-	margin: auto;
-	overflow-y: auto;
-	padding: 1em;
-	position: fixed;
-	top: 2em;
-	width: 80%;
-	z-index: 20;
-}
-
-.horseSkillPickerWrapper.open {
-	display: block;
-}
-
-.horseSkillPickerOverlay {
-	background: rgba(25, 25, 25, 0.6);
-	display: none;
-	height: 100%;
-	left: 0;
-	position: fixed;
-	top: 0;
+	max-width: none;
+	min-width: 0;
+	padding: 0 5px 0 0;
+	position: static;
 	width: 100%;
-	z-index: 10;
 }
 
-.horseSkillPickerOverlay.open {
-	display: block;
+.horseSkillList .skill,
+.horseSkillList .expandedSkill,
+.profileImportSkillCandidateButton .skill {
+	/* rarity colors come from SkillList.css; keep shared chip chrome here */
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+	transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+}
+
+.horseSkillList .skill.selected,
+.profileImportSkillCandidateButton.selected .skill {
+	background: rgba(100, 181, 246, 0.14);
+	border-color: rgba(100, 181, 246, 0.45);
+	box-shadow: inset 0 0 0 1px rgba(100, 181, 246, 0.24);
+	color: var(--app-text-primary);
+}
+
+.skillDismiss {
+	align-items: center;
+	background: transparent;
+	border-radius: 50%;
+	box-sizing: border-box;
+	color: var(--app-text-muted);
+	display: inline-flex;
+	height: 20px;
+	justify-content: center;
+	padding: 0;
+	transition: background 0.15s ease, color 0.15s ease;
+	width: 20px;
+}
+
+.skillDismiss:hover {
+	background: rgba(229, 115, 115, 0.18);
+	color: var(--app-danger);
+}
+
+.expandedSkill {
+	overflow: hidden;
+}
+
+.horseSkillDetailPopover .expandedSkillHeader {
+	font-size: 0.95em;
+	margin-bottom: 0;
+	min-height: 0;
+	padding-right: 36px;
+}
+
+.horseSkillDetailPopover .expandedSkillHeader .skillIcon {
+	height: 2em;
+	width: 2em;
+}
+
+.horseSkillDetailPopover .skillDetails {
+	font-size: 0.82em;
+	padding: 8px 10px 10px;
 }
 
 .addSkillButton {
 	align-items: center;
-	background: white;
-	border: 1px solid rgb(224, 214, 204);
-	color: rgb(121, 64, 22);
+	background: rgba(100, 181, 246, 0.08) !important;
+	border: 1px dashed var(--app-border-accent) !important;
+	border-left: 1px dashed var(--app-border-accent) !important;
+	box-shadow: none !important;
+	color: var(--app-accent) !important;
+	display: flex;
+	justify-content: center;
+	padding: 0 8px !important;
+}
+
+.addSkillButton:hover {
+	background: rgba(100, 181, 246, 0.17) !important;
+	border-color: var(--app-border-accent) !important;
+	color: var(--app-accent) !important;
 }
 
 .addSkillButton > span {
@@ -442,30 +893,33 @@
 	top: -3px;
 }
 
-/* Forced position input styles */
-.forcedPositionInput {
-	border: 1px solid rgba(121, 64, 22, 0.4);
-	border-radius: 4px;
+.forcedPositionInput,
+.uniqueSkillLevelSelect {
+	background: var(--app-bg-3);
+	border: 1px solid var(--app-border-strong);
+	border-radius: var(--app-radius-sm);
 	box-sizing: border-box;
+	color: var(--app-text-primary);
 	font-size: 0.9em;
-	padding: 6px 8px;
+	padding: 5px 7px;
+	transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.forcedPositionInput {
 	width: 80px;
-	background: rgba(255, 255, 255, 0.3);
-	color: rgb(121, 64, 22);
-	transition: all 0.2s ease;
-	backdrop-filter: blur(2px);
 }
 
-.forcedPositionInput:focus {
+.forcedPositionInput:focus,
+.uniqueSkillLevelSelect:focus {
+	background: var(--app-bg-2);
+	border-color: var(--app-border-accent);
+	box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.18);
 	outline: none;
-	border-color: rgb(121, 64, 22);
-	background: rgba(255, 255, 255, 0.5);
-	box-shadow: 0 0 0 2px rgba(121, 64, 22, 0.2);
 }
 
-.forcedPositionInput:hover {
-	border-color: rgba(121, 64, 22, 0.6);
-	background: rgba(255, 255, 255, 0.4);
+.forcedPositionInput:hover,
+.uniqueSkillLevelSelect:hover {
+	border-color: var(--app-border-accent);
 }
 
 .forcedPositionInput.inline {
@@ -473,246 +927,342 @@
 	vertical-align: middle;
 }
 
-
 .forcedPositionLabel {
-	color: rgb(121, 64, 22);
+	color: var(--app-text-secondary);
 	font-size: 0.9em;
-	font-weight: bold;
+	font-weight: 700;
 }
 
 .skillDetailsSection:has(.forcedPositionLabel) {
 	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-top: 0;
+}
+
+.skillControlRow {
 	align-items: center;
-	justify-content: center;
-	gap: 12px;
-}
-
-.horseSkillList li {
-	position: relative;
-}
-
-.horseSkillList li .skill {
-	position: static;
+	display: flex;
+	gap: 10px;
+	justify-content: flex-start;
 }
 
 .forcedPositionLabel.inline {
+	background: rgba(100, 181, 246, 0.12);
+	border: 1px solid rgba(100, 181, 246, 0.2);
+	border-radius: 999px;
+	bottom: -12px;
+	color: var(--app-accent);
+	font-size: 0.8em;
+	font-weight: 650;
+	padding: 2px 6px;
+	pointer-events: none;
 	position: absolute;
 	right: 12px;
-	bottom: -12px;
-	color: rgb(121, 64, 22);
-	font-size: 0.8em;
-	font-weight: normal;
-	background: rgba(121, 64, 22, 0.1);
-	padding: 2px 6px;
-	border-radius: 3px;
-	pointer-events: none;
 	z-index: 10;
-	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
-
-.skillProcDataOverlay {
-	background: rgba(25, 25, 25, 0.6);
-	display: block;
-	height: 100%;
-	left: 0;
-	position: fixed;
-	top: 0;
-	width: 100%;
-	z-index: 30;
+.skill .uniqueSkillLevelSelect {
+	appearance: none;
+	-webkit-appearance: none;
+	align-self: center;
+	background-color: transparent;
+	background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23ffffff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+	background-position: right 1px center;
+	background-repeat: no-repeat;
+	border: none;
+	border-radius: 0;
+	box-shadow: none;
+	color: #fff;
+	cursor: pointer;
+	flex: 0 0 auto;
+	font-size: 1.05em;
+	font-weight: 700;
+	height: auto;
+	line-height: 1;
+	margin-left: 2px;
+	min-width: 3.6em;
+	padding: 0 16px 0 2px;
+	position: static;
+	transform: none;
+	z-index: 1;
 }
 
-.skillProcDataDialog {
-	background: white;
-	border: 2px solid rgb(170, 221, 154);
-	border-radius: 12px;
-	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-	display: flex;
-	flex-direction: column;
-	left: 50%;
-	max-height: 90vh;
-	max-width: 90vw;
-	overflow-y: auto;
-	position: fixed;
-	top: 50%;
-	transform: translate(-50%, -50%);
-	width: 800px;
-	z-index: 31;
-}
-
-.skillProcDataDialog:focus {
+.skill .uniqueSkillLevelSelect:hover,
+.skill .uniqueSkillLevelSelect:focus {
+	background-color: transparent;
+	border: none;
+	box-shadow: none;
+	color: #fff;
 	outline: none;
 }
 
-.skillProcDataHeader {
-	background: linear-gradient(rgb(153, 219, 68), rgb(112, 190, 18));
-	border-bottom: 2px solid rgb(170, 221, 154);
-	border-radius: 10px 10px 0 0;
-	color: white;
-	display: flex;
-	font-weight: bold;
-	justify-content: space-between;
-	padding: 12px 16px;
+.skill .uniqueSkillLevelSelect option {
+	background: #0f1724;
+	color: #fff;
 }
 
-.skillProcDataHeader h3 {
-	margin: 0;
-	font-size: 1.2em;
+.horseSkillDetailPopover {
+	background: rgba(13, 19, 30, 0.97);
+	backdrop-filter: blur(10px);
+	border: 1px solid var(--app-border-strong);
+	border-radius: var(--app-radius);
+	box-shadow: var(--app-shadow-lg);
+	box-sizing: border-box;
+	left: 0;
+	max-height: min(calc(70vh / var(--ui-zoom)), 520px);
+	max-width: min(calc(92vw / var(--ui-zoom)), 380px);
+	overflow: auto;
+	padding: 10px;
+	position: fixed;
+	top: 0;
+	width: 360px;
+	z-index: 240;
 }
 
-.skillProcDataClose {
+.horseSkillDetailPopover .expandedSkill {
 	background: transparent;
+	backdrop-filter: none;
 	border: none;
-	color: white;
-	cursor: pointer;
-	font-size: 1.5em;
-	font-weight: bold;
-	line-height: 1;
+	border-radius: 0;
+	max-width: none;
+	overflow: visible;
 	padding: 0;
-	width: 24px;
-	height: 24px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	transition: opacity 0.2s;
+	width: 100%;
 }
 
-.skillProcDataClose:hover {
-	opacity: 0.7;
+.horseSkillPickerOverlay,
+.umaProfileManagerOverlay,
+.profileImportOverlay {
+	backdrop-filter: blur(4px);
+	background: rgba(4, 7, 12, 0.68);
+	bottom: 0;
+	display: none;
+	left: 0;
+	position: fixed;
+	right: 0;
+	top: 0;
+	z-index: 200;
+}
+
+.horseSkillPickerOverlay {
+	z-index: 200;
+}
+
+.horseSkillPickerOverlay.open,
+.profileImportOverlay.open {
+	display: block;
+}
+
+.horseSkillPickerWrapper {
+	background: linear-gradient(160deg, #182233, #111a28);
+	border: 1px solid var(--app-border-strong);
+	border-radius: var(--app-radius-lg);
+	bottom: calc(3vh / var(--ui-zoom));
+	box-shadow: var(--app-shadow-lg);
+	display: none;
+	left: 8%;
+	overflow-y: auto;
+	padding: 1.1em 1.25em;
+	position: fixed;
+	top: calc(3vh / var(--ui-zoom));
+	width: 84%;
+	z-index: 210;
+}
+
+.horseSkillPickerWrapper.open {
+	display: block;
+}
+
+.umaProfileManagerOverlay {
+	display: block;
+	z-index: 200;
+}
+
+.skillProcDataPopover {
+	background: rgba(13, 19, 30, 0.97);
+	backdrop-filter: blur(10px);
+	border: 1px solid var(--app-border-strong);
+	border-radius: var(--app-radius);
+	box-shadow: var(--app-shadow-lg);
+	box-sizing: border-box;
+	color: var(--app-text-primary);
+	font-size: 0.9rem;
+	font-weight: 550;
+	left: 0;
+	max-height: min(calc(85vh / var(--ui-zoom)), 420px);
+	max-width: min(calc(96vw / var(--ui-zoom)), 560px);
+	overflow: auto;
+	position: fixed;
+	top: 0;
+	width: min(560px, calc(96vw / var(--ui-zoom)));
+	z-index: 240;
+}
+
+.skillProcDataPopover:focus {
+	outline: none;
 }
 
 .skillProcDataContent {
-	padding: 16px;
-	position: relative;
+	color: var(--app-text-secondary);
+	padding: 12px;
 }
 
-/* Uma Profile Manager Styles */
-.umaProfileManagerOverlay {
-	background: rgba(25, 25, 25, 0.6);
-	display: block;
-	height: 100%;
-	left: 0;
-	position: fixed;
-	top: 0;
-	width: 100%;
-	z-index: 30;
+.skillProcDataExpandedResult {
+	gap: 8px;
 }
 
-.umaProfileManagerDialog {
-	background: white;
-	border: 2px solid rgb(170, 221, 154);
-	border-radius: 12px;
-	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+.umaProfileManagerDialog,
+.profileImportDialog {
+	background: linear-gradient(160deg, #182233, #111a28);
+	border: 1px solid var(--app-border-strong);
+	border-radius: var(--app-radius-lg);
+	box-shadow: var(--app-shadow-lg);
+	color: var(--app-text-primary);
 	display: flex;
 	flex-direction: column;
 	left: 50%;
-	max-height: 90vh;
-	max-width: 90vw;
+	max-height: calc(90vh / var(--ui-zoom));
+	max-width: calc(92vw / var(--ui-zoom));
 	overflow-y: auto;
 	position: fixed;
 	top: 50%;
 	transform: translate(-50%, -50%);
-	width: 600px;
-	z-index: 31;
+	z-index: 210;
 }
 
-.umaProfileManagerDialog:focus {
+.umaProfileManagerDialog {
+	width: 600px;
+	z-index: 210;
+}
+
+.umaProfileManagerDialog:focus,
+.profileImportDialog:focus {
 	outline: none;
 }
 
-.umaProfileManagerHeader {
-	background: linear-gradient(rgb(153, 219, 68), rgb(112, 190, 18));
-	border-bottom: 2px solid rgb(170, 221, 154);
-	border-radius: 10px 10px 0 0;
-	color: white;
+.skillProcDataHeader,
+.umaProfileManagerHeader,
+.profileImportHeader {
+	align-items: center;
+	background: rgba(100, 181, 246, 0.08);
+	border-bottom: 1px solid var(--app-border);
+	color: var(--app-text-primary);
 	display: flex;
-	font-weight: bold;
+	font-weight: 800;
 	justify-content: space-between;
 	padding: 12px 16px;
 }
 
-.umaProfileManagerHeader h3 {
+.skillProcDataHeader h3,
+.umaProfileManagerHeader h3,
+.profileImportHeader h3 {
+	font-size: 1.1em;
 	margin: 0;
-	font-size: 1.2em;
 }
 
-.umaProfileManagerClose {
+.skillProcDataTitle {
+	align-items: baseline;
+	display: flex;
+	flex: 1 1 auto;
+	gap: 0.45em;
+	min-width: 0;
+}
+
+.skillProcDataTitleName {
+	font-weight: 800;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.skillProcDataTitleSuffix {
+	color: var(--app-text-muted);
+	font-size: 0.78em;
+	font-weight: 500;
+	letter-spacing: 0.02em;
+	flex-shrink: 0;
+}
+
+.skillProcDataClose,
+.umaProfileManagerClose,
+.profileImportClose {
+	align-items: center;
 	background: transparent;
-	border: none;
-	color: white;
+	border: 0;
+	border-radius: 50%;
+	color: var(--app-text-muted);
 	cursor: pointer;
-	font-size: 1.5em;
-	font-weight: bold;
+	display: flex;
+	font-size: 1.3em;
+	font-weight: 700;
+	height: 28px;
+	justify-content: center;
 	line-height: 1;
 	padding: 0;
-	width: 24px;
-	height: 24px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	transition: opacity 0.2s;
+	transition: background 0.15s ease, color 0.15s ease;
+	width: 28px;
 }
 
-.umaProfileManagerClose:hover {
-	opacity: 0.7;
+.skillProcDataClose:hover,
+.umaProfileManagerClose:hover,
+.profileImportClose:hover {
+	background: rgba(229, 115, 115, 0.18);
+	color: var(--app-danger);
 }
 
-.umaProfileManagerContent {
+.skillProcDataContent,
+.umaProfileManagerContent,
+.profileImportContent {
+	color: var(--app-text-secondary);
 	padding: 16px;
 }
 
 .umaProfileManagerActions {
-	display: flex;
 	align-items: stretch;
+	display: flex;
 	gap: 12px;
 	margin-bottom: 16px;
 }
 
-.umaProfileManagerPrimaryActions {
-	display: flex;
-	flex-direction: column;
-	justify-content: space-between;
-}
-
-.umaProfileManagerSaveButton {
-	background: linear-gradient(rgb(168, 227, 5), rgb(97, 174, 22)) padding-box, linear-gradient(rgb(173, 219, 60), rgb(85, 143, 24)) border-box;
-	border: 2px solid transparent;
-	border-radius: 20px;
-	box-shadow: 0px 2px 0 rgb(180,178,192);
-	box-sizing: border-box;
-	color: white;
-	cursor: pointer;
-	font-size: 0.9em;
-	font-weight: bold;
-	padding: 6px 16px;
-	transition: all 0.2s;
-}
-
-.umaProfileManagerSaveButton:hover {
-	background: linear-gradient(rgb(178, 237, 15), rgb(107, 184, 32)) padding-box, linear-gradient(rgb(183, 229, 70), rgb(95, 153, 34)) border-box;
-	box-shadow: 0px 3px 0 rgb(180,178,192);
-	transform: translateY(-1px);
-}
-
+.umaProfileManagerPrimaryActions,
 .umaProfileManagerDatabaseButtons {
-	margin-left: auto;
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
+}
+
+.umaProfileManagerDatabaseButtons {
 	align-items: flex-end;
+	margin-left: auto;
+}
+
+.umaProfileManagerSaveButton:first-child {
+	background: #377fe5;
+	border-color: var(--app-accent);
+	color: var(--app-text-primary);
+}
+
+.umaProfileManagerSaveButton:first-child:hover {
+	background: #4c97f1;
+	color: var(--app-text-primary);
 }
 
 .umaProfileManagerMessage {
-	color: rgb(97, 174, 22);
-	font-weight: bold;
+	color: var(--app-success);
 	font-size: 0.9em;
+	font-weight: 700;
+}
+
+.umaProfileManagerSavedCount,
+.umaProfileManagerItemUma {
+	color: var(--app-text-secondary);
 }
 
 .umaProfileManagerSavedCount {
-	color: rgb(121, 64, 22);
-	font-size: 1em;
-	font-weight: normal;
+	align-items: center;
+	display: flex;
+	min-height: 30px;
 }
 
 .umaProfileManagerSearch {
@@ -720,31 +1270,19 @@
 }
 
 .umaProfileManagerSearchInput {
-	width: 100%;
-	padding: 8px 12px;
-	border: 2px solid rgb(224, 214, 204);
-	border-radius: 6px;
-	font-size: 1em;
-	color: rgb(121, 64, 22);
 	box-sizing: border-box;
-	transition: border-color 0.2s;
-}
-
-.umaProfileManagerSearchInput:focus {
-	outline: none;
-	border-color: rgb(170, 221, 154);
+	width: 100%;
 }
 
 .umaProfileManagerSearchInput::placeholder {
-	color: rgb(121, 64, 22);
-	opacity: 0.5;
+	color: var(--app-text-muted);
 }
 
 .umaProfileManagerEmpty {
-	text-align: center;
-	color: rgb(121, 64, 22);
+	color: var(--app-text-muted);
+	font-size: 1.05em;
 	padding: 40px 20px;
-	font-size: 1.1em;
+	text-align: center;
 }
 
 .umaProfileManagerList {
@@ -754,245 +1292,219 @@
 }
 
 .umaProfileManagerItem {
-	border: 2px solid rgb(224, 214, 204);
-	border-radius: 8px;
-	margin-bottom: 12px;
-	padding: 12px;
+	align-items: center;
+	background: var(--app-surface-1);
+	border: 1px solid var(--app-border);
+	border-radius: var(--app-radius);
 	display: flex;
 	justify-content: space-between;
-	align-items: center;
-	background: white;
-	transition: border-color 0.2s;
+	margin-bottom: 12px;
+	padding: 12px;
+	transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .umaProfileManagerItem:hover {
-	border-color: rgb(170, 221, 154);
+	background: var(--app-surface-2);
+	border-color: var(--app-border-accent);
 }
 
 .umaProfileManagerItemMain {
-	display: flex;
 	align-items: center;
-	gap: 12px;
+	display: flex;
 	flex: 1;
+	gap: 12px;
 }
 
 .umaProfileManagerUmaIcon {
-	width: 90px;
+	border-radius: var(--app-radius-sm);
 	height: 90px;
 	object-fit: cover;
-	border-radius: 4px;
 	transform: translateY(-5px) scaleY(1.08);
 	transform-origin: center;
+	width: 90px;
 }
 
 .umaProfileManagerItemInfo {
 	display: flex;
+	flex: 1;
 	flex-direction: column;
 	gap: 4px;
-	flex: 1;
 }
 
 .umaProfileManagerItemName {
-	font-weight: bold;
+	color: var(--app-text-primary);
 	font-size: 1.1em;
-	color: rgb(121, 64, 22);
-}
-
-.umaProfileManagerItemUma {
-	color: rgb(121, 64, 22);
-	font-size: 0.95em;
+	font-weight: 750;
 }
 
 .umaProfileManagerItemTime {
-	color: rgb(121, 64, 22);
+	color: var(--app-text-muted);
 	font-size: 0.85em;
-	opacity: 0.7;
 }
 
 .umaProfileManagerRenameInput {
-	border: 2px solid rgb(170, 221, 154);
-	border-radius: 4px;
-	padding: 4px 8px;
 	font-size: 1.1em;
-	font-weight: bold;
-	color: rgb(121, 64, 22);
+	font-weight: 700;
 	width: 200px;
 }
 
 .umaProfileManagerItemActions {
+	align-items: flex-end;
 	display: flex;
 	flex-direction: column;
-	align-items: flex-end;
 	gap: 6px;
 	margin-left: 12px;
 }
 
 .umaProfileManagerActionButton {
-	background: linear-gradient(rgb(168, 227, 5), rgb(97, 174, 22)) padding-box, linear-gradient(rgb(173, 219, 60), rgb(85, 143, 24)) border-box;
-	border: 2px solid transparent;
-	border-radius: 16px;
-	box-shadow: 0px 2px 0 rgb(180,178,192);
-	box-sizing: border-box;
-	color: white;
-	cursor: pointer;
-	font-size: 0.85em;
-	font-weight: bold;
-	padding: 4px 12px;
-	transition: all 0.2s;
 	min-width: 82px;
 	text-align: center;
 }
 
-.umaProfileManagerActionButton:hover {
-	background: linear-gradient(rgb(178, 237, 15), rgb(107, 184, 32)) padding-box, linear-gradient(rgb(183, 229, 70), rgb(95, 153, 34)) border-box;
-	box-shadow: 0px 3px 0 rgb(180,178,192);
-	transform: translateY(-1px);
+.umaProfileManagerLoadButton {
+	border-color: rgba(129, 199, 132, 0.45);
+	color: var(--app-success);
 }
 
-.horseAptitudes {
-	margin-bottom: 0;
+.umaProfileManagerLoadButton:hover {
+	background: rgba(129, 199, 132, 0.18);
+	border-color: var(--app-success);
 }
 
-.horseAptitudes > div:not(:last-child) {
-	margin-bottom: 0;
+.umaProfileManagerActionButton:last-child {
+	border-color: rgba(229, 115, 115, 0.45);
+	color: var(--app-danger);
+}
+
+.umaProfileManagerActionButton:last-child:hover {
+	background: rgba(229, 115, 115, 0.18);
+	border-color: var(--app-danger);
 }
 
 .careerRatingDisplay {
-	padding: 6px 16px;
-	display: flex;
-	flex-direction: row;
 	align-items: center;
-	justify-content: center;
-	background: rgb(248, 248, 248);
-	font-size: 1em;
-	color: rgb(121, 64, 22);
-	border-top: 2px solid rgb(170, 221, 154);
-	border-bottom: 2px solid rgb(170, 221, 154);
+	background: rgba(255, 255, 255, 0.025);
+	border-bottom: 1px solid var(--app-border);
+	border-left: 0;
+	border-radius: 0;
+	border-right: 0;
+	border-top: 1px solid var(--app-border);
+	color: var(--app-text-secondary);
+	display: grid;
+	font-size: 0.9em;
+	grid-template-columns: minmax(0, 42fr) minmax(0, 58fr);
 	margin-top: 8px;
-	min-height: 108px;
-	gap: 16px;
+	min-height: 86px;
+	padding: 8px 14px;
 	position: relative;
+	/* Stay under aptitude/mood menus that open downward over this row. */
+	z-index: 0;
 }
 
 .careerRatingLeftSpacer {
-	flex: 1 1 auto;
-	min-width: 0;
+	display: none;
 }
 
 .careerRatingMain {
-	display: flex;
 	align-items: center;
-	justify-content: flex-start;
-	flex: 0 0 auto;
-	position: absolute;
-	left: calc(50% - 165px);
-	transform: translateX(0);
-}
-
-.careerRatingBreakdown {
 	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	font-size: 0.9em;
-	position: absolute;
-	right: 0px;
-	/* Removed align-items: flex-end so rows don't shrink */
-	/* Removed text-align: right to avoid inheritance issues */
+	gap: 10px;
+	justify-content: center;
+	min-width: 0;
+	padding-right: 14px;
 }
 
-.careerRatingBreakdownRow {
-	display: grid; /* Changed from Flex to Grid */
-	grid-template-columns: 150px 60px; /* Two columns: 150px for Label, 60px for Number */
-	align-items: baseline; /* Aligns text by the baseline (bottom of letters) */
+.careerRatingTotal {
+	align-items: center;
+	display: flex;
+	justify-content: center;
+	min-width: 0;
+	position: relative;
 }
 
 .careerRatingBreakdownLabel {
-	text-align: right; /* Pushes text to the right side of the 150px column */
-	padding-right: 8px; /* Adds a clean gap between the colon and the number */
-	font-weight: normal;
-}
-
-.careerRatingBreakdownValue {
-	text-align: left; /* Pushes number to the left side of the 60px column */
-	font-weight: bold;
-}
-
-.careerRatingBreakdown strong {
-	font-weight: bold;
-}
-
-.careerRatingLabel {
-	display: inline-block;
-	vertical-align: middle;
-	font-weight: normal;
+	align-items: flex-end;
+	color: var(--app-text-muted);
+	display: flex;
+	font-size: 0.7em;
+	font-weight: 700;
+	justify-content: center;
+	letter-spacing: 0.06em;
+	line-height: 1;
+	min-height: 2em;
+	text-transform: uppercase;
+	white-space: normal;
 }
 
 .careerRatingNumber {
-	display: inline-block;
-	vertical-align: middle;
-	font-size: 1.5em;
-	font-weight: bold;
-	margin-left: 4px;
+	color: var(--app-text-primary);
+	font-size: clamp(1.45rem, calc(1.8vw / var(--ui-zoom)), 1.9rem);
+	font-variant-numeric: tabular-nums;
+	font-weight: 850;
+	letter-spacing: -0.04em;
+	line-height: 1.05;
+	margin: 0;
+	white-space: nowrap;
+}
+
+.careerRatingBreakdown {
+	align-items: center;
+	border-left: 1px solid var(--app-border);
+	display: grid;
+	gap: 6px;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	padding-left: 14px;
+}
+
+.careerRatingBreakdownRow {
+	align-items: center;
+	display: flex;
+	justify-content: center;
+	min-width: 0;
+	position: relative;
+}
+
+.careerRatingBreakdownLabel {
+	padding: 0;
+	text-align: center;
+}
+
+.careerRatingTotal > .careerRatingBreakdownLabel,
+.careerRatingBreakdownRow > .careerRatingBreakdownLabel {
+	bottom: calc(100% + 5px);
+	left: 50%;
+	position: absolute;
+	transform: translateX(-50%);
+	width: 100%;
+}
+
+.careerRatingTotal > .careerRatingBreakdownLabel {
+	width: max-content;
+}
+
+.careerRatingBreakdownValue {
+	color: var(--app-text-primary);
+	font-size: 1.05em;
+	font-variant-numeric: tabular-nums;
+	font-weight: 750;
+	text-align: center;
 }
 
 .careerRatingBadge {
 	flex-shrink: 0;
 	image-rendering: auto;
-	-webkit-image-rendering: auto;
-}
-
-.uniqueSkillLevelSelect {
-	position: absolute;
-	right: 8px;
-	top: 50%;
-	transform: translateY(-50%);
-	background: rgba(255, 255, 255, 0.9);
-	border: 1px solid rgba(121, 64, 22, 0.3);
-	border-radius: 4px;
-	padding: 2px 4px;
-	font-size: 0.85em;
-	color: rgb(121, 64, 22);
-	cursor: pointer;
-	z-index: 1;
 }
 
 .importButton {
 	min-width: 98px;
 }
 
-.profileImportOverlay {
-	background: rgba(25, 25, 25, 0.6);
-	display: none;
-	height: 100%;
-	left: 0;
-	position: fixed;
-	top: 0;
-	width: 100%;
-	z-index: 32;
-}
-
 .profileImportDialog {
-	background: white;
-	border: 2px solid rgb(170, 221, 154);
-	border-radius: 12px;
-	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-	display: flex;
-	flex-direction: column;
-	left: 50%;
-	max-height: 90vh;
-	max-width: 92vw;
-	overflow: hidden;
-	position: fixed;
-	top: 50%;
-	transform: translate(-50%, -50%);
-	width: 90vw;
-	max-width: 1280px;
-	z-index: 33;
 	display: none;
-}
-
-.profileImportOverlay.open {
-	display: block;
+	max-width: 1280px;
+	overflow: hidden;
+	width: calc(90vw / var(--ui-zoom));
+	z-index: 210;
 }
 
 .profileImportDialog.open {
@@ -1000,41 +1512,15 @@
 }
 
 .profileImportHeader {
-	background: linear-gradient(rgb(153, 219, 68), rgb(112, 190, 18));
-	border-bottom: 2px solid rgb(170, 221, 154);
-	border-radius: 10px 10px 0 0;
-	color: white;
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	padding: 12px 16px;
+	flex: 0 0 auto;
 	position: sticky;
 	top: 0;
 	z-index: 2;
 }
 
-.profileImportHeader h3 {
-	margin: 0;
-	font-size: 1.2em;
-}
-
-.profileImportClose {
-	background: transparent;
-	border: none;
-	color: white;
-	font-size: 1.5em;
-	font-weight: bold;
-	cursor: pointer;
-}
-
 .profileImportContent {
-	padding: 16px;
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
-	color: rgb(121, 64, 22);
+	max-height: calc(90vh / var(--ui-zoom) - 62px);
 	overflow-y: auto;
-	max-height: calc(90vh - 62px);
 }
 
 .profileImportTwoPanel {
@@ -1044,84 +1530,91 @@
 }
 
 .profileImportTwoPanel.active {
-	display: grid;
-	grid-template-columns: minmax(360px, 44%) minmax(0, 1fr);
-	gap: 12px;
 	align-items: stretch;
-	min-height: calc(90vh - 108px);
+	display: grid;
+	gap: 12px;
+	grid-template-columns: minmax(360px, 44%) minmax(0, 1fr);
+	min-height: calc(90vh / var(--ui-zoom) - 108px);
+}
+
+.profileImportScreensPanel,
+.profileImportUnknownPrompt,
+.profileImportReview {
+	background: var(--app-surface-1);
+	border: 1px solid var(--app-border);
+	border-radius: var(--app-radius);
 }
 
 .profileImportScreensPanel {
-	border: 1px solid rgb(224, 214, 204);
-	border-radius: 8px;
-	background: rgb(248, 248, 248);
 	display: flex;
 	flex-direction: column;
 	min-height: 0;
 }
 
 .profileImportScreensPanelBody {
-	padding: 8px;
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
 	overflow-y: auto;
+	padding: 8px;
 }
 
 .profileImportScreensPanelImageWrap {
-	border: 1px solid rgb(224, 214, 204);
-	border-radius: 6px;
-	background: white;
+	background: var(--app-bg-2);
+	border: 1px solid var(--app-border);
+	border-radius: var(--app-radius-sm);
 	overflow: hidden;
 }
 
 .profileImportScreensPanelImageWrap img {
-	width: 100%;
-	height: auto;
 	display: block;
+	height: auto;
+	width: 100%;
 }
 
 .profileImportExampleHeader {
-	padding: 2px 2px 6px 2px;
 	font-size: 1.12em;
+	padding: 2px 2px 6px;
 	text-align: center;
 }
 
-.profileImportActiveThumbStrip {
-	margin: 8px 0 0 0;
-	padding: 0;
-	list-style: none;
+.profileImportActiveThumbStrip,
+.profileImportScreenshotList {
 	display: flex;
-	gap: 6px;
 	flex-wrap: wrap;
+	gap: 6px;
+	list-style: none;
+	margin: 8px 0 0;
+	padding: 0;
 }
 
 .profileImportActiveThumbStrip li {
-	border: 1px solid rgb(224, 214, 204);
-	border-radius: 4px;
-	overflow: hidden;
-	width: 74px;
+	border: 1px solid var(--app-border);
+	border-radius: var(--app-radius-sm);
 	height: 42px;
 	opacity: 0.65;
+	overflow: hidden;
+	width: 74px;
 }
 
 .profileImportActiveThumbStrip li.active {
+	border-color: var(--app-accent);
+	box-shadow: 0 0 0 1px rgba(100, 181, 246, 0.32);
 	opacity: 1;
-	border-color: rgb(153, 219, 68);
 }
 
 .profileImportActiveThumbStrip img {
-	width: 100%;
+	display: block;
 	height: 100%;
 	object-fit: cover;
-	display: block;
+	width: 100%;
 }
 
 .profileImportExampleFallback {
+	color: var(--app-text-muted);
+	line-height: 1.4;
 	padding: 16px;
 	text-align: center;
-	line-height: 1.4;
-	color: rgb(121, 64, 22);
 }
 
 .profileImportMainPanel {
@@ -1132,26 +1625,30 @@
 }
 
 .profileImportDropzone {
-	border: 2px dashed rgb(170, 221, 154);
-	border-radius: 8px;
-	padding: 12px;
-	background: rgb(247, 255, 242);
-	min-height: 132px;
+	align-items: center;
+	background: rgba(100, 181, 246, 0.05);
+	border: 2px dashed var(--app-border-accent);
+	border-radius: var(--app-radius);
 	display: flex;
 	flex-direction: column;
-	align-items: center;
-	justify-content: center;
 	gap: 10px;
+	justify-content: center;
+	min-height: 132px;
+	padding: 12px;
+	transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .profileImportDropzoneClickable {
 	cursor: pointer;
+	font-weight: 700;
 	text-align: center;
-	font-weight: bold;
 }
 
-.profileImportDropzoneClickable:hover {
-	background: rgb(239, 252, 232);
+.profileImportDropzoneClickable:hover,
+.profileImportDropzoneClickable:focus-visible {
+	background: rgba(100, 181, 246, 0.12);
+	border-color: var(--app-accent);
+	outline: none;
 }
 
 .profileImportInstructionText {
@@ -1161,26 +1658,22 @@
 }
 
 .profileImportInstructionList {
-	margin: 6px auto;
-	padding-left: 20px;
-	max-width: 560px;
-	text-align: left;
+margin: 6px auto;
+max-width: 560px;
+padding-left: 20px;
+text-align: left;
 }
 
 .profileImportInstructionList li {
 	margin: 4px 0;
 }
 
-.profileImportDropzone p {
-	margin: 6px 0;
-}
-
 .profileImportActions {
-	display: grid;
-	grid-template-columns: 1fr auto 1fr;
-	gap: 8px;
-	margin-top: 8px;
 	align-items: center;
+	display: grid;
+gap: 8px;
+grid-template-columns: 1fr auto 1fr;
+margin-top: 8px;
 }
 
 .profileImportActions .resetUmaButton:first-child {
@@ -1193,390 +1686,429 @@
 	justify-self: end;
 }
 
-.profileImportActionsSingle {
+.profileImportActionsSingle,
+.profileImportApplyActions {
+	align-items: center;
 	display: flex;
+	gap: 8px;
 	justify-content: center;
 }
 
 .profileImportScreenshotList {
-	margin: 0;
-	padding: 0;
-	width: 100%;
-	max-height: 120px;
-	overflow-y: auto;
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: center;
-	gap: 8px;
-	list-style: none;
+justify-content: center;
+max-height: 120px;
+overflow-y: auto;
+width: 100%;
 }
 
 .profileImportScreenshotItem {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 96px;
-	position: relative;
+align-items: center;
+display: flex;
+height: 56px;
+justify-content: center;
+position: relative;
+width: 96px;
 }
 
 .profileImportScreenshotItem img {
-	width: 100%;
-	height: 56px;
-	object-fit: cover;
-	border-radius: 4px;
-	border: 1px solid rgb(224, 214, 204);
-	background: white;
+background: var(--app-bg-2);
+border: 1px solid var(--app-border);
+border-radius: var(--app-radius-sm);
+height: 56px;
+object-fit: cover;
+width: 100%;
 }
 
 .profileImportThumbRemove {
-	position: absolute;
-	top: 3px;
-	right: 3px;
-	width: 18px;
-	height: 18px;
-	border: none;
-	border-radius: 50%;
-	background: rgb(198, 53, 53);
-	color: white;
-	font-size: 14px;
-	line-height: 1;
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	padding: 0;
+align-items: center;
+background: rgba(229, 115, 115, 0.9);
+border: 1px solid rgba(229, 115, 115, 0.7);
+border-radius: 50%;
+color: var(--app-text-primary);
+cursor: pointer;
+display: flex;
+font-size: 14px;
+height: 18px;
+justify-content: center;
+line-height: 1;
+padding: 0;
+position: absolute;
+right: 3px;
+top: 3px;
+width: 18px;
 }
 
 .profileImportThumbRemove:hover {
-	background: rgb(165, 38, 38);
+background: var(--app-danger);
+}
+
+.profileImportError,
+.profileImportWarnings {
+border-radius: var(--app-radius-sm);
+padding: 8px 10px;
 }
 
 .profileImportError {
-	background: rgba(198, 53, 53, 0.1);
-	border: 1px solid rgba(198, 53, 53, 0.3);
-	border-radius: 6px;
-	padding: 8px 10px;
-	color: rgb(144, 45, 45);
+background: rgba(229, 115, 115, 0.12);
+border: 1px solid rgba(229, 115, 115, 0.4);
+color: #ef9a9a;
 }
 
 .profileImportWarnings {
-	background: rgba(239, 190, 56, 0.15);
-	border: 1px solid rgba(239, 190, 56, 0.35);
-	border-radius: 6px;
-	padding: 8px 10px;
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	font-size: 0.9em;
+background: rgba(255, 183, 77, 0.12);
+border: 1px solid rgba(255, 183, 77, 0.4);
+color: var(--app-warning);
+display: flex;
+flex-direction: column;
+font-size: 0.9em;
+gap: 4px;
 }
 
-.profileImportUnknownPrompt {
-	border: 1px solid rgb(224, 214, 204);
-	border-radius: 8px;
-	padding: 12px;
-	display: flex;
-	flex-direction: column;
-	gap: 10px;
+.profileImportUnknownPrompt,
+.profileImportReview {
+display: flex;
+flex-direction: column;
+gap: 10px;
+padding: 12px;
 }
 
-.profileImportUnknownPrompt h4 {
-	margin: 0;
+.profileImportUnknownPrompt h4,
+.profileImportReview h4 {
+margin: 0;
 }
 
 .profileImportUnknownCrop {
-	width: 100%;
-	max-height: 160px;
-	object-fit: contain;
-	border: 1px solid rgb(224, 214, 204);
-	border-radius: 4px;
-	background: white;
+background: var(--app-bg-2);
+border: 1px solid var(--app-border);
+border-radius: var(--app-radius-sm);
+max-height: 160px;
+object-fit: contain;
+width: 100%;
 }
 
 .profileImportUnknownNoCrop {
-	padding: 8px 10px;
-	border: 1px dashed rgb(224, 214, 204);
-	border-radius: 4px;
-	background: rgb(250, 250, 250);
-	font-size: 0.9em;
+background: var(--app-surface-1);
+border: 1px dashed var(--app-border-strong);
+border-radius: var(--app-radius-sm);
+color: var(--app-text-muted);
+font-size: 0.9em;
+padding: 8px 10px;
 }
 
 .profileImportUnknownCandidates {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(220px, 1fr));
-	gap: 6px;
-	align-content: start;
+align-content: start;
+display: grid;
+gap: 6px;
+grid-template-columns: repeat(2, minmax(220px, 1fr));
 }
 
 .profileImportSkillCandidateButton {
-	all: unset;
-	cursor: pointer;
-	display: block;
+all: unset;
+cursor: pointer;
+display: block;
 }
 
 .profileImportSkillCandidateButton .skill {
-	width: 100%;
-}
-
-.profileImportSkillCandidateButton.selected .skill {
-	outline: 2px solid rgb(153, 219, 68);
-	outline-offset: 1px;
+width: 100%;
 }
 
 .profileImportOtherOption {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	justify-content: flex-start;
-	height: 3em;
-	padding: 0 10px 0 16px;
-	box-sizing: border-box;
-	border: 1px solid rgb(224, 214, 204);
-	border-radius: 8px;
+box-sizing: border-box;
+gap: 5px;
+	height: 2.35em;
+justify-content: flex-start;
+	padding: 0 6px 0 0 !important;
 }
 
-.profileImportOtherOption > span {
+.profileImportOtherOption > .profileImportOtherIcon {
+	align-items: center;
+	align-self: stretch;
+	display: inline-flex;
+	flex: 0 0 2.1em;
+	font-size: inherit;
+	justify-content: center;
+margin: 0;
+position: static;
+top: auto;
+}
+
+.profileImportOtherIcon > span {
+	font-size: 1.35em;
+}
+
+.profileImportOtherOption > .skillName {
+	font-size: inherit;
 	margin: 0;
 	position: static;
 	top: auto;
 }
 
-.profileImportOtherOption.selected {
-	outline: 2px solid rgb(153, 219, 68);
-	outline-offset: 1px;
-}
-
-.profileImportUnknownNav,
-.profileImportApplyActions {
-	display: flex;
-	gap: 8px;
-	align-items: center;
-	justify-content: center;
-}
-
 .profileImportUnknownNav {
-	display: grid;
-	grid-template-columns: minmax(104px, auto) auto minmax(104px, auto);
-	justify-content: center;
-	align-items: center;
+align-items: center;
+display: grid;
+grid-template-columns: 1fr auto 1fr;
+width: 100%;
 }
 
 .profileImportUnknownNav .resetUmaButton:first-child {
-	justify-self: start;
+justify-self: start;
 }
 
 .profileImportUnknownNav .resetUmaButton:last-child {
-	justify-self: end;
+justify-self: end;
 }
 
 .profileImportUnknownIndex {
-	min-width: 46px;
-	text-align: center;
-	font-weight: bold;
+color: var(--app-text-primary);
+font-weight: 750;
+min-width: 46px;
+text-align: center;
 }
 
 .profileImportReview {
-	border: 1px solid rgb(224, 214, 204);
-	border-radius: 8px;
-	padding: 12px;
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
+	background:
+		linear-gradient(145deg, rgba(100, 181, 246, 0.08), rgba(255, 255, 255, 0.025)),
+		var(--app-surface-1);
+	border-color: var(--app-border-accent);
+	gap: 14px;
+	padding: 16px;
 }
 
-.profileImportReview h4 {
-	margin: 0 0 4px 0;
+.profileImportReviewHeader {
+	border-bottom: 1px solid var(--app-border);
+	padding-bottom: 12px;
 }
 
-.profileImportSummaryRow {
-	display: flex;
-	gap: 8px;
-	flex-wrap: wrap;
+.profileImportReviewHeader h4 {
+	color: var(--app-text-primary);
+	font-size: 1.15em;
+	margin: 2px 0 4px;
 }
 
-.profileImportSkillPreview {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 6px;
-}
-
-.profileImportSkillPreview > .profileImportSkillPreviewBubble {
-	background: rgb(242, 242, 242);
-	border: 1px solid rgb(224, 214, 204);
-	border-radius: 10px;
-	padding: 2px 8px;
-	font-size: 0.85em;
-}
-
-.profileImportSkillPreviewBubble {
-	background: rgb(242, 242, 242);
-	border: 1px solid rgb(224, 214, 204);
-	border-radius: 10px;
-	padding: 2px 8px;
-	font-size: 0.85em;
-	color: rgb(121, 64, 22);
-	cursor: pointer;
-	position: relative;
-	display: inline-flex;
-	align-items: center;
-}
-
-.profileImportSkillPreviewBubble:hover {
-	background: rgb(232, 246, 224);
-	border-color: rgb(170, 221, 154);
-}
-
-.profileImportSkillHoverCard {
-	position: absolute;
-	left: 50%;
-	bottom: calc(100% + 8px);
-	transform: translateX(-50%);
-	display: none;
-	align-items: center;
-	gap: 8px;
-	background: white;
-	border: 1px solid rgb(224, 214, 204);
-	border-radius: 8px;
-	padding: 6px 10px;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
-	white-space: nowrap;
-	z-index: 5;
-}
-
-.profileImportSkillHoverCard img {
-	width: 24px;
-	height: 24px;
-	object-fit: contain;
-}
-
-.profileImportSkillPreviewBubble:hover .profileImportSkillHoverCard {
-	display: inline-flex;
-}
-
-.profileImportSkillPickerOverlay {
-	background: rgba(25, 25, 25, 0.6);
-	position: fixed;
-	inset: 0;
-	z-index: 34;
-}
-
-.profileImportSkillPickerDialog {
-	position: fixed;
-	left: 50%;
-	top: 50%;
-	transform: translate(-50%, -50%);
-	width: min(920px, 92vw);
-	height: min(76vh, 780px);
-	background: white;
-	border: 2px solid rgb(170, 221, 154);
-	border-radius: 12px;
-	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-	display: flex;
-	flex-direction: column;
-	padding: 12px;
-	gap: 10px;
-	z-index: 35;
-}
-
-.profileImportSkillPickerHeader {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-}
-
-.profileImportSkillPickerHeader h4 {
+.profileImportReviewHeader p {
+	color: var(--app-text-secondary);
+	font-size: 0.88em;
+	line-height: 1.45;
 	margin: 0;
 }
 
-.profileImportSkillPickerSearch {
-	border: 2px solid rgb(224, 214, 204);
-	border-radius: 6px;
-	padding: 8px 10px;
+.profileImportReviewLabel {
+	color: var(--app-accent);
+	font-size: 0.72em;
+	font-weight: 800;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
 }
 
-.profileImportSkillPickerList {
+.profileImportTraineeRow {
+	align-items: center;
+	display: flex;
+	gap: 10px;
+	min-width: 0;
+}
+
+.profileImportTraineeRow > img {
+	border-radius: var(--app-radius-sm);
+	flex: 0 0 42px;
+	height: 42px;
+	object-fit: cover;
+	transform: scaleY(1.08);
+	transform-origin: center;
+	width: 42px;
+}
+
+.profileImportTraineeRow strong {
+	color: var(--app-text-primary);
+	font-size: 1.02em;
+	line-height: 1.3;
+	min-width: 0;
+}
+
+.profileImportReviewId {
+	color: var(--app-text-muted);
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 0.78em;
+	margin-left: auto;
+}
+
+.profileImportReviewSection {
+	display: flex;
+	flex-direction: column;
+	gap: 7px;
+}
+
+.profileImportStatsGrid {
 	display: grid;
-	grid-template-columns: repeat(2, minmax(280px, 1fr));
-	gap: 8px;
-	overflow-y: auto;
-	padding-right: 4px;
+	gap: 6px;
+	grid-template-columns: repeat(5, minmax(72px, 1fr));
 }
 
-.profileImportApplyActionsCentered {
-	width: 100%;
+.profileImportStatCard {
+	align-items: center;
+	display: flex;
+	gap: 7px;
 	justify-content: center;
-	padding-bottom: 20px;
+	padding: 2px 0;
 }
 
-.profileImportDisclaimer {
-	font-size: 0.88em;
-	line-height: 1.4;
-	color: rgb(121, 64, 22);
-	opacity: 0.9;
-	text-align: center;
-	padding: 0 6px 10px 6px;
-	font-style: italic;
+.profileImportStatCard + .profileImportStatCard {
+	border-left: 1px solid var(--app-border);
+}
+
+.profileImportStatCard img {
+	flex: 0 0 22px;
+	height: 22px;
+	object-fit: contain;
+	width: 22px;
+}
+
+.profileImportStatCard strong {
+	color: var(--app-text-primary);
+	font-size: 0.98em;
+	font-variant-numeric: tabular-nums;
+}
+
+.profileImportReviewMetaGrid {
+	display: grid;
+	gap: 8px;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.profileImportReviewMetaCard {
+	align-items: center;
+	display: flex;
+	gap: 8px;
+	justify-content: space-between;
+	padding: 3px 0;
+}
+
+.profileImportReviewMetaCard:first-child {
+	padding-right: 12px;
+}
+
+.profileImportReviewMetaCard + .profileImportReviewMetaCard {
+	border-left: 1px solid var(--app-border);
+	padding-left: 12px;
+}
+
+.profileImportReviewMetaCard > span {
+	color: var(--app-text-secondary);
+	font-size: 0.82em;
+	font-weight: 650;
+}
+
+.profileImportReviewMetaCard > strong {
+	color: var(--app-accent-2);
+	font-size: 1.2em;
+}
+
+.profileImportSkillPreview {
+display: grid;
+gap: 6px;
+grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.profileImportSkillPreviewCard {
+align-items: center;
+background: var(--app-surface-2);
+border: 1px solid var(--app-border);
+border-radius: var(--app-radius-sm);
+display: flex;
+gap: 7px;
+min-width: 0;
+padding: 5px 7px 5px 5px;
+}
+
+.profileImportSkillPreviewCard > img {
+	flex: 0 0 28px;
+	height: 28px;
+	object-fit: contain;
+	width: 28px;
+}
+
+.profileImportSkillPreviewCard > span {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.profileImportSkillPreviewCard strong {
+	color: var(--app-text-primary);
+	font-size: 0.78em;
+	line-height: 1.25;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.profileImportSkillPreviewCard small {
+	color: var(--app-text-muted);
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 0.68em;
 }
 
 .profileImportPrimaryAction {
-	background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-	border: 2px solid #1e40af;
-	border-radius: 8px;
-	color: white;
-	font-size: 1.05em;
-	font-weight: 700;
-	padding: 10px 20px;
-	min-width: 190px;
-	box-shadow: 0 3px 8px rgba(59, 130, 246, 0.3);
+background: #377fe5;
+border-color: var(--app-accent);
+	color: var(--app-text-primary);
+font-size: 1.05em;
+font-weight: 700;
+min-width: 190px;
+padding: 10px 20px;
 }
 
 .profileImportPrimaryAction:hover {
-	background: linear-gradient(135deg, #2563eb, #1e3a8a);
-	border-color: #1e3a8a;
-	transform: translateY(-1px);
-	box-shadow: 0 6px 16px rgba(59, 130, 246, 0.35);
-}
-
-.profileImportPrimaryAction:disabled,
-.profileImportPrimaryAction:disabled:hover {
-	background: linear-gradient(135deg, #9ca3af, #6b7280);
-	border-color: #6b7280;
-	color: #d1d5db;
-	transform: none;
-	box-shadow: 0 2px 4px rgba(107, 114, 128, 0.2);
+background: #4c97f1;
+border-color: #90caf9;
+box-shadow: var(--app-glow-blue);
 }
 
 .profileImportResetAction {
-	background: linear-gradient(135deg, #dc2626, #b91c1c);
-	border: 2px solid #991b1b;
-	border-radius: 8px;
-	color: white;
-	font-size: 1.05em;
-	font-weight: 700;
-	min-width: 190px;
-	padding: 10px 20px;
-	box-shadow: 0 3px 8px rgba(220, 38, 38, 0.3);
+background: rgba(229, 115, 115, 0.16);
+border-color: rgba(229, 115, 115, 0.45);
+color: #ef9a9a;
+font-size: 1.05em;
+font-weight: 700;
+min-width: 190px;
+padding: 10px 20px;
 }
 
 .profileImportResetAction:hover {
-	background: linear-gradient(135deg, #b91c1c, #991b1b);
-	border-color: #7f1d1d;
-	transform: translateY(-1px);
-	box-shadow: 0 6px 16px rgba(220, 38, 38, 0.35);
+background: rgba(229, 115, 115, 0.28);
+border-color: var(--app-danger);
 }
 
+.profileImportPrimaryAction:disabled,
+.profileImportPrimaryAction:disabled:hover,
 .profileImportResetAction:disabled,
 .profileImportResetAction:disabled:hover {
-	background: linear-gradient(135deg, #9ca3af, #6b7280);
-	border-color: #6b7280;
-	color: #d1d5db;
-	transform: none;
-	box-shadow: 0 2px 4px rgba(107, 114, 128, 0.2);
+box-shadow: none;
+cursor: not-allowed;
+opacity: 0.5;
+transform: none;
+}
+
+.profileImportApplyActionsCentered {
+justify-content: center;
+padding-bottom: 20px;
+width: 100%;
+}
+
+.profileImportDisclaimer {
+color: var(--app-text-muted);
+font-size: 0.88em;
+font-style: italic;
+line-height: 1.4;
+padding: 0 6px 10px;
+text-align: center;
 }
 
 .profileImportOtherPickerOverlay {
-	z-index: 60;
+display: block;
+z-index: 60;
 }
 
 .profileImportOtherPickerWrapper {
-	z-index: 61;
+z-index: 61;
 }
