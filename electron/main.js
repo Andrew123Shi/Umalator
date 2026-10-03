@@ -21,6 +21,7 @@ const MIME_TYPES = {
 
 const APP_ROOT = path.resolve(__dirname, "..");
 const GLOBAL_DIR = path.join(APP_ROOT, "umalator-global");
+const APP_ROUTE_PATTERN = new RegExp(`^/(${require("../umalator-global/routes.json").join("|")})/?$`);
 const HEARTBEAT_INTERVAL_MS = 5000;
 const HEARTBEAT_TIMEOUT_MS = 20000;
 
@@ -53,16 +54,18 @@ function resolveRequestPaths(normalizedPath) {
   return { requestPath, candidates: [primary, fallback].filter(Boolean) };
 }
 
-function serveHtmlWithHeartbeat(filePath, res) {
+function serveHtmlWithHeartbeat(filePath, res, isAppRoute) {
   fs.readFile(filePath, "utf8", (error, html) => {
     if (error) {
       res.writeHead(404).end();
       return;
     }
 
-    const output = html.includes("</body>")
-      ? html.replace("</body>", `${HEARTBEAT_SCRIPT}\n</body>`)
-      : `${html}\n${HEARTBEAT_SCRIPT}\n`;
+    // Route URLs may end in a slash, so relative asset URLs need a <base> pointing back at the root.
+    const routedHtml = isAppRoute ? html.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n<base href="/">') : html;
+    const output = routedHtml.includes("</body>")
+      ? routedHtml.replace("</body>", `${HEARTBEAT_SCRIPT}\n</body>`)
+      : `${routedHtml}\n${HEARTBEAT_SCRIPT}\n`;
     const body = Buffer.from(output, "utf8");
     res.writeHead(200, {
       "Content-Type": MIME_TYPES[".html"],
@@ -117,7 +120,8 @@ function createLocalServer() {
         res.writeHead(204).end();
         return;
       }
-      const normalizedPath = pathname === "/" ? "/index.html" : pathname;
+      const isAppRoute = APP_ROUTE_PATTERN.test(pathname);
+      const normalizedPath = pathname === "/" || isAppRoute ? "/index.html" : pathname;
       const { requestPath, candidates } = resolveRequestPaths(normalizedPath);
       if (!candidates.length) {
         res.writeHead(400).end();
@@ -130,7 +134,7 @@ function createLocalServer() {
       }
 
       if (requestPath === "index.html") {
-        serveHtmlWithHeartbeat(candidates[0], res);
+        serveHtmlWithHeartbeat(candidates[0], res, isAppRoute);
         return;
       }
 

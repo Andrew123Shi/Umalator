@@ -93,14 +93,27 @@ function quantile(sorted: number[], p: number) {
 	return sorted[lower] + (sorted[upper] - sorted[lower]) * (index - lower);
 }
 
+const distributionStatsCache = new WeakMap<object, {min: number, max: number, q1: number, q3: number, median: number, mean: number}>();
+
+function distributionStats(row: any) {
+	let stats = distributionStatsCache.get(row);
+	if (stats == null) {
+		const values = [...(row.results || [])].filter(Number.isFinite).sort((a, b) => a - b);
+		stats = {
+			min: Number.isFinite(row.min) ? row.min : (values[0] || 0),
+			max: Number.isFinite(row.max) ? row.max : (values[values.length - 1] || 0),
+			q1: quantile(values, 0.25),
+			q3: quantile(values, 0.75),
+			median: Number.isFinite(row.median) ? row.median : quantile(values, 0.5),
+			mean: Number.isFinite(row.mean) ? row.mean : 0
+		};
+		distributionStatsCache.set(row, stats);
+	}
+	return stats;
+}
+
 function DistributionCell({row, maxAbs}: {row: any, maxAbs: number}) {
-	const values = [...(row.results || [])].filter(Number.isFinite).sort((a, b) => a - b);
-	const min = Number.isFinite(row.min) ? row.min : (values[0] || 0);
-	const max = Number.isFinite(row.max) ? row.max : (values[values.length - 1] || 0);
-	const q1 = quantile(values, 0.25);
-	const q3 = quantile(values, 0.75);
-	const median = Number.isFinite(row.median) ? row.median : quantile(values, 0.5);
-	const mean = Number.isFinite(row.mean) ? row.mean : 0;
+	const {min, max, q1, q3, median, mean} = distributionStats(row);
 	const position = (value: number) => Math.max(0, Math.min(100, 50 + (value / maxAbs) * 50));
 	const meanWidth = Math.min(50, Math.abs(mean) / maxAbs * 50);
 	const meanLeft = mean < 0 ? 50 - meanWidth : 50;
@@ -226,6 +239,13 @@ export function BasinnChart(props) {
 		return Math.max(Math.abs(mean - 3 * std), Math.abs(mean + 3 * std), 0.01);
 	}, [props.data]);
 
+	// Cell renderers are component types to flexRender, so `columns` must keep a stable identity across
+	// result updates or every cell remounts. Values that change with the data are read through refs instead.
+	const distributionScaleRef = useRef(distributionScale);
+	distributionScaleRef.current = distributionScale;
+	const ownedSkillsRef = useRef(props.ownedSkills);
+	ownedSkillsRef.current = props.ownedSkills;
+
 	function toggleExpand(skillId) {
 		if (expanded === skillId) {
 			setExpanded('');
@@ -253,7 +273,7 @@ export function BasinnChart(props) {
 			<SkillNameCell
 				id={info.row.original.id}
 				showUmaIcons={props.showUmaIcons}
-				owned={props.ownedSkills?.has?.(info.row.original.id)}
+				owned={ownedSkillsRef.current?.has?.(info.row.original.id)}
 			/>
 		),
 		sortingFn: 'alphanumeric'
@@ -261,7 +281,7 @@ export function BasinnChart(props) {
 		header: () => <span>Finish Margin</span>,
 		id: 'distribution',
 		accessorFn: (row) => row[selectedType],
-		cell: (info) => <DistributionCell row={info.row.original} maxAbs={distributionScale} />,
+		cell: (info) => <DistributionCell row={info.row.original} maxAbs={distributionScaleRef.current} />,
 		enableSorting: false
 	}, ...METRIC_COLUMNS.map(([type, label]) => ({
 		header: ({column}) => (
@@ -281,7 +301,7 @@ export function BasinnChart(props) {
 		accessorKey: type,
 		cell: (info) => <span class="chartMetricValue">{formatChartValue(info.getValue())}</span>,
 		sortDescFirst: true
-	}))], [selectedType, props.showUmaIcons, props.ownedSkills, distributionScale]);
+	}))], [selectedType, props.showUmaIcons]);
 
 	const table = useTable({
 		_features: tableFeatures({rowSortingFeature}),

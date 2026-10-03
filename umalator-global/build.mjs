@@ -124,6 +124,7 @@ const MIME_TYPES = {
 };
 
 const ARTIFACTS = ['bundle.js', 'bundle.css', 'simulator.worker.js'];
+const APP_ROUTE_PATTERN = new RegExp(`^/(${JSON.parse(fs.readFileSync(path.join(dirname, 'routes.json'), 'utf8')).join('|')})/?$`);
 
 function runServer(ctx, port) {
 	const requestCount = new Map(ARTIFACTS.map(f => [f, 0]));
@@ -156,14 +157,17 @@ function runServer(ctx, port) {
 				'Content-length': artifact.length
 			}).end(artifact);
 		} else {
-			// Handle root path - serve index.html from umalator-global
-			if (req.url === '/' || req.url === '') {
+			// Handle root path and app routes - serve index.html from umalator-global
+			const isAppRoute = APP_ROUTE_PATTERN.test(req.url.split('?')[0]);
+			if (req.url === '/' || req.url === '' || isAppRoute) {
 				const fp = path.join(dirname, 'index.html');
 				const exists = await fs.promises.access(fp).then(() => true, () => false);
 				if (exists) {
 					console.log(`GET ${req.url} 200 OK (serving index.html from ${fp})`);
+					const html = await fs.promises.readFile(fp, 'utf8');
 					res.writeHead(200, {'Content-type': MIME_TYPES['.html']});
-					fs.createReadStream(fp).pipe(res);
+					// Route URLs may end in a slash, so relative asset URLs need a <base> pointing back at the root.
+					res.end(isAppRoute ? html.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n<base href="/">') : html);
 					return;
 				} else {
 					console.log(`GET ${req.url} 404 Not Found (index.html not found at ${fp})`);

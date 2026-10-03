@@ -1,5 +1,38 @@
 [
   {
+    "id": 23,
+    "type": "CM",
+    "name": "Pisces Cup 2",
+    "date": "2026-12-05",
+    "courseId": 10504,
+    "season": "Spring",
+    "ground": "Good",
+    "weather": "Sunny",
+    "time": "Midday"
+  },
+  {
+    "id": 22,
+    "type": "CM",
+    "name": "Aquarius Cup 2",
+    "date": "2026-11-18",
+    "courseId": 10611,
+    "season": "Winter",
+    "ground": "Soft",
+    "weather": "Snowy",
+    "time": "Midday"
+  },
+  {
+    "id": 21,
+    "type": "CM",
+    "name": "Capricorn Cup 2",
+    "date": "2026-10-27",
+    "courseId": 10701,
+    "season": "Winter",
+    "ground": "Good",
+    "weather": "Sunny",
+    "time": "Midday"
+  },
+  {
     "id": 20,
     "type": "CM",
     "name": "Sagittarius Cup 2",

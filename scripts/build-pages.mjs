@@ -30,6 +30,8 @@ const requiredCopies = [
 	}
 ];
 
+const appRoutes = JSON.parse(await fs.readFile(path.join(umalatorGlobalDir, 'routes.json'), 'utf8'));
+
 const requiredOutputs = [
 	path.join(distPagesDir, 'index.html'),
 	path.join(distPagesDir, 'bundle.js'),
@@ -77,6 +79,19 @@ async function buildPages() {
 	for (const copy of requiredCopies) {
 		await assertPathExists(copy.from, copy.label);
 		await copyPath(copy.from, copy.to);
+	}
+
+	// Static hosts need a real file at each app URL. Hosts may serve these as route/ with a trailing slash,
+	// so relative asset URLs need a <base> pointing back at the app root.
+	const indexHtml = await fs.readFile(path.join(distPagesDir, 'index.html'), 'utf8');
+	const routeHtml = indexHtml.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n\t\t<base href="../">');
+	if (routeHtml === indexHtml) {
+		throw new Error('Could not insert <base> into index.html route copies (missing <meta charset="utf-8">)');
+	}
+	for (const route of appRoutes) {
+		const routeDir = path.join(distPagesDir, route);
+		await fs.mkdir(routeDir, { recursive: true });
+		await fs.writeFile(path.join(routeDir, 'index.html'), routeHtml);
 	}
 
 	for (const outputPath of requiredOutputs) {

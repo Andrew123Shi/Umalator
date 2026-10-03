@@ -45,6 +45,7 @@ declare const CC_GLOBAL: boolean;
 import './app.css';
 
 const DEFAULT_SAMPLES = 500;
+const CHART_PROGRESS_RENDER_INTERVAL_MS = 100;
 const DEFAULT_SEED = 2615953739;
 
 type OptimizerMaxStatKey = 'speed' | 'stamina' | 'power' | 'guts' | 'wisdom';
@@ -260,7 +261,7 @@ function OptimizerStatsBar({stats, onLoadToUma1, careerRating, isOptimal}: {
 						class="optimizerCareerRatingBadge"
 						style={{
 							backgroundImage: `url(${umaToolsAsset('icons/rank_badges.png')})`,
-							backgroundPosition: `-${ratingBadge.sprite.col * 44}px -${ratingBadge.sprite.row * 44}px`
+							backgroundPosition: `-${ratingBadge.sprite.col * 52}px -${ratingBadge.sprite.row * 52}px`
 						}}
 						title={ratingBadge.label}
 					/>
@@ -2210,6 +2211,14 @@ const ORDER_RANGE_FOR_STRATEGY = Object.freeze({
 	'Oonige': [1,1]
 });
 
+// Interleaved rather than contiguous: neighboring skill IDs tend to survive the same number of chart rounds,
+// so contiguous slices leave some workers with far more refinement work than others.
+function splitSkillsAcrossWorkers(skills: string[], workerCount: number): string[][] {
+	const chunks: string[][] = Array.from({length: workerCount}, () => []);
+	skills.forEach((id, i) => chunks[i % workerCount].push(id));
+	return chunks;
+}
+
 function racedefToParams({mood, ground, weather, season, time, grade}: RaceParams, includeOrder?: string): RaceParameters {
 	return {
 		mood, groundCondition: ground, weather, season, time, grade,
@@ -3030,6 +3039,88 @@ const enum UiStateMsg { SetModeCompare, SetModeChart, SetModeUniquesChart, SetMo
 
 const DEFAULT_UI_STATE = {mode: Mode.Compare, currentIdx: 0, expanded: false};
 
+const MODE_ROUTES: ReadonlyArray<{mode: Mode, path: string, label: string, msg: UiStateMsg}> = [
+	{mode: Mode.Compare, path: 'compare', label: 'Race Compare', msg: UiStateMsg.SetModeCompare},
+	{mode: Mode.GlobalCompare, path: 'global-compare', label: 'Global Compare', msg: UiStateMsg.SetModeGlobalCompare},
+	{mode: Mode.Chart, path: 'skill-chart', label: 'Skill Chart', msg: UiStateMsg.SetModeChart},
+	{mode: Mode.GlobalSkillChart, path: 'global-skill-chart', label: 'Global Skill Chart', msg: UiStateMsg.SetModeGlobalSkillChart},
+	{mode: Mode.UniquesChart, path: 'uma-chart', label: 'Uma Chart', msg: UiStateMsg.SetModeUniquesChart},
+	{mode: Mode.RaceOptimizer, path: 'optimizer', label: 'Race Optimizer', msg: UiStateMsg.SetModeRaceOptimizer}
+];
+const SETTINGS_ROUTE_PATH = 'settings';
+const LAST_MODE_ROUTE_STORAGE_KEY = 'umalator-last-mode-route';
+const BASE_DOCUMENT_TITLE = document.title;
+// Keep in sync with umalator-global/routes.json, which tells the servers and the Pages build which URLs are app pages.
+const ROUTE_URL_PATTERN = new RegExp(`^(.*/)(${[...MODE_ROUTES.map(r => r.path), SETTINGS_ROUTE_PATH].join('|')})/?$`);
+
+function detectAppRootPath() {
+	const match = window.location.pathname.match(ROUTE_URL_PATTERN);
+	if (match) return match[1];
+	const pathname = window.location.pathname.replace(/index\.html$/, '');
+	return pathname.endsWith('/') ? pathname : pathname + '/';
+}
+
+const APP_ROOT_PATH = detectAppRootPath();
+
+type AppRoute = {settings: true} | {settings: false, mode: Mode};
+
+function routeUrl(path: string) {
+	return APP_ROOT_PATH + path;
+}
+
+function modeRouteUrl(mode: Mode) {
+	return routeUrl(MODE_ROUTES.find(r => r.mode == mode)!.path);
+}
+
+function parseRouteUrl(pathname: string): AppRoute | null {
+	const match = pathname.match(ROUTE_URL_PATTERN);
+	if (!match || match[1] != APP_ROOT_PATH) return null;
+	if (match[2] == SETTINGS_ROUTE_PATH) return {settings: true};
+	const route = MODE_ROUTES.find(r => r.path == match[2]);
+	return route ? {settings: false, mode: route.mode} : null;
+}
+
+function loadLastModeRouteUrl() {
+	try {
+		const path = localStorage.getItem(LAST_MODE_ROUTE_STORAGE_KEY);
+		const route = MODE_ROUTES.find(r => r.path == path);
+		if (route) return routeUrl(route.path);
+	} catch (_) {}
+	return modeRouteUrl(Mode.Compare);
+}
+
+function isPlainLeftClick(e: MouseEvent) {
+	return !e.defaultPrevented && e.button == 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
+}
+
+const PREFERENCES_STORAGE_KEY = 'umalator-preferences';
+
+function loadPreferences(): {[key: string]: any} {
+	try {
+		const stored = JSON.parse(localStorage.getItem(PREFERENCES_STORAGE_KEY) || '{}');
+		return stored != null && typeof stored == 'object' ? stored : {};
+	} catch (_) {
+		return {};
+	}
+}
+
+function savePreferences(preferences: {[key: string]: any}) {
+	try {
+		localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(preferences));
+	} catch (error) {
+		console.warn('Failed to save preferences to localStorage:', error);
+	}
+}
+
+// Saved values only win when they have the same shape as the default, so stale or hand-edited storage can't break the UI.
+function preferenceOr<T>(preferences: {[key: string]: any}, key: string, fallback: T): T {
+	const value = preferences[key];
+	if (value == null || typeof value != typeof fallback || Array.isArray(value) != Array.isArray(fallback)) return fallback;
+	if (typeof fallback == 'number' && !Number.isFinite(value)) return fallback;
+	if (typeof fallback == 'object' && !Array.isArray(fallback)) return {...fallback, ...value};
+	return value;
+}
+
 function nextUiState(state: typeof DEFAULT_UI_STATE, msg: UiStateMsg) {
 	switch (msg) {
 		case UiStateMsg.SetModeCompare:
@@ -3431,15 +3522,16 @@ function App(props) {
 	//const [language, setLanguage] = useLanguageSelect(); 
 	const trackWidth = trackWidthFor(useUiViewport());
 	const [darkMode, toggleDarkMode] = useReducer(b=>!b, false);
+	const [savedPreferences] = useState(loadPreferences);
 	const [skillsOpen, setSkillsOpen] = useState(false);
-	const [globalSkillChartSimulateAll, setGlobalSkillChartSimulateAll] = useState(true);
-	const [globalSkillChartSelectedSkills, setGlobalSkillChartSelectedSkills] = useState(() => SkillSet([]));
+	const [globalSkillChartSimulateAll, setGlobalSkillChartSimulateAll] = useState(() => preferenceOr(savedPreferences, 'globalSkillChartSimulateAll', true));
+	const [globalSkillChartSelectedSkills, setGlobalSkillChartSelectedSkills] = useState(() => SkillSet(preferenceOr<string[]>(savedPreferences, 'globalSkillChartSelectedSkills', [])));
 	const [hasGlobalSkillChartRun, setHasGlobalSkillChartRun] = useState(false);
-	const [chartSkillIconFilters, setChartSkillIconFilters] = useState<SkillIconTypeFilterState>(() => createInitialIconTypeFilterState({
+	const [chartSkillIconFilters, setChartSkillIconFilters] = useState<SkillIconTypeFilterState>(() => preferenceOr(savedPreferences, 'chartSkillIconFilters', createInitialIconTypeFilterState({
 		deselectPurple: true,
 		deselectIcons: ['2009', '3007']
-	}));
-	const [chartSkillRarityFilters, setChartSkillRarityFilters] = useState<SkillRarityFilterState>(createInitialRarityFilterState);
+	})));
+	const [chartSkillRarityFilters, setChartSkillRarityFilters] = useState<SkillRarityFilterState>(() => preferenceOr(savedPreferences, 'chartSkillRarityFilters', createInitialRarityFilterState()));
 	const [chartNoMatchingSkills, setChartNoMatchingSkills] = useState(false);
 	const chartSkillIconFilterDefault = useMemo(() => createInitialIconTypeFilterState({
 		deselectPurple: true,
@@ -3448,13 +3540,13 @@ function App(props) {
 	const chartSkillRarityFilterDefault = useMemo(() => createInitialRarityFilterState(), []);
 	const [racedef, setRaceDef] = useState(() => DEFAULT_PRESET.racedef);
 	const [nsamples, setSamples] = useState(DEFAULT_SAMPLES);
-	const [workerCount, setWorkerCount] = useState(8);
-	const [chartRun1Samples, setChartRun1Samples] = useState(5);
-	const [chartRun2Samples, setChartRun2Samples] = useState(25);
-	const [chartRun3Samples, setChartRun3Samples] = useState(100);
-	const [globalChartRun1SamplesPerLength, setGlobalChartRun1SamplesPerLength] = useState(5);
-	const [globalChartRun2Samples, setGlobalChartRun2Samples] = useState(50);
-	const [globalChartRun3Samples, setGlobalChartRun3Samples] = useState(100);
+	const [workerCount, setWorkerCount] = useState(() => preferenceOr(savedPreferences, 'workerCount', 8));
+	const [chartRun1Samples, setChartRun1Samples] = useState(() => preferenceOr(savedPreferences, 'chartRun1Samples', 5));
+	const [chartRun2Samples, setChartRun2Samples] = useState(() => preferenceOr(savedPreferences, 'chartRun2Samples', 25));
+	const [chartRun3Samples, setChartRun3Samples] = useState(() => preferenceOr(savedPreferences, 'chartRun3Samples', 100));
+	const [globalChartRun1SamplesPerLength, setGlobalChartRun1SamplesPerLength] = useState(() => preferenceOr(savedPreferences, 'globalChartRun1SamplesPerLength', 5));
+	const [globalChartRun2Samples, setGlobalChartRun2Samples] = useState(() => preferenceOr(savedPreferences, 'globalChartRun2Samples', 50));
+	const [globalChartRun3Samples, setGlobalChartRun3Samples] = useState(() => preferenceOr(savedPreferences, 'globalChartRun3Samples', 100));
 	const [seed, setSeed] = useState(DEFAULT_SEED);
 	const [runOnceCounter, setRunOnceCounter] = useState(0);
 	const [isSimulationRunning, setIsSimulationRunning] = useState(false);
@@ -3464,6 +3556,7 @@ function App(props) {
 	const chartWorkersProgressRef = useRef<Map<number, {round: number, completed: number, totalSkills: number}>>(new Map());
 	const chartWorkersInitialSkillsRef = useRef<Map<number, number>>(new Map());
 	const chartWorkersCompletedSetRef = useRef<Set<number>>(new Set());
+	const chartProgressRenderTimerRef = useRef<number | null>(null);
 	const chartWorkerCountRef = useRef(8);
 	const activeWorkersRef = useRef<Set<number>>(new Set());
 	const [posKeepMode, setPosKeepModeRaw] = useState(PosKeepMode.Approximate);
@@ -3501,8 +3594,8 @@ function App(props) {
 	const [pacemakerCount, setPacemakerCount] = useState(1);
 	const [selectedPacemakerIndices, setSelectedPacemakerIndices] = useState([]); // Array of selected pacemaker indices (0, 1, 2), empty means none selected
 	const [isPacemakerDropdownOpen, setIsPacemakerDropdownOpen] = useState(false);
-	const [globalCompareDistance, setGlobalCompareDistance] = useState<DistanceType>(DistanceType.Mile);
-	const [globalCompareTerrain, setGlobalCompareTerrain] = useState<Surface>(Surface.Turf);
+	const [globalCompareDistance, setGlobalCompareDistance] = useState<DistanceType>(() => preferenceOr(savedPreferences, 'globalCompareDistance', DistanceType.Mile));
+	const [globalCompareTerrain, setGlobalCompareTerrain] = useState<Surface>(() => preferenceOr(savedPreferences, 'globalCompareTerrain', Surface.Turf));
 	const globalSpecificSkillIds = useMemo(() => {
 		return Array.from(globalSkillChartSelectedSkills.values()).sort((a, b) => {
 			const indexA = baseSkillsToTest.indexOf(a);
@@ -3530,23 +3623,26 @@ function App(props) {
 		setChartSkillIconFilters({ ...chartSkillIconFilterDefault });
 		setChartSkillRarityFilters({ ...chartSkillRarityFilterDefault });
 	}
-	const [maxCareerRating, setMaxCareerRating] = useState(14500);
+	const [maxCareerRating, setMaxCareerRating] = useState(() => preferenceOr(savedPreferences, 'maxCareerRating', 14500));
 	const [optimizerResult, setOptimizerResult] = useState<any>(null);
 	const [optimizerProgress, setOptimizerProgress] = useState<any>(null);
 	const [optimizerIterations, setOptimizerIterations] = useState<any[]>([]);
-	const [optimizerMaxIterations, setOptimizerMaxIterations] = useState(100);
-const [optimizerEvaluationMethod, setOptimizerEvaluationMethod] = useState<'mean' | 'median' | 'aggregate'>('median');
-	const [optimizerMinStat, setOptimizerMinStat] = useState(400);
-	const [optimizerMaxStatPreset, setOptimizerMaxStatPreset] = useState<OptimizerMaxStatPreset>('concert');
-	const [optimizerMaxStats, setOptimizerMaxStats] = useState<OptimizerMaxStats>({...OPTIMIZER_MAX_STAT_PRESETS.concert});
+	const [optimizerMaxIterations, setOptimizerMaxIterations] = useState(() => preferenceOr(savedPreferences, 'optimizerMaxIterations', 100));
+const [optimizerEvaluationMethod, setOptimizerEvaluationMethod] = useState<'mean' | 'median' | 'aggregate'>(() => preferenceOr(savedPreferences, 'optimizerEvaluationMethod', 'median'));
+	const [optimizerMinStat, setOptimizerMinStat] = useState(() => preferenceOr(savedPreferences, 'optimizerMinStat', 400));
+	const [optimizerMaxStatPreset, setOptimizerMaxStatPreset] = useState<OptimizerMaxStatPreset>(() => {
+		const preset = preferenceOr<string>(savedPreferences, 'optimizerMaxStatPreset', 'concert');
+		return preset in OPTIMIZER_MAX_STAT_PRESETS ? preset as OptimizerMaxStatPreset : 'concert';
+	});
+	const [optimizerMaxStats, setOptimizerMaxStats] = useState<OptimizerMaxStats>(() => preferenceOr(savedPreferences, 'optimizerMaxStats', {...OPTIMIZER_MAX_STAT_PRESETS.concert}));
 	const [optimizerChartData, setOptimizerChartData] = useState<any>(null);
 	const [optimizerRunData, setOptimizerRunData] = useState<any>(null);
 	const [optimizerDisplaying, setOptimizerDisplaying] = useState<'minrun' | 'maxrun' | 'meanrun' | 'medianrun'>('medianrun');
-const [optimizerInitCount, setOptimizerInitCount] = useState(100);
-const [optimizerUseReferenceInit, setOptimizerUseReferenceInit] = useState(false);
-	const [optimizerInitSamples, setOptimizerInitSamples] = useState(10);
-	const [optimizerIterSamples, setOptimizerIterSamples] = useState(20);
-	const [optimizerFinalRunSamples, setOptimizerFinalRunSamples] = useState(500);
+const [optimizerInitCount, setOptimizerInitCount] = useState(() => preferenceOr(savedPreferences, 'optimizerInitCount', 100));
+const [optimizerUseReferenceInit, setOptimizerUseReferenceInit] = useState(() => preferenceOr(savedPreferences, 'optimizerUseReferenceInit', false));
+	const [optimizerInitSamples, setOptimizerInitSamples] = useState(() => preferenceOr(savedPreferences, 'optimizerInitSamples', 10));
+	const [optimizerIterSamples, setOptimizerIterSamples] = useState(() => preferenceOr(savedPreferences, 'optimizerIterSamples', 20));
+	const [optimizerFinalRunSamples, setOptimizerFinalRunSamples] = useState(() => preferenceOr(savedPreferences, 'optimizerFinalRunSamples', 500));
 	const [optimizerPhase, setOptimizerPhase] = useState<'init' | 'iter' | 'final' | null>(null);
 	const [optimizerInitProgress, setOptimizerInitProgress] = useState<{completed: number; total: number} | null>(null);
 	const [optimizerFinalProgress, setOptimizerFinalProgress] = useState<{completed: number; total: number} | null>(null);
@@ -3693,6 +3789,10 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 	const [lastRunChartUma, setLastRunChartUma] = useState(uma1);
 
 	const [settingsOpen, setSettingsOpen] = useState(false);
+	const modeRef = useRef(mode);
+	modeRef.current = mode;
+	const currentRouteUrlRef = useRef('');
+	currentRouteUrlRef.current = settingsOpen ? routeUrl(SETTINGS_ROUTE_PATH) : modeRouteUrl(mode);
 
 	const [loadingAdditionalSamples, setLoadingAdditionalSamples] = useState<Set<string>>(new Set());
 	const [additionalSamplesRunCount, setAdditionalSamplesRunCount] = useState<Map<string, number>>(new Map());
@@ -3821,8 +3921,14 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 						}
 						
 						chartWorkersProgressRef.current.set(workerIndex, {round, completed, totalSkills});
-						// Trigger re-render by setting a dummy progress (we'll display per-worker progress from the ref)
-						setSimulationProgress({round: 0, total: 0});
+						// Trigger re-render by setting a dummy progress (we'll display per-worker progress from the ref).
+						// Workers report after every skill; coalesce so re-renders can't queue up faster than the main thread draws them.
+						if (chartProgressRenderTimerRef.current == null) {
+							chartProgressRenderTimerRef.current = window.setTimeout(() => {
+								chartProgressRenderTimerRef.current = null;
+								setSimulationProgress({round: 0, total: 0});
+							}, CHART_PROGRESS_RENDER_INTERVAL_MS);
+						}
 					}
 					break;
 				case 'chart-skill-start':
@@ -3859,6 +3965,10 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 					chartWorkersCompletedSetRef.current.add(workerIndex);
 					chartWorkersCompletedRef.current += 1;
 					if (chartWorkersCompletedRef.current >= chartWorkerCountRef.current) {
+						if (chartProgressRenderTimerRef.current != null) {
+							clearTimeout(chartProgressRenderTimerRef.current);
+							chartProgressRenderTimerRef.current = null;
+						}
 						setIsSimulationRunning(false);
 						setSimulationProgress(null);
 						chartWorkersCompletedRef.current = 0;
@@ -3962,102 +4072,144 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 		});
 	}, [workerVersion]);
 
-	function loadState() {
-		if (window.location.hash) {
-			deserialize(window.location.hash.slice(1)).then(o => {
-				setCourseId(o.courseId);
-				setSamples(o.nsamples);
-				setSeed(o.seed);
-				setPosKeepModeRaw(o.posKeepMode);
-				setRaceDef(o.racedef);
-				setUma1(o.uma1);
-				setUma2(o.uma2);
-				setPacer(o.pacer);
-				setPacemakerCount(o.pacemakerCount);
-				setSelectedPacemakerIndices(o.selectedPacemakers ? 
-					o.selectedPacemakers.map((selected, index) => selected ? index : -1).filter(index => index !== -1) : 
-					[]);
-				
-				if (o.showVirtualPacemakerOnGraph !== undefined && o.showVirtualPacemakerOnGraph !== showVirtualPacemakerOnGraph) {
-					toggleShowVirtualPacemakerOnGraph(null);
-				}
+	function applyLoadedSettings(o) {
+		setCourseId(o.courseId);
+		setSamples(o.nsamples);
+		setSeed(o.seed);
+		setPosKeepModeRaw(o.posKeepMode);
+		setRaceDef(o.racedef);
+		setUma1(o.uma1);
+		setUma2(o.uma2);
+		setPacer(o.pacer);
+		setPacemakerCount(o.pacemakerCount);
+		setSelectedPacemakerIndices(o.selectedPacemakers ? 
+			o.selectedPacemakers.map((selected, index) => selected ? index : -1).filter(index => index !== -1) : 
+			[]);
+		
+		if (o.showVirtualPacemakerOnGraph !== undefined && o.showVirtualPacemakerOnGraph !== showVirtualPacemakerOnGraph) {
+			toggleShowVirtualPacemakerOnGraph(null);
+		}
 
-				if (o.showLanes !== undefined && o.showLanes !== showLanes) {
-					toggleShowLanes(null);
-				}
+		if (o.showLanes !== undefined && o.showLanes !== showLanes) {
+			toggleShowLanes(null);
+		}
 
-				if (o.witVarianceSettings) {
-					const settings = o.witVarianceSettings;
-					if (settings.syncRng !== undefined && settings.syncRng !== syncRng) toggleSyncRng(null);
-					if (settings.skillWisdomCheck !== undefined && settings.skillWisdomCheck !== skillWisdomCheck) toggleSkillWisdomCheck(null);
-					if (settings.rushedKakari !== undefined && settings.rushedKakari !== rushedKakari) toggleRushedKakari(null);
-				}
-				
-				if (o.competeFight !== undefined) {
-					setCompeteFight(o.competeFight);
-				}
-				if (o.leadCompetition !== undefined) {
-					setLeadCompetition(o.leadCompetition);
-				}
-				if (o.duelingRates) {
-					setDuelingRates(o.duelingRates);
-				}
-				if (o.forceIdenticalMood !== undefined) {
-					setForceIdenticalMood(!!o.forceIdenticalMood);
-				}
-			});
-		} else {
-			loadFromLocalStorage().then(o => {
-				if (o) {
-					setCourseId(o.courseId);
-					setSamples(o.nsamples);
-					setSeed(o.seed);
-					setPosKeepModeRaw(o.posKeepMode);
-					setRaceDef(o.racedef);
-					setUma1(o.uma1);
-					setUma2(o.uma2);
-					setPacer(o.pacer);
-					setPacemakerCount(o.pacemakerCount);
-					setSelectedPacemakerIndices(o.selectedPacemakers ? 
-						o.selectedPacemakers.map((selected, index) => selected ? index : -1).filter(index => index !== -1) : 
-						[]);
-					
-					if (o.showVirtualPacemakerOnGraph !== undefined && o.showVirtualPacemakerOnGraph !== showVirtualPacemakerOnGraph) {
-						toggleShowVirtualPacemakerOnGraph(null);
-					}
-
-					if (o.showLanes !== undefined && o.showLanes !== showLanes) {
-						toggleShowLanes(null);
-					}
-
-					if (o.witVarianceSettings) {
-						const settings = o.witVarianceSettings;
-						if (settings.syncRng !== undefined && settings.syncRng !== syncRng) toggleSyncRng(null);
-						if (settings.skillWisdomCheck !== undefined && settings.skillWisdomCheck !== skillWisdomCheck) toggleSkillWisdomCheck(null);
-						if (settings.rushedKakari !== undefined && settings.rushedKakari !== rushedKakari) toggleRushedKakari(null);
-					}
-					
-					if (o.competeFight !== undefined) {
-						setCompeteFight(o.competeFight);
-					}
-					if (o.leadCompetition !== undefined) {
-						setLeadCompetition(o.leadCompetition);
-					}
-					if (o.duelingRates) {
-						setDuelingRates(o.duelingRates);
-					}
-					if (o.forceIdenticalMood !== undefined) {
-						setForceIdenticalMood(!!o.forceIdenticalMood);
-					}
-				}
-			});
+		if (o.witVarianceSettings) {
+			const settings = o.witVarianceSettings;
+			if (settings.syncRng !== undefined && settings.syncRng !== syncRng) toggleSyncRng(null);
+			if (settings.skillWisdomCheck !== undefined && settings.skillWisdomCheck !== skillWisdomCheck) toggleSkillWisdomCheck(null);
+			if (settings.rushedKakari !== undefined && settings.rushedKakari !== rushedKakari) toggleRushedKakari(null);
+		}
+		
+		if (o.competeFight !== undefined) {
+			setCompeteFight(o.competeFight);
+		}
+		if (o.leadCompetition !== undefined) {
+			setLeadCompetition(o.leadCompetition);
+		}
+		if (o.duelingRates) {
+			setDuelingRates(o.duelingRates);
+		}
+		if (o.forceIdenticalMood !== undefined) {
+			setForceIdenticalMood(!!o.forceIdenticalMood);
 		}
 	}
 
+	function loadLegacyStateHash(hash: string) {
+		deserialize(hash).then(applyLoadedSettings, error => console.warn('Failed to load settings from link:', error));
+	}
+
+	function applyRoute(route: AppRoute) {
+		setSettingsOpen(route.settings);
+		if (route.settings) return;
+		if (route.mode != modeRef.current) {
+			modeRef.current = route.mode;
+			updateUiState(MODE_ROUTES.find(r => r.mode == route.mode)!.msg);
+		}
+		try {
+			localStorage.setItem(LAST_MODE_ROUTE_STORAGE_KEY, MODE_ROUTES.find(r => r.mode == route.mode)!.path);
+		} catch (_) {}
+	}
+
+	function onRouteLinkClick(e: MouseEvent, url: string) {
+		if (!isPlainLeftClick(e)) return;
+		e.preventDefault();
+		if (url != window.location.pathname) {
+			window.history.pushState(null, '', url);
+		}
+		applyRoute(parseRouteUrl(url)!);
+	}
+
 	useEffect(function () {
-		loadState();
-		window.addEventListener('hashchange', loadState);
+		const initialRoute = parseRouteUrl(window.location.pathname);
+		// Old share links put the serialized settings directly in the hash.
+		const legacyStateHash = window.location.hash.slice(1);
+		if (legacyStateHash) {
+			loadLegacyStateHash(legacyStateHash);
+		} else {
+			loadFromLocalStorage().then(o => o && applyLoadedSettings(o));
+		}
+		const url = initialRoute == null
+			? loadLastModeRouteUrl()
+			: initialRoute.settings ? routeUrl(SETTINGS_ROUTE_PATH) : modeRouteUrl(initialRoute.mode);
+		if (url != window.location.pathname || legacyStateHash) {
+			window.history.replaceState(null, '', url);
+		}
+		applyRoute(parseRouteUrl(url)!);
+
+		function onPopState() {
+			const route = parseRouteUrl(window.location.pathname);
+			if (route) {
+				applyRoute(route);
+			}
+		}
+		function onHashChange() {
+			if (window.location.hash.length > 1) {
+				loadLegacyStateHash(window.location.hash.slice(1));
+			}
+			window.history.replaceState(null, '', currentRouteUrlRef.current);
+		}
+		window.addEventListener('popstate', onPopState);
+		window.addEventListener('hashchange', onHashChange);
+		return () => {
+			window.removeEventListener('popstate', onPopState);
+			window.removeEventListener('hashchange', onHashChange);
+		};
 	}, []);
+
+	useEffect(() => {
+		const label = settingsOpen ? 'Settings' : MODE_ROUTES.find(r => r.mode == mode)!.label;
+		document.title = `${label} | ${BASE_DOCUMENT_TITLE}`;
+	}, [mode, settingsOpen]);
+
+	useEffect(() => {
+		savePreferences({
+			workerCount,
+			chartRun1Samples,
+			chartRun2Samples,
+			chartRun3Samples,
+			globalChartRun1SamplesPerLength,
+			globalChartRun2Samples,
+			globalChartRun3Samples,
+			globalCompareDistance,
+			globalCompareTerrain,
+			globalSkillChartSimulateAll,
+			globalSkillChartSelectedSkills: Array.from(globalSkillChartSelectedSkills.values()),
+			chartSkillIconFilters,
+			chartSkillRarityFilters,
+			maxCareerRating,
+			optimizerMaxIterations,
+			optimizerEvaluationMethod,
+			optimizerMinStat,
+			optimizerMaxStatPreset,
+			optimizerMaxStats,
+			optimizerInitCount,
+			optimizerUseReferenceInit,
+			optimizerInitSamples,
+			optimizerIterSamples,
+			optimizerFinalRunSamples
+		});
+	}, [workerCount, chartRun1Samples, chartRun2Samples, chartRun3Samples, globalChartRun1SamplesPerLength, globalChartRun2Samples, globalChartRun3Samples, globalCompareDistance, globalCompareTerrain, globalSkillChartSimulateAll, globalSkillChartSelectedSkills, chartSkillIconFilters, chartSkillRarityFilters, maxCareerRating, optimizerMaxIterations, optimizerEvaluationMethod, optimizerMinStat, optimizerMaxStatPreset, optimizerMaxStats, optimizerInitCount, optimizerUseReferenceInit, optimizerInitSamples, optimizerIterSamples, optimizerFinalRunSamples]);
 
 	// Auto-save settings whenever they change
 	useEffect(() => {
@@ -4230,13 +4382,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 		
 		const filler = new Map();
 		skills.forEach(id => filler.set(id, getNullRow(id)));
-		const skillsPerWorker = Math.floor(skills.length / workerCount);
-		const skillChunks: string[][] = [];
-		for (let i = 0; i < workerCount; i++) {
-			const start = i * skillsPerWorker;
-			const end = i === workerCount - 1 ? skills.length : (i + 1) * skillsPerWorker;
-			skillChunks.push(skills.slice(start, end));
-		}
+		const skillChunks = splitSkillsAcrossWorkers(skills, workerCount);
 
 		updateGlobalTableData('reset');
 		updateGlobalTableData(filler);
@@ -4328,7 +4474,10 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 		setOptimizerRunData(null);
 		setOptimizerDisplaying('medianrun');
 		setOptimizerPhase('init');
-		setOptimizerInitProgress({completed: 0, total: optimizerInitCount});
+		setOptimizerInitProgress({
+			completed: 0,
+			total: Math.max(1, optimizerInitCount) * Math.max(1, optimizerInitSamples)
+		});
 		setOptimizerFinalProgress(null);
 		setOptimizerFinalCumulative(null);
 		activeWorkersRef.current.clear();
@@ -4443,14 +4592,7 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 		const filler = new Map();
 		skills.forEach(id => filler.set(id, getNullRow(id)));
 		
-		// Split skills among workers
-		const skillsPerWorker = Math.floor(skills.length / workerCount);
-		const skillChunks: string[][] = [];
-		for (let i = 0; i < workerCount; i++) {
-			const start = i * skillsPerWorker;
-			const end = i === workerCount - 1 ? skills.length : (i + 1) * skillsPerWorker;
-			skillChunks.push(skills.slice(start, end));
-		}
+		const skillChunks = splitSkillsAcrossWorkers(skills, workerCount);
 		
 		if (currentChartMode === Mode.UniquesChart) {
 			updateUniquesTableData('reset');
@@ -4498,6 +4640,12 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 			: mode == Mode.UniquesChart
 				? uniquesTableData
 				: skillTableData;
+	const activeTableRows = useMemo(() => Array.from(activeTableData.values()), [activeTableData]);
+	const showOwnedChartSkills = mode == Mode.Chart || mode == Mode.GlobalSkillChart;
+	const chartOwnedSkills = useMemo(
+		() => showOwnedChartSkills ? new Set(Array.from(uma1.skills.values())) : new Set(),
+		[showOwnedChartSkills, uma1.skills]
+	);
 	const [selectedSkillId, setSelectedSkillId] = useState('');
 	const [selectedUniquesSkillId, setSelectedUniquesSkillId] = useState('');
 	const [selectedGlobalSkillId, setSelectedGlobalSkillId] = useState('');
@@ -5234,11 +5382,9 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 							) : (
 								<>
 									<BasinnChart 
-										data={Array.from(activeTableData.values())} 
+										data={activeTableRows}
 										dirty={dirty}
-										ownedSkills={mode == Mode.Chart || mode == Mode.GlobalSkillChart
-											? new Set(Array.from(uma1.skills.values()))
-											: new Set()}
+										ownedSkills={chartOwnedSkills}
 										selectedSkillId={activeSelectedSkillId || ''}
 										onSelectionChange={basinnChartSelection}
 										onRunTypeChange={setChartData}
@@ -5335,19 +5481,20 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 					<div id="appBrand">
 						<img id="appIcon" src={appIconUrl()} alt="" />
 						<span id="appTitle">Umalator</span>
-						{CC_GLOBAL && <span id="appBadge">Global v2.0.0</span>}
+						{CC_GLOBAL && <span id="appBadge">Global v2.1.0</span>}
 					</div>
 					<nav id="modeNav" aria-label="Simulator mode">
-						<button type="button" class={`modePill ${!settingsOpen && mode == Mode.Compare ? 'active' : ''}`} onClick={() => { setSettingsOpen(false); updateUiState(UiStateMsg.SetModeCompare); }}>Race Compare</button>
-						<button type="button" class={`modePill ${!settingsOpen && mode == Mode.GlobalCompare ? 'active' : ''}`} onClick={() => { setSettingsOpen(false); updateUiState(UiStateMsg.SetModeGlobalCompare); }}>Global Compare</button>
-						<button type="button" class={`modePill ${!settingsOpen && mode == Mode.Chart ? 'active' : ''}`} onClick={() => { setSettingsOpen(false); updateUiState(UiStateMsg.SetModeChart); }}>Skill Chart</button>
-						<button type="button" class={`modePill ${!settingsOpen && mode == Mode.GlobalSkillChart ? 'active' : ''}`} onClick={() => { setSettingsOpen(false); updateUiState(UiStateMsg.SetModeGlobalSkillChart); }}>Global Skill Chart</button>
-						<button type="button" class={`modePill ${!settingsOpen && mode == Mode.UniquesChart ? 'active' : ''}`} onClick={() => { setSettingsOpen(false); updateUiState(UiStateMsg.SetModeUniquesChart); }}>Uma Chart</button>
-						<button type="button" class={`modePill ${!settingsOpen && mode == Mode.RaceOptimizer ? 'active' : ''}`} onClick={() => { setSettingsOpen(false); updateUiState(UiStateMsg.SetModeRaceOptimizer); }}>Race Optimizer</button>
-						<button type="button" class={`modePill ${settingsOpen ? 'active' : ''}`} onClick={() => setSettingsOpen(true)}>
+						{MODE_ROUTES.map(route => {
+							const active = !settingsOpen && mode == route.mode;
+							const url = routeUrl(route.path);
+							return (
+								<a key={route.path} href={url} onClick={e => onRouteLinkClick(e, url)} class={`modePill ${active ? 'active' : ''}`} aria-current={active ? 'page' : undefined}>{route.label}</a>
+							);
+						})}
+						<a href={routeUrl(SETTINGS_ROUTE_PATH)} onClick={e => onRouteLinkClick(e, routeUrl(SETTINGS_ROUTE_PATH))} class={`modePill ${settingsOpen ? 'active' : ''}`} aria-current={settingsOpen ? 'page' : undefined}>
 							<Settings size={14} aria-hidden="true" />
 							Settings
-						</button>
+						</a>
 					</nav>
 				</header>
 				{settingsOpen ? (
@@ -5883,19 +6030,21 @@ const [optimizerFinalCumulative, setOptimizerFinalCumulative] = useState<{diffs:
 									<div id="compareProgressBar">
 										<div
 											id="compareProgressBarFill"
-											style={
-												optimizerPhase === 'init' && optimizerInitProgress
-													? `width: ${(optimizerInitProgress.completed / optimizerInitProgress.total) * 100}%`
-													: optimizerPhase === 'final' && optimizerFinalProgress
-													? `width: ${(optimizerFinalProgress.completed / optimizerFinalProgress.total) * 100}%`
-													: optimizerProgress
-													? `width: ${(optimizerProgress.iteration / optimizerMaxIterations) * 100}%`
-													: 'width: 0%'
-											}
+											style={{
+												width: `${Math.max(0, Math.min(100,
+													optimizerPhase === 'init' && optimizerInitProgress && optimizerInitProgress.total > 0
+														? (optimizerInitProgress.completed / optimizerInitProgress.total) * 100
+														: optimizerPhase === 'final' && optimizerFinalProgress && optimizerFinalProgress.total > 0
+														? (optimizerFinalProgress.completed / optimizerFinalProgress.total) * 100
+														: optimizerProgress
+														? (optimizerProgress.iteration / optimizerMaxIterations) * 100
+														: 0
+												))}%`
+											}}
 										></div>
 										<span id="compareProgressText" style="white-space: nowrap;">
-											{optimizerPhase === 'init' && optimizerInitProgress
-												? `Initializing ${optimizerInitProgress.completed} / ${optimizerInitProgress.total}`
+											{optimizerPhase === 'init' && optimizerInitProgress && optimizerInitProgress.total > 0
+												? `Initializing ${Math.round((optimizerInitProgress.completed / optimizerInitProgress.total) * 100)}% (${optimizerInitProgress.completed} / ${optimizerInitProgress.total})`
 												: optimizerPhase === 'final' && optimizerFinalProgress
 												? `Running Final Samples ${optimizerFinalProgress.completed} / ${optimizerFinalProgress.total}`
 												: optimizerProgress

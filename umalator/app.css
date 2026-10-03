@@ -106,7 +106,9 @@ body {
 	font-size: 0.88em;
 	font-weight: 650;
 	gap: 6px;
+	line-height: normal;
 	padding: 7px 15px;
+	text-decoration: none;
 	transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -3839,6 +3841,7 @@ html[data-ui-main="tiny"] .raceContextTerrainSlot {
 	flex-direction: column;
 	gap: 4px;
 	justify-content: center;
+	margin-left: -16px;
 	position: relative;
 	white-space: nowrap;
 }
@@ -3848,12 +3851,12 @@ html[data-ui-main="tiny"] .raceContextTerrainSlot {
 	font-size: 0.64rem;
 	font-weight: 700;
 	letter-spacing: 0.07em;
-	left: 53px;
+	left: 61px;
 	line-height: 1;
 	position: absolute;
 	text-transform: uppercase;
 	top: 50%;
-	transform: translateY(calc(-50% - 1.05rem));
+	transform: translateY(calc(-50% - 1.28rem));
 }
 
 .optimizerCareerRatingValue {
@@ -3865,11 +3868,11 @@ html[data-ui-main="tiny"] .raceContextTerrainSlot {
 
 .optimizerCareerRatingBadge {
 	background-repeat: no-repeat;
-	background-size: 264px 264px;
+	background-size: 312px 312px;
 	display: block;
-	flex: 0 0 44px;
-	height: 44px;
-	width: 44px;
+	flex: 0 0 52px;
+	height: 52px;
+	width: 52px;
 }
 
 .optimizerCareerRating strong {
@@ -4662,6 +4665,14 @@ html[data-ui-main="tiny"] .optimizerEmptySteps {
 
 #chartProgressBarsContainer #compareProgressText {
 	font-size: 0.68em;
+}
+
+/* Global Skill Chart shares the run pane with the distance/terrain filters, so
+   a single column of worker bars runs past the pane's fixed height. */
+#runPane:has(> .runPaneFilters) #chartProgressBarsContainer {
+	display: grid;
+	gap: 3px 6px;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 /* ---------- Basinn chart popover ---------- */

@@ -283,7 +283,17 @@ export async function runOptimization(
 		bestInitialRunData = evalResult.runData;
 		onInitProgress?.(1, 1);
 	} else {
-		const initialCandidates: OptimizerStats[] = [];
+		// Progress is tracked in sample-units across all init slots so the bar
+		// matches the displayed completed/total even when some generations fail
+		// or a single candidate evaluation takes a long time.
+		const initSampleTotal = Math.max(1, initSamples);
+		const initWorkTotal = initCandidates * initSampleTotal;
+		const initOptions = {
+			...options,
+			// Keep the bar moving during each candidate's sample batch.
+			progressEveryNSamples: Math.max(1, Math.min(10, Math.floor(initSampleTotal / 5) || 1))
+		};
+		onInitProgress?.(0, initWorkTotal);
 		for (let i = 0; i < initCandidates; i++) {
 			const stats = generateRandomStats(
 				skillScore,
@@ -294,17 +304,27 @@ export async function runOptimization(
 				maxStat,
 				random
 			);
-			if (stats) {
-				initialCandidates.push(stats);
+			const slotBase = i * initSampleTotal;
+			if (!stats) {
+				// Still advance progress for this slot so the bar reaches 100%.
+				onInitProgress?.(slotBase + initSampleTotal, initWorkTotal);
+				continue;
 			}
-		}
-		
-		// Evaluate initial candidates
-		let initCompleted = 0;
-		for (const stats of initialCandidates) {
-			const evalResult = evaluateStats(stats, course, racedef, uma, referenceUma, options, initSamples, evaluationMethod);
-			initCompleted += 1;
-			onInitProgress?.(initCompleted, initCandidates);
+			const evalResult = evaluateStats(
+				stats,
+				course,
+				racedef,
+				uma,
+				referenceUma,
+				initOptions,
+				initSampleTotal,
+				evaluationMethod,
+				(sampleCompleted, sampleTotal) => {
+					const clamped = Math.min(sampleTotal, Math.max(0, sampleCompleted));
+					onInitProgress?.(slotBase + clamped, initWorkTotal);
+				}
+			);
+			onInitProgress?.(slotBase + initSampleTotal, initWorkTotal);
 			if (evalResult.value < bestInitialValue) {
 				bestInitialValue = evalResult.value;
 				bestInitial = stats;
